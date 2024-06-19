@@ -1,0 +1,1 @@
+searchState.loadedDescShard("bmw_derive", 0, "The BMW Derive crate\nThis is a proc macro for implementing the …")
