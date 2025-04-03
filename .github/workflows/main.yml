@@ -1,0 +1,59 @@
+name: CI Pipeline
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+  pull_request:
+    branches:
+      - '*'
+  schedule:
+    - cron: "15 7 * * *" # Nightly build at 7:15 AM (UDT)
+  workflow_dispatch:  # This enables manual triggering
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        platform: [macos]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Check macos version
+        run: |
+          sw_vers
+      - name: macos update nightly
+        run: |
+          rustup update
+          brew install autoconf automake libtool gmp
+          sudo mkdir -p /usr/local/lib
+          # sudo cp `brew --prefix gmp`/lib/libgmp.a /usr/local/lib
+      - name: macos build (rustc)
+        run: |
+          ./build.sh
+      - name: macos build (mrustc)
+        run: |
+          export CXX=/opt/homebrew/bin/g++-13
+          export CC=/opt/homebrew/bin/gcc-13
+          wget https://github.com/cgilliard/famc/releases/download/0.1.0/macos_output.tar.gz
+          gzip -dc macos_output.tar.gz | tar xvf -
+          ./build.sh clean
+          # ./build.sh mrustc
+      - name: macos tests
+        run: |
+          echo "tests"
+      - name: macos bootstrap (mrustc)
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            git clone https://github.com/cgilliard/famc famc_build
+            cd famc_build
+            export CXX=/opt/homebrew/bin/g++-13
+            export CC=/opt/homebrew/bin/gcc-13
+            ./build.sh
+            cd ..
+            ./build.sh clean
+            # ./build.sh mrustc
+          fi
