@@ -2,6 +2,7 @@
 
 export CC="${CC:-clang}"
 export OUTPUT="${OUTPUT:-../mrustc/output}"
+export MRUSTC="${MRUSTC:-mrustc}"
 
 CCFLAGS=-O3
 
@@ -23,7 +24,7 @@ elif [ "mrustc" = "$1" ]; then
                 fi
         done
         cd ..
-	mrustc -O --crate-type=lib \
+	${MRUSTC} -O --crate-type=lib \
 		rust/mod.rs -L${OUTPUT} \
 		--cfg mrustc \
 		-o .obj/rust \

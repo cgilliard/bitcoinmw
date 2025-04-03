@@ -25,15 +25,16 @@ jobs:
       - name: Check macos version
         run: |
           sw_vers
-      - name: macos update nightly
+      - name: macos install dependencies
         run: |
           rustup update
           brew install autoconf automake libtool gmp
-          sudo mkdir -p /usr/local/lib
+          # sudo mkdir -p /usr/local/lib
           # sudo cp `brew --prefix gmp`/lib/libgmp.a /usr/local/lib
       - name: macos build (rustc)
         run: |
           ./build.sh
+          ./bin/bmw | exit 1;
       - name: macos build (mrustc)
         run: |
           export CXX=/opt/homebrew/bin/g++-13
@@ -41,7 +42,8 @@ jobs:
           wget https://github.com/cgilliard/famc/releases/download/0.1.0/macos_output.tar.gz
           gzip -dc macos_output.tar.gz | tar xvf -
           ./build.sh clean
-          # ./build.sh mrustc
+          export MRUSTC=./famc/bin/mrustc
+          ./build.sh mrustc
       - name: macos tests
         run: |
           echo "tests"
