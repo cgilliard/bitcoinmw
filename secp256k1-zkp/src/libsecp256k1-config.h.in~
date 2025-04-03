@@ -65,9 +65,6 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
-/* Define this symbol if libcrypto is installed */
-#undef HAVE_LIBCRYPTO
-
 /* Define this symbol if libgmp is installed */
 #undef HAVE_LIBGMP
 
