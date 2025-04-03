@@ -22,5 +22,11 @@ else
                 fi
         done
 	cd ..
+	rustc -C panic=abort \
+		-C opt-level=3 \
+		--emit=obj \
+		--crate-type=lib \
+		-o .obj/rust.o \
+		rust/mod.rs || exit 1;
 	${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj -lsecp256k1 || exit 1;
 fi
