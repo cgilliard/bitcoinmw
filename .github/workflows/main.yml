@@ -34,7 +34,7 @@ jobs:
       - name: macos build (rustc)
         run: |
           ./build.sh
-          ./bin/bmw | exit 1;
+          ./bin/bmw || exit 1;
       - name: macos build (mrustc)
         run: |
           export CXX=/opt/homebrew/bin/g++-13
@@ -43,7 +43,9 @@ jobs:
           gzip -dc macos_output.tar.gz | tar xvf -
           ./build.sh clean
           export MRUSTC=./famc/bin/mrustc
+          export OUTPUT=./famc/output
           ./build.sh mrustc
+          ./bin/bmw || exit 1;
       - name: macos tests
         run: |
           echo "tests"
@@ -57,5 +59,7 @@ jobs:
             ./build.sh
             cd ..
             ./build.sh clean
-            # ./build.sh mrustc
+            export MRUSTC=./famc_build/bin/mrustc
+            export OUTPUT=./famc_build/output
+            ./build.sh mrustc
           fi
