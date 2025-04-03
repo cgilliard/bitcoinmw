@@ -24,8 +24,9 @@ jobs:
 
       - name: Check linux version
         run: uname -a
-      - name: linux update nightly
-        run: rustup update
+      - name: linux install dependencies
+        run: |
+          rustup update
       - name: linux build (rustc)
         run: |
           ./build.sh
