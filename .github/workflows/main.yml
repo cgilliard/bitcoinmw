@@ -35,6 +35,7 @@ jobs:
           wget https://github.com/cgilliard/famc/releases/download/0.1.0/linux_output.tar.gz
           gzip -dc linux_output.tar.gz | tar xvf -
           ./build.sh clean
+          export CC=gcc
           export MRUSTC=./famc/bin/mrustc
           export OUTPUT=./famc/output
           ./build.sh mrustc
@@ -52,6 +53,7 @@ jobs:
             cd famc_build
             ./build.sh
             cd ..
+            export CC=gcc
             export MRUSTC=./famc_build/bin/mrustc
             export OUTPUT=./famc_build/output
             ./build.sh clean
