@@ -1,8 +1,9 @@
 #!/bin/sh
 
-export CC=clang
-export CCFLAGS=-O3
+export CC="${CC:-clang}"
+export OUTPUT="${OUTPUT:-../mrustc/output}"
 
+CCFLAGS=-O3
 
 if [ "clean" = "$1" ]; then
 	echo "Cleaning"
@@ -10,8 +11,27 @@ if [ "clean" = "$1" ]; then
         make mostlyclean-compile
         cd ..
         rm -rf .obj/* libtest.a bin/* 
+elif [ "mrustc" = "$1" ]; then
+	echo "Building BitcoinMW with mrustc"
+        ./scripts/secp256k1zkp.sh || exit 1;
+        cd c
+        for file in *.c
+        do
+                if [ ! -e ../.obj/${file%.c}.o ] || [ ${file} -nt ../.obj/${file%.c}.o ]; then
+                        echo "${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file}";
+                        ${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file} || exit 1;
+                fi
+        done
+        cd ..
+	mrustc -O --crate-type=lib \
+		rust/mod.rs -L${OUTPUT} \
+		--cfg mrustc \
+		-o .obj/rust \
+		-C panic=abort \
+                        || exit 1;
+	${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj -lsecp256k1 || exit 1;
 else
-	echo "Building BitcoinMW"
+	echo "Building BitcoinMW with rustc"
 	./scripts/secp256k1zkp.sh || exit 1;
 	cd c
         for file in *.c
