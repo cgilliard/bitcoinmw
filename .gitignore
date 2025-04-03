@@ -9,6 +9,7 @@ secp256k1-zkp/bench_*
 secp256k1-zkp/src/bench_*
 secp256k1-zkp/src/.*
 **/*.o
+**/*.swp
 secp256k1-zkp/config.log
 secp256k1-zkp/build-aux
 secp256k1-zkp/tests
