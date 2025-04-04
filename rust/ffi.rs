@@ -8,6 +8,6 @@ extern "C" {
 mod test {
     #[test]
     fn test_ffi_basic() {
-        assert_eq!(1, 1);
+        assert_eq!(2, 1);
     }
 }
