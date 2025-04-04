@@ -151,6 +151,22 @@ extern "C" {
 		n_neg_commits: usize,
 	) -> i32;
 
+	// Tweak operations for scalar arithmetic
+	pub fn secp256k1_ec_privkey_tweak_add(
+		cx: *const Secp256k1Context,
+		seckey: *mut SecretKey,
+		tweak: *const SecretKey,
+	) -> i32;
+
+	// Pedersen blind sum for combining blinding factors
+	pub fn secp256k1_pedersen_blind_sum(
+		cx: *const Secp256k1Context,
+		blind_out: *mut SecretKey,
+		blinds: *const *const SecretKey,
+		nblinds: usize,
+		npositive: usize,
+	) -> i32;
+
 	// Range proof
 	pub fn secp256k1_bulletproof_generators_create(
 		ctx: *const Secp256k1Context,
@@ -493,6 +509,98 @@ mod test {
 			);
 
 			secp256k1_scratch_space_destroy(scratch);
+			secp256k1_context_destroy(ctx);
+			cpsrng_context_destroy(r);
+		}
+	}
+
+	#[test]
+	fn test_transaction() {
+		unsafe {
+			let ctx = secp256k1_context_create(SECP256K1_START_SIGN | SECP256K1_START_VERIFY);
+			let r = cpsrng_context_create();
+			let iv = [0u8; 16];
+			let key = [2u8; 32];
+			cpsrng_test_seed(r, iv.as_ptr(), key.as_ptr());
+
+			let mut blind1 = SecretKey([0u8; 32]);
+			let mut blind2 = SecretKey([0u8; 32]);
+			let mut blind3 = SecretKey([0u8; 32]);
+			let mut blind4 = SecretKey([0u8; 32]);
+			cpsrng_rand_bytes(r, blind1.0.as_mut_ptr(), 32);
+			cpsrng_rand_bytes(r, blind2.0.as_mut_ptr(), 32);
+			cpsrng_rand_bytes(r, blind3.0.as_mut_ptr(), 32);
+
+			// Compute blind4 = blind1 + blind2 - blind3 using tweak add and blind sum
+			let mut sum_in = SecretKey(blind1.0); // Copy blind1
+			assert_eq!(
+				secp256k1_ec_privkey_tweak_add(ctx, &mut sum_in, &blind2),
+				1,
+				"Tweak add failed for input blinds"
+			);
+			let blinds = [&sum_in as *const SecretKey, &blind3 as *const SecretKey];
+			assert_eq!(
+				secp256k1_pedersen_blind_sum(ctx, &mut blind4, blinds.as_ptr(), 2, 1), // 1 positive (sum_in), 1 negative (blind3)
+				1,
+				"Blind sum failed for output blind"
+			);
+
+			let mut input1 = Commitment([0u8; 64]);
+			let mut input2 = Commitment([0u8; 64]);
+			let mut output1 = Commitment([0u8; 64]);
+			let mut output2 = Commitment([0u8; 64]);
+			assert_eq!(
+				secp256k1_pedersen_commit(
+					ctx,
+					&mut input1 as *mut Commitment,
+					&blind1 as *const SecretKey,
+					1000,
+					&GENERATOR_H as *const PublicKey,
+					&GENERATOR_G as *const PublicKey
+				),
+				1
+			);
+			assert_eq!(
+				secp256k1_pedersen_commit(
+					ctx,
+					&mut input2 as *mut Commitment,
+					&blind2 as *const SecretKey,
+					3000,
+					&GENERATOR_H as *const PublicKey,
+					&GENERATOR_G as *const PublicKey
+				),
+				1
+			);
+			assert_eq!(
+				secp256k1_pedersen_commit(
+					ctx,
+					&mut output1 as *mut Commitment,
+					&blind3 as *const SecretKey,
+					2000,
+					&GENERATOR_H as *const PublicKey,
+					&GENERATOR_G as *const PublicKey
+				),
+				1
+			);
+			assert_eq!(
+				secp256k1_pedersen_commit(
+					ctx,
+					&mut output2 as *mut Commitment,
+					&blind4 as *const SecretKey,
+					2000,
+					&GENERATOR_H as *const PublicKey,
+					&GENERATOR_G as *const PublicKey
+				),
+				1
+			);
+
+			let positive = [&input1 as *const Commitment, &input2 as *const Commitment];
+			let negative = [&output1 as *const Commitment, &output2 as *const Commitment];
+			assert_eq!(
+				secp256k1_pedersen_verify_tally(ctx, positive.as_ptr(), 2, negative.as_ptr(), 2),
+				1
+			);
+
 			secp256k1_context_destroy(ctx);
 			cpsrng_context_destroy(r);
 		}
