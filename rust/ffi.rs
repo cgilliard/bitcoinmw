@@ -16,6 +16,10 @@ pub struct AggSigPartialSignature([u8; 32]); // Partial signature
 pub struct Signature([u8; 64]); // Final signature
 #[repr(C)]
 pub struct Commitment([u8; 64]);
+#[repr(C)]
+pub struct ScratchSpace(usize);
+#[repr(C)]
+pub struct BulletproofGenerators(usize);
 
 pub const GENERATOR_G: PublicKey = PublicKey([
 	0x79, 0xbe, 0x66, 0x7e, 0xf9, 0xdc, 0xbb, 0xac, 0x55, 0xa0, 0x62, 0x95, 0xce, 0x87, 0x0b, 0x07,
@@ -92,6 +96,15 @@ extern "C" {
 		n_pubkeys: usize,
 	) -> i32;
 
+	pub fn secp256k1_scratch_space_create(
+		ctx: *const Secp256k1Context,
+		max_size: usize,
+	) -> *mut ScratchSpace;
+	pub fn secp256k1_scratch_space_destroy(
+		ctx: *const Secp256k1Context,
+		scratch: *mut ScratchSpace,
+	);
+
 	// Pedersen commitments
 	pub fn secp256k1_pedersen_commit(
 		cx: *const Secp256k1Context,
@@ -119,6 +132,55 @@ extern "C" {
 		n_neg_commits: usize,
 	) -> i32;
 
+	// Range proof
+	pub fn secp256k1_bulletproof_generators_create(
+		ctx: *const Secp256k1Context,
+		blinding_gen: *const PublicKey,
+		n: usize,
+	) -> *mut BulletproofGenerators;
+	pub fn secp256k1_bulletproof_generators_destroy(
+		ctx: *const Secp256k1Context,
+		gens: *mut BulletproofGenerators,
+	);
+
+	pub fn secp256k1_bulletproof_rangeproof_prove(
+		ctx: *const Secp256k1Context,
+		scratch: *mut ScratchSpace,
+		gens: *const BulletproofGenerators,
+		proof: *mut u8,
+		plen: *mut usize,
+		tau_x: *mut [u8; 32],
+		t_one: *mut PublicKey,
+		t_two: *mut PublicKey,
+		value: *const u64,
+		min_value: *const u64,
+		blind: *const *const SecretKey,
+		commits: *const *const Commitment,
+		n_commits: usize,
+		value_gen: *const PublicKey,
+		nbits: usize,
+		nonce: *const [u8; 32],
+		private_nonce: *const [u8; 32],
+		extra_commit: *const u8,
+		extra_commit_len: usize,
+		message: *const [u8; 20],
+	) -> i32;
+
+	pub fn secp256k1_bulletproof_rangeproof_verify(
+		ctx: *const Secp256k1Context,
+		scratch: *mut ScratchSpace,
+		gens: *const BulletproofGenerators,
+		proof: *const u8,
+		plen: usize,
+		min_value: *const u64,
+		commit: *const Commitment,
+		n_commits: usize,
+		nbits: usize,
+		value_gen: *const PublicKey,
+		extra_commit: *const u8,
+		extra_commit_len: usize,
+	) -> i32;
+
 	// cpsrng
 	pub fn cpsrng_reseed();
 	pub fn cpsrng_context_create() -> *mut CsprngCtx;
@@ -132,6 +194,12 @@ extern "C" {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use core::panic;
+	use core::ptr;
+
+	pub const MAX_WIDTH: usize = 1 << 20; // 1,048,576
+	pub const SCRATCH_SPACE_SIZE: usize = 256 * MAX_WIDTH; // ~256 MB
+	pub const MAX_GENERATORS: usize = 256;
 
 	#[test]
 	fn test_rand() {
@@ -317,6 +385,99 @@ mod test {
 				1
 			);
 
+			secp256k1_context_destroy(ctx);
+			cpsrng_context_destroy(r);
+		}
+	}
+
+	#[test]
+	fn test_bulletproof() {
+		unsafe {
+			let ctx = secp256k1_context_create(SECP256K1_START_SIGN | SECP256K1_START_VERIFY);
+			assert!(!ctx.is_null(), "Context creation failed");
+
+			let r = cpsrng_context_create();
+			let iv = [0u8; 16];
+			let key = [2u8; 32];
+			cpsrng_test_seed(r, iv.as_ptr(), key.as_ptr());
+
+			// Create a commitment
+			let mut blind = SecretKey([0u8; 32]);
+			cpsrng_rand_bytes(r, blind.0.as_mut_ptr(), 32);
+			let value = 1000u64;
+			let mut commit = Commitment([0u8; 64]);
+			assert_eq!(
+				secp256k1_pedersen_commit(
+					ctx,
+					&mut commit as *mut Commitment,
+					&blind as *const SecretKey,
+					value,
+					&GENERATOR_H as *const PublicKey,
+					&GENERATOR_G as *const PublicKey
+				),
+				1
+			);
+
+			// Scratch space (256KB like Grin)
+			let scratch = secp256k1_scratch_space_create(ctx, SCRATCH_SPACE_SIZE);
+			assert!(!scratch.is_null(), "Scratch space creation failed");
+
+			// Generators (256 as per Grin’s typical usage)
+			let gens =
+				secp256k1_bulletproof_generators_create(ctx, &GENERATOR_G as *const PublicKey, 256);
+			assert!(!gens.is_null(), "Generators creation failed");
+
+			// Prove range
+			let mut proof = [0u8; 1024];
+			let mut proof_len = 1024usize;
+			let rewind_nonce = [3u8; 32];
+			let private_nonce = [4u8; 32];
+			let blinds = [&blind as *const SecretKey];
+			let result = secp256k1_bulletproof_rangeproof_prove(
+				ctx,
+				scratch,
+				gens,
+				proof.as_mut_ptr(),
+				&mut proof_len,
+				ptr::null_mut(), // tau_x
+				ptr::null_mut(), // t_one
+				ptr::null_mut(), // t_two
+				&value as *const u64,
+				ptr::null(), // min_value
+				blinds.as_ptr(),
+				ptr::null_mut(), // commits (null like Grin)
+				1,               // n_commits
+				&GENERATOR_H as *const PublicKey,
+				64, // nbits
+				&rewind_nonce,
+				&private_nonce,
+				ptr::null(), // extra_commit
+				0,           // extra_commit_len
+				ptr::null(), // message
+			);
+			assert_eq!(result, 1, "Bulletproof prove failed: {}", result);
+
+			// Verify range
+			assert_eq!(
+				secp256k1_bulletproof_rangeproof_verify(
+					ctx,
+					scratch,
+					gens,
+					proof.as_ptr(),
+					proof_len,
+					ptr::null(), // min_value
+					&commit as *const Commitment,
+					1,  // n_commits
+					64, // nbits
+					&GENERATOR_H as *const PublicKey,
+					ptr::null(), // extra_commit
+					0            // extra_commit_len
+				),
+				1
+			);
+
+			secp256k1_bulletproof_generators_destroy(ctx, gens);
+			//secp256k1_scratch_space_destroy(ctx, scratch);
 			secp256k1_context_destroy(ctx);
 			cpsrng_context_destroy(r);
 		}
