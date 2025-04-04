@@ -2,9 +2,10 @@
 
 [![CI Pipeline](https://github.com/cgilliard/fam/actions/workflows/main.yml/badge.svg)](https://github.com/cgilliard/bitcoinmw/actions/workflows/main.yml)
 [![Release Version](https://img.shields.io/github/v/release/cgilliard/bitcoinmw.svg?color=blue)](https://github.com/cgilliard/bitcoinmw/releases)
-[![Docmentation](https://img.shields.io/static/v1?label=Documentation&message=Github+Pages&color=cyan)](https://cgilliard.github.io/bitcoinmw/)
-[![Code Coverage](https://img.shields.io/static/v1?label=Code%20Coverage&message=CODE_COVERAGE%&color=purple)](https://cgilliard.github.io/bitcoinmw/code_coverage.html)
+[![Docmentation](https://img.shields.io/static/v1?label=Documentation&message=Github+Pages&color=orange)](https://cgilliard.github.io/bitcoinmw/)
+[![Code Coverage Charts](https://img.shields.io/static/v1?label=Code%20Coverage%20Charts&message=CODE_COVERAGE%&color=purple)](https://cgilliard.github.io/bitcoinmw/code_coverage.html)
 [![License](https://img.shields.io/github/license/cgilliard/bitcoinmw.svg)](https://github.com/cgilliard/bitcoinmw/blob/master/LICENSE)
+[![Stars](https://img.shields.io/github/stars/cgilliard/bitcoinmw.svg?style=social)](https://github.com/cgilliard/bitcoinmw/stargazers)
 
 <p align="center">
     <img src="docs/logo.png" alt="Logo">
