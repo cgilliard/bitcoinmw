@@ -17,6 +17,20 @@ pub struct Signature([u8; 64]); // Final signature
 #[repr(C)]
 pub struct Commitment([u8; 64]);
 
+pub const GENERATOR_G: PublicKey = PublicKey([
+	0x79, 0xbe, 0x66, 0x7e, 0xf9, 0xdc, 0xbb, 0xac, 0x55, 0xa0, 0x62, 0x95, 0xce, 0x87, 0x0b, 0x07,
+	0x02, 0x9b, 0xfc, 0xdb, 0x2d, 0xce, 0x28, 0xd9, 0x59, 0xf2, 0x81, 0x5b, 0x16, 0xf8, 0x17, 0x98,
+	0x48, 0x3a, 0xda, 0x77, 0x26, 0xa3, 0xc4, 0x65, 0x5d, 0xa4, 0xfb, 0xfc, 0x0e, 0x11, 0x08, 0xa8,
+	0xfd, 0x17, 0xb4, 0x48, 0xa6, 0x85, 0x54, 0x19, 0x9c, 0x47, 0xd0, 0x8f, 0xfb, 0x10, 0xd4, 0xb8,
+]);
+
+pub const GENERATOR_H: PublicKey = PublicKey([
+	0x50, 0x92, 0x9b, 0x74, 0xc1, 0xa0, 0x49, 0x54, 0xb7, 0x8b, 0x4b, 0x60, 0x35, 0xe9, 0x7a, 0x5e,
+	0x07, 0x8a, 0x5a, 0x0f, 0x28, 0xec, 0x96, 0xd5, 0x47, 0xbf, 0xee, 0x9a, 0xce, 0x80, 0x3a, 0xc0,
+	0x31, 0xd3, 0xc6, 0x86, 0x39, 0x73, 0x92, 0x6e, 0x04, 0x9e, 0x63, 0x7c, 0xb1, 0xb5, 0xf4, 0x0a,
+	0x36, 0xda, 0xc2, 0x8a, 0xf1, 0x76, 0x69, 0x68, 0xc3, 0x0c, 0x23, 0x13, 0xf3, 0xa3, 0x89, 0x04,
+]);
+
 /// Flag for context to enable no precomputation
 pub const SECP256K1_START_NONE: u32 = (1 << 0) | 0;
 /// Flag for context to enable verification precomputation
@@ -255,19 +269,6 @@ mod test {
 			cpsrng_rand_bytes(r, blind1.0.as_mut_ptr(), 32);
 			cpsrng_rand_bytes(r, blind2.0.as_mut_ptr(), 32);
 
-			let mut gen_g = PublicKey([0u8; 64]);
-			let mut gen_h = PublicKey([0u8; 64]);
-			secp256k1_ec_pubkey_create(
-				ctx,
-				&mut gen_g as *mut PublicKey,
-				blind1.0.as_ptr() as *const SecretKey,
-			);
-			secp256k1_ec_pubkey_create(
-				ctx,
-				&mut gen_h as *mut PublicKey,
-				blind2.0.as_ptr() as *const SecretKey,
-			);
-
 			let mut c1 = Commitment([0u8; 64]);
 			let mut c2 = Commitment([0u8; 64]);
 			assert_eq!(
@@ -276,8 +277,8 @@ mod test {
 					&mut c1 as *mut Commitment,
 					&blind1 as *const SecretKey,
 					1000,
-					&gen_h as *const PublicKey,
-					&gen_g as *const PublicKey
+					&GENERATOR_H as *const PublicKey,
+					&GENERATOR_G as *const PublicKey
 				),
 				1
 			);
@@ -287,8 +288,8 @@ mod test {
 					&mut c2 as *mut Commitment,
 					&blind2 as *const SecretKey,
 					2000,
-					&gen_h as *const PublicKey,
-					&gen_g as *const PublicKey
+					&GENERATOR_H as *const PublicKey,
+					&GENERATOR_G as *const PublicKey
 				),
 				1
 			);
@@ -305,6 +306,14 @@ mod test {
 					ncommits.as_ptr(),
 					1
 				),
+				1
+			);
+
+			// Verify: c1 = c2 + sum (i.e., c1 - c2 - sum = 0)
+			let positive = [&c1 as *const Commitment];
+			let negative = [&c2 as *const Commitment, &sum as *const Commitment];
+			assert_eq!(
+				secp256k1_pedersen_verify_tally(ctx, positive.as_ptr(), 1, negative.as_ptr(), 2),
 				1
 			);
 
