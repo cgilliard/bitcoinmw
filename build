@@ -24,12 +24,14 @@ elif [ "mrustc" = "$1" ]; then
                 fi
         done
         cd ..
-	${MRUSTC} -O --crate-type=lib \
-		rust/mod.rs -L${OUTPUT} \
+	${MRUSTC} -C panic=abort \
+		-O \
+		--emit=obj \
+		--crate-type=lib \
+		-L${OUTPUT} \
 		--cfg mrustc \
 		-o .obj/rust \
-		-C panic=abort \
-                        || exit 1;
+		rust/mod.rs || exit 1;
 	${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj -lgmp -lsecp256k1 || exit 1;
 else
 	echo "Building BitcoinMW with rustc"

@@ -21,13 +21,14 @@ extern "C" {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use core::ptr::null_mut;
 
 	#[test]
 	fn test_ffi_basic() {
 		let ctx = unsafe { secp256k1_context_create(SECP256K1_START_SIGN) };
+		assert!(ctx != null_mut());
 		unsafe {
 			secp256k1_context_destroy(ctx);
 		}
-		assert_eq!(1, 1);
 	}
 }
