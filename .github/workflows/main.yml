@@ -99,6 +99,7 @@ jobs:
           ./bin/bmw || exit 1;
       - name: macos build (mrustc)
         run: |
+          export LIBRARY_PATH="$(brew --prefix gmp)/lib:$LIBRARY_PATH"
           export CXX=/opt/homebrew/bin/g++-13
           export CC=/opt/homebrew/bin/gcc-13
           wget https://github.com/cgilliard/famc/releases/download/0.1.0/macos_output.tar.gz
