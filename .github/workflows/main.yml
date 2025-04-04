@@ -49,8 +49,18 @@ jobs:
         run: |
           cargo install grcov
           rustup component add llvm-tools-preview
+          git clone https://anything:${{ secrets.BitcoinMWPat }}@github.com/cgilliard/bitcoinmw.git _coverage
+          cd _coverage
+          git config user.name "Coverage-Bot"
+          git config user.email "noreply@pipeline.com"
+          git checkout main
           ./build clean
           ./coverage
+          ./scripts/update_code_coverage.sh
+          git commit -am "Coverage-Bot: Updated repo (via main.yml script) Source Version is $GITHUB_SHA";
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            git push https://${{ secrets.BitcoinMWPat }}@github.com/cgilliard/bitcoinmw.git
+          fi
       - name: linux bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
