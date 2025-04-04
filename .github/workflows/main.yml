@@ -43,7 +43,8 @@ jobs:
           ./bin/bmw || exit 1;
       - name: linux tests
         run: |
-          echo "tests";
+          ./build clean
+          ./test
       - name: code coverage
         run: |
           echo "code coverage"
@@ -94,7 +95,8 @@ jobs:
           ./bin/bmw || exit 1;
       - name: macos tests
         run: |
-          echo "tests"
+          ./build clean
+          ./test
       - name: macos bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then

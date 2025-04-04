@@ -1,0 +1,31 @@
+#!/bin/sh
+
+export CC="${CC:-clang}"
+export OUTPUT="${OUTPUT:-../mrustc/output}"
+export MRUSTC="${MRUSTC:-mrustc}"
+
+CCFLAGS=-O3
+RUSTFLAGS=
+FILTER=$1
+
+echo "Running tests..."
+./scripts/secp256k1zkp.sh || exit 1;
+cd c
+for file in *.c
+do
+	if [ "${file}" != "main.c" ]; then
+		if [ ! -e ../.obj/${file%.c}.o ] || [ ${file} -nt ../.obj/${file%.c}.o ]; then
+			echo "${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file}";
+			${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file} || exit 1;
+		fi
+	fi
+done
+cd ..
+ar rcs .obj/libtest.a .obj/*.o || exit 1;
+rustc -C debuginfo=2 --test rust/mod.rs \
+	-o bin/test_fam \
+	-L .obj \
+	-l static=test \
+	-l static=secp256k1 -l \
+	static=gmp ${RUSTFLAGS} ||  exit 1;
+./bin/test_fam ${FILTER} --test-threads=1 || exit 1;
