@@ -14,6 +14,8 @@ pub struct SecretKey([u8; 32]); // Secret key
 pub struct AggSigPartialSignature([u8; 32]); // Partial signature
 #[repr(C)]
 pub struct Signature([u8; 64]); // Final signature
+#[repr(C)]
+pub struct Commitment([u8; 64]);
 
 /// Flag for context to enable no precomputation
 pub const SECP256K1_START_NONE: u32 = (1 << 0) | 0;
@@ -74,6 +76,33 @@ extern "C" {
 		msg32: *const u8,
 		pks: *const PublicKey,
 		n_pubkeys: usize,
+	) -> i32;
+
+	// Pedersen commitments
+	pub fn secp256k1_pedersen_commit(
+		cx: *const Secp256k1Context,
+		commit: *mut Commitment,
+		blind: *const SecretKey,
+		value: u64,
+		value_gen: *const PublicKey,
+		blind_gen: *const PublicKey,
+	) -> i32;
+
+	pub fn secp256k1_pedersen_commit_sum(
+		cx: *const Secp256k1Context,
+		commit_out: *mut Commitment,
+		commits: *const *const Commitment,
+		pcnt: usize,
+		ncommits: *const *const Commitment,
+		ncnt: usize,
+	) -> i32;
+
+	pub fn secp256k1_pedersen_verify_tally(
+		cx: *const Secp256k1Context,
+		commits: *const *const Commitment,
+		n_commits: usize,
+		neg_commits: *const *const Commitment,
+		n_neg_commits: usize,
 	) -> i32;
 
 	// cpsrng
@@ -207,6 +236,78 @@ mod test {
 
 			// destroy
 			secp256k1_aggsig_context_destroy(aggctx);
+			secp256k1_context_destroy(ctx);
+			cpsrng_context_destroy(r);
+		}
+	}
+
+	#[test]
+	fn test_pedersen_commit() {
+		unsafe {
+			let ctx = secp256k1_context_create(SECP256K1_START_SIGN | SECP256K1_START_VERIFY);
+			let r = cpsrng_context_create();
+			let iv = [0u8; 16];
+			let key = [2u8; 32];
+			cpsrng_test_seed(r, iv.as_ptr(), key.as_ptr());
+
+			let mut blind1 = SecretKey([0u8; 32]);
+			let mut blind2 = SecretKey([0u8; 32]);
+			cpsrng_rand_bytes(r, blind1.0.as_mut_ptr(), 32);
+			cpsrng_rand_bytes(r, blind2.0.as_mut_ptr(), 32);
+
+			let mut gen_g = PublicKey([0u8; 64]);
+			let mut gen_h = PublicKey([0u8; 64]);
+			secp256k1_ec_pubkey_create(
+				ctx,
+				&mut gen_g as *mut PublicKey,
+				blind1.0.as_ptr() as *const SecretKey,
+			);
+			secp256k1_ec_pubkey_create(
+				ctx,
+				&mut gen_h as *mut PublicKey,
+				blind2.0.as_ptr() as *const SecretKey,
+			);
+
+			let mut c1 = Commitment([0u8; 64]);
+			let mut c2 = Commitment([0u8; 64]);
+			assert_eq!(
+				secp256k1_pedersen_commit(
+					ctx,
+					&mut c1 as *mut Commitment,
+					&blind1 as *const SecretKey,
+					1000,
+					&gen_h as *const PublicKey,
+					&gen_g as *const PublicKey
+				),
+				1
+			);
+			assert_eq!(
+				secp256k1_pedersen_commit(
+					ctx,
+					&mut c2 as *mut Commitment,
+					&blind2 as *const SecretKey,
+					2000,
+					&gen_h as *const PublicKey,
+					&gen_g as *const PublicKey
+				),
+				1
+			);
+
+			let mut sum = Commitment([0u8; 64]);
+			let commits = [&c1 as *const Commitment];
+			let ncommits = [&c2 as *const Commitment];
+			assert_eq!(
+				secp256k1_pedersen_commit_sum(
+					ctx,
+					&mut sum as *mut Commitment,
+					commits.as_ptr(),
+					1,
+					ncommits.as_ptr(),
+					1
+				),
+				1
+			);
+
 			secp256k1_context_destroy(ctx);
 			cpsrng_context_destroy(r);
 		}
