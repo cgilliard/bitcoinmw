@@ -2,7 +2,7 @@
 
 export CC="${CC:-clang}"
 
-CCFLAGS=-O3
+CCFLAGS=-DTEST
 RUSTFLAGS=
 FILTER=$1
 

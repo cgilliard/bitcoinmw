@@ -3,7 +3,7 @@
 export CC="${CC:-clang}"
 export LLVM_PROFILE_FILE="/tmp/file.profraw"
 
-CCFLAGS=-O3
+CCFLAGS=-DTEST
 RUSTFLAGS="-C instrument-coverage -C opt-level=0"
 FILTER=$1
 
