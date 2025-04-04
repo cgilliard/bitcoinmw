@@ -7,7 +7,7 @@ pub struct Secp256k1AggsigContext(usize);
 #[repr(C)]
 pub struct CsprngCtx(usize);
 #[repr(C)]
-pub struct PublicKey([u8; 33]); // Compressed pubkey
+pub struct PublicKey([u8; 64]); // pubkey
 #[repr(C)]
 pub struct SecretKey([u8; 32]); // Secret key
 #[repr(C)]
@@ -117,9 +117,9 @@ mod test {
 			let ctx = secp256k1_context_create(SECP256K1_START_SIGN | SECP256K1_START_VERIFY);
 
 			// create space for two pubkeys
-			let mut pkeys = [9u8; 66];
+			let mut pkeys = [9u8; 128];
 			// create space for two secret keys
-			let mut skeys = [0u8; 128];
+			let mut skeys = [0u8; 64];
 			// seed (use 4u8)
 			let seed = [4u8; 32];
 
@@ -134,8 +134,8 @@ mod test {
 			// create second pubkey frommm skey
 			secp256k1_ec_pubkey_create(
 				ctx,
-				(&pkeys as *const u8).add(33) as *mut PublicKey,
-				(&skeys as *const u8).add(33) as *const SecretKey,
+				(&pkeys as *const u8).add(64) as *mut PublicKey,
+				(&skeys as *const u8).add(32) as *const SecretKey,
 			);
 
 			// create the aggsig context
@@ -196,14 +196,14 @@ mod test {
 			);
 
 			// verify final signature
-			let _result = secp256k1_aggsig_build_scratch_and_verify(
+			let result = secp256k1_aggsig_build_scratch_and_verify(
 				ctx,
 				&final_sig as *const Signature,
 				msg32.as_ptr(),
 				pkeys.as_ptr() as *const PublicKey,
 				2,
 			);
-			//assert_eq!(result, 1, "Verification failed: {}", result);
+			assert_eq!(result, 1, "Verification failed: {}", result);
 
 			// destroy
 			secp256k1_aggsig_context_destroy(aggctx);
