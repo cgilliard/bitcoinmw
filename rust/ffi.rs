@@ -1,5 +1,10 @@
 #![allow(dead_code)]
 
+use core::option::Option;
+use core::option::Option::{None, Some};
+
+pub const MAX_GENERATORS: usize = 256;
+
 #[repr(C)]
 pub struct Secp256k1Context(usize);
 #[repr(C)]
@@ -45,6 +50,23 @@ pub const SECP256K1_START_SIGN: u32 = (1 << 0) | (1 << 9);
 pub const SECP256K1_SER_UNCOMPRESSED: u32 = (1 << 1) | 0;
 /// Flag for keys to indicate compressed serialization format
 pub const SECP256K1_SER_COMPRESSED: u32 = (1 << 1) | (1 << 8);
+
+static mut SHARED_BULLETGENERATORS: Option<*mut BulletproofGenerators> = None;
+
+unsafe fn shared_generators(ctx: *mut Secp256k1Context) -> *mut BulletproofGenerators {
+	match SHARED_BULLETGENERATORS {
+		Some(gens) => gens,
+		None => {
+			let gens = secp256k1_bulletproof_generators_create(
+				ctx,
+				&GENERATOR_G as *const PublicKey,
+				MAX_GENERATORS,
+			);
+			SHARED_BULLETGENERATORS = Some(gens);
+			gens
+		}
+	}
+}
 
 extern "C" {
 	// secp256k1
@@ -100,10 +122,7 @@ extern "C" {
 		ctx: *const Secp256k1Context,
 		max_size: usize,
 	) -> *mut ScratchSpace;
-	pub fn secp256k1_scratch_space_destroy(
-		ctx: *const Secp256k1Context,
-		scratch: *mut ScratchSpace,
-	);
+	pub fn secp256k1_scratch_space_destroy(scratch: *mut ScratchSpace);
 
 	// Pedersen commitments
 	pub fn secp256k1_pedersen_commit(
@@ -199,7 +218,6 @@ mod test {
 
 	pub const MAX_WIDTH: usize = 1 << 20; // 1,048,576
 	pub const SCRATCH_SPACE_SIZE: usize = 256 * MAX_WIDTH; // ~256 MB
-	pub const MAX_GENERATORS: usize = 256;
 
 	#[test]
 	fn test_rand() {
@@ -418,20 +436,18 @@ mod test {
 				1
 			);
 
-			// Scratch space (256KB like Grin)
+			// Scratch space
 			let scratch = secp256k1_scratch_space_create(ctx, SCRATCH_SPACE_SIZE);
 			assert!(!scratch.is_null(), "Scratch space creation failed");
 
-			// Generators (256 as per Grin’s typical usage)
-			let gens =
-				secp256k1_bulletproof_generators_create(ctx, &GENERATOR_G as *const PublicKey, 256);
-			assert!(!gens.is_null(), "Generators creation failed");
+			// Shared generators (Grin’s approach)
+			let gens = shared_generators(ctx);
+			assert!(!gens.is_null(), "Shared generators failed");
 
 			// Prove range
 			let mut proof = [0u8; 1024];
 			let mut proof_len = 1024usize;
-			let rewind_nonce = [3u8; 32];
-			let private_nonce = [4u8; 32];
+			let nonce = [3u8; 32];
 			let blinds = [&blind as *const SecretKey];
 			let result = secp256k1_bulletproof_rangeproof_prove(
 				ctx,
@@ -439,21 +455,21 @@ mod test {
 				gens,
 				proof.as_mut_ptr(),
 				&mut proof_len,
-				ptr::null_mut(), // tau_x
-				ptr::null_mut(), // t_one
-				ptr::null_mut(), // t_two
+				ptr::null_mut(),
+				ptr::null_mut(),
+				ptr::null_mut(),
 				&value as *const u64,
-				ptr::null(), // min_value
+				ptr::null(),
 				blinds.as_ptr(),
-				ptr::null_mut(), // commits (null like Grin)
-				1,               // n_commits
+				ptr::null_mut(),
+				1,
 				&GENERATOR_H as *const PublicKey,
-				64, // nbits
-				&rewind_nonce,
-				&private_nonce,
-				ptr::null(), // extra_commit
-				0,           // extra_commit_len
-				ptr::null(), // message
+				64,
+				&nonce,
+				ptr::null(),
+				ptr::null(),
+				0,
+				ptr::null(),
 			);
 			assert_eq!(result, 1, "Bulletproof prove failed: {}", result);
 
@@ -465,19 +481,18 @@ mod test {
 					gens,
 					proof.as_ptr(),
 					proof_len,
-					ptr::null(), // min_value
+					ptr::null(),
 					&commit as *const Commitment,
-					1,  // n_commits
-					64, // nbits
+					1,
+					64,
 					&GENERATOR_H as *const PublicKey,
-					ptr::null(), // extra_commit
-					0            // extra_commit_len
+					ptr::null(),
+					0
 				),
 				1
 			);
 
-			secp256k1_bulletproof_generators_destroy(ctx, gens);
-			//secp256k1_scratch_space_destroy(ctx, scratch);
+			secp256k1_scratch_space_destroy(scratch);
 			secp256k1_context_destroy(ctx);
 			cpsrng_context_destroy(r);
 		}
