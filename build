@@ -30,7 +30,7 @@ elif [ "mrustc" = "$1" ]; then
 		-o .obj/rust \
 		-C panic=abort \
                         || exit 1;
-	${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj -lsecp256k1 || exit 1;
+	${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj -lgmp -lsecp256k1 || exit 1;
 else
 	echo "Building BitcoinMW with rustc"
 	./scripts/secp256k1zkp.sh || exit 1;
@@ -49,5 +49,5 @@ else
 		--crate-type=lib \
 		-o .obj/rust.o \
 		rust/mod.rs || exit 1;
-	${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj -lsecp256k1 || exit 1;
+	${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj -lgmp -lsecp256k1 || exit 1;
 fi
