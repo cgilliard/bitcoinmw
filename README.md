@@ -1,5 +1,4 @@
-# bitcoinmw
-Bitcoin Mimblewimble Repository
+# bitcoinmw - Bitcoin Mimblewimble
 
 <p align="center">
     <img src="docs/logo.png" alt="Logo">
