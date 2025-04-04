@@ -90,7 +90,7 @@ jobs:
       - name: macos install dependencies
         run: |
           rustup update
-          brew install autoconf automake libtool gmp
+          brew install autoconf automake libtool
           sudo mkdir -p /usr/local/lib
           sudo cp `brew --prefix gmp`/lib/libgmp.a /usr/local/lib
       - name: macos build (rustc)
