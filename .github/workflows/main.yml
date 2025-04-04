@@ -47,7 +47,10 @@ jobs:
           ./test
       - name: code coverage
         run: |
-          echo "code coverage"
+          cargo install grcov
+          rustup component add llvm-tools-preview
+          ./build clean
+          ./coverage
       - name: linux bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then

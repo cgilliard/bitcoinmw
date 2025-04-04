@@ -1,8 +1,6 @@
 #!/bin/sh
 
 export CC="${CC:-clang}"
-export OUTPUT="${OUTPUT:-../mrustc/output}"
-export MRUSTC="${MRUSTC:-mrustc}"
 
 CCFLAGS=-O3
 RUSTFLAGS=
