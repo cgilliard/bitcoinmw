@@ -32,9 +32,7 @@ elif [ "mrustc" = "$1" ]; then
 		--cfg mrustc \
 		-o .obj/rust \
 		rust/mod.rs || exit 1;
-	echo "mrustc complete"
 	${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj -lgmp -lsecp256k1 || exit 1;
-	echo "linking complete"
 else
 	echo "Building BitcoinMW with rustc"
 	./scripts/secp256k1zkp.sh || exit 1;
