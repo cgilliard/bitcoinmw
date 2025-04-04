@@ -93,3 +93,5 @@ fi
 echo "Summary: $GREEN$percent%$RESET Lines: $YELLOW($cov_count_sum/$line_count_sum)$RESET!"
 codecov=`printf "%.2f" $percent`;
 timestamp=`date +%s`
+echo "$codecov" > /tmp/cc_final;
+echo "$timestamp $codecov $cov_count_sum $line_count_sum" > /tmp/cc.txt

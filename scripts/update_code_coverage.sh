@@ -1,6 +1,7 @@
 #!/bin/bash
 
 export cc_final=`cat /tmp/cc_final`;
+cat /tmp/cc.txt >> docs/cc.txt;
 cp .templates/code_coverage.html docs/code_coverage.html
 cp .templates/README.md README.md
 perl -pi -e 's/CODE_COVERAGE/$ENV{cc_final}/g' README.md
