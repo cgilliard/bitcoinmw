@@ -118,6 +118,7 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             git clone https://github.com/cgilliard/famc famc_build
             cd famc_build
+            export LIBRARY_PATH="$(brew --prefix gmp)/lib:$LIBRARY_PATH"
             export CXX=/opt/homebrew/bin/g++-13
             export CC=/opt/homebrew/bin/gcc-13
             ./build.sh
