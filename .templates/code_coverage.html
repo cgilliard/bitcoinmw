@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Code Coverage Report</title>
+		<script src="chart.js"></script>
+		<style>
+			.chart {
+				width: 900px;
+			}
+			.textarea {
+				overflow:auto;
+				resize:none;
+			}
+		</style>
+	</head>
+	<body>
+		 <p align="center">
+                        Code Coverage is currently REPLACECOVERAGE_SINGLE%.
+                </p>
+		<center>
+			<div class="chart">
+				<canvas id="chart"></canvas>
+			</div>
+
+			<div class="chart">
+				<canvas id="chart2"></canvas>
+			</div>
+		</center>
+		<script>
+			function format_date(timestamp, time_frame) {
+				var date = new Date(timestamp);
+				var day_of_month = date.getDate();
+				var full_year = date.getFullYear();
+				var month = 1 + date.getMonth();
+				var hours = date.getHours();
+				var minutes = date.getMinutes();
+				var seconds = date.getSeconds();
+				var am_pm = 'AM';
+
+				if(seconds < 10) {
+					seconds = '0' + seconds;
+				}
+				if(minutes < 10) {
+					minutes = '0' + minutes;
+				}
+				if(hours == 12) {
+					am_pm = 'PM';
+				} else if(hours > 12) {
+					hours -= 12;
+					am_pm = 'PM';
+				}
+				if(hours == 0) {
+					hours = 12;
+				}
+
+				return month + '/' + day_of_month + '/' + full_year + ' ' +
+					hours + ':' + minutes + ':' + seconds + ' ' + am_pm;
+			}
+
+			let raw_data = [REPLACECOVERAGE];
+			let labels = [REPLACETIMESTAMP];
+			let raw_data2 = [REPLACELINES];
+                        let raw_data3 = [REPLACECCLINES];
+
+			const data = {
+				labels: labels,
+				datasets: [{
+					label: 'Code Coverage',
+					backgroundColor: 'rgb(31,176,245)',
+					borderColor: 'rgb(31,176,245)',
+					data: raw_data,
+				}]
+			};
+
+			const data2 = {
+                                labels: labels,
+                                datasets: [{
+                                        label: 'Lines of Code',
+                                        backgroundColor: 'rgb(31,176,245)',
+                                        borderColor: 'rgb(31,176,245)',
+                                        data: raw_data2,
+                                },
+                                {
+                                        label: 'Covered Lines',
+                                        backgroundColor: 'rgb(240,128,128)',
+                                        borderColor: 'rgb(240,128,128)',
+                                        data: raw_data3,
+                                }]
+                        };
+
+			const config = {
+				type: 'line',
+				data: data,
+				options: {}
+			};
+
+			const config2 = {
+				type: 'line',
+				data: data2,
+				options: {}
+			};
+
+			const chart = new Chart(
+				document.getElementById('chart'),
+				config
+			);
+
+			const chart2 = new Chart(
+				document.getElementById('chart2'),
+				config2
+			);
+
+		</script>
+		</p>
+	</body>
+</html>
+
