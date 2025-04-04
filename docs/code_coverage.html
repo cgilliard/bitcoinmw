@@ -15,7 +15,7 @@
 	</head>
 	<body>
 		 <p align="center">
-                        Code Coverage is currently 100%.
+                        Code Coverage is currently 33.00%.
                 </p>
 		<center>
 			<div class="chart">
@@ -57,10 +57,18 @@
 					hours + ':' + minutes + ':' + seconds + ' ' + am_pm;
 			}
 
-			let raw_data = [];
-			let labels = [];
-			let raw_data2 = [];
-                        let raw_data3 = [];
+			let raw_data = [70.00,
+100.00,
+33.00,];
+			let labels = [format_date(1734046149 * 1000 ),
+format_date(1734047424 * 1000 ),
+format_date(1743736484 * 1000 ),];
+			let raw_data2 = [20,
+23,
+9,];
+                        let raw_data3 = [14,
+23,
+3,];
 
 			const data = {
 				labels: labels,
