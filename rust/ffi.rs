@@ -12,28 +12,28 @@ pub struct Secp256k1AggsigContext(usize);
 #[repr(C)]
 pub struct CsprngCtx(usize);
 #[repr(C)]
-pub struct PublicKey([u8; 64]); // pubkey
+pub struct PublicKeyUncompressed([u8; 64]); // pubkey
 #[repr(C)]
-pub struct SecretKey([u8; 32]); // Secret key
+pub struct SecretKeyImpl([u8; 32]); // Secret key
 #[repr(C)]
 pub struct AggSigPartialSignature([u8; 32]); // Partial signature
 #[repr(C)]
 pub struct Signature([u8; 64]); // Final signature
 #[repr(C)]
-pub struct Commitment([u8; 64]);
+pub struct CommitmentUncompressed([u8; 64]);
 #[repr(C)]
 pub struct ScratchSpace(usize);
 #[repr(C)]
 pub struct BulletproofGenerators(usize);
 
-pub const GENERATOR_G: PublicKey = PublicKey([
+pub const GENERATOR_G: PublicKeyUncompressed = PublicKeyUncompressed([
 	0x79, 0xbe, 0x66, 0x7e, 0xf9, 0xdc, 0xbb, 0xac, 0x55, 0xa0, 0x62, 0x95, 0xce, 0x87, 0x0b, 0x07,
 	0x02, 0x9b, 0xfc, 0xdb, 0x2d, 0xce, 0x28, 0xd9, 0x59, 0xf2, 0x81, 0x5b, 0x16, 0xf8, 0x17, 0x98,
 	0x48, 0x3a, 0xda, 0x77, 0x26, 0xa3, 0xc4, 0x65, 0x5d, 0xa4, 0xfb, 0xfc, 0x0e, 0x11, 0x08, 0xa8,
 	0xfd, 0x17, 0xb4, 0x48, 0xa6, 0x85, 0x54, 0x19, 0x9c, 0x47, 0xd0, 0x8f, 0xfb, 0x10, 0xd4, 0xb8,
 ]);
 
-pub const GENERATOR_H: PublicKey = PublicKey([
+pub const GENERATOR_H: PublicKeyUncompressed = PublicKeyUncompressed([
 	0x50, 0x92, 0x9b, 0x74, 0xc1, 0xa0, 0x49, 0x54, 0xb7, 0x8b, 0x4b, 0x60, 0x35, 0xe9, 0x7a, 0x5e,
 	0x07, 0x8a, 0x5a, 0x0f, 0x28, 0xec, 0x96, 0xd5, 0x47, 0xbf, 0xee, 0x9a, 0xce, 0x80, 0x3a, 0xc0,
 	0x31, 0xd3, 0xc6, 0x86, 0x39, 0x73, 0x92, 0x6e, 0x04, 0x9e, 0x63, 0x7c, 0xb1, 0xb5, 0xf4, 0x0a,
@@ -59,7 +59,7 @@ unsafe fn shared_generators(ctx: *mut Secp256k1Context) -> *mut BulletproofGener
 		None => {
 			let gens = secp256k1_bulletproof_generators_create(
 				ctx,
-				&GENERATOR_G as *const PublicKey,
+				&GENERATOR_G as *const PublicKeyUncompressed,
 				MAX_GENERATORS,
 			);
 			SHARED_BULLETGENERATORS = Some(gens);
@@ -75,16 +75,16 @@ extern "C" {
 
 	pub fn secp256k1_aggsig_context_create(
 		cx: *const Secp256k1Context,
-		pks: *const PublicKey,
+		pks: *const PublicKeyUncompressed,
 		n_pks: usize,
 		seed32: *const u8,
 	) -> *mut Secp256k1AggsigContext;
 	pub fn secp256k1_aggsig_context_destroy(aggctx: *mut Secp256k1AggsigContext);
-	pub fn secp256k1_ec_seckey_verify(cx: *const Secp256k1Context, sk: *const SecretKey) -> i32;
+	pub fn secp256k1_ec_seckey_verify(cx: *const Secp256k1Context, sk: *const SecretKeyImpl) -> i32;
 	pub fn secp256k1_ec_pubkey_create(
 		cx: *const Secp256k1Context,
-		pk: *mut PublicKey,
-		sk: *const SecretKey,
+		pk: *mut PublicKeyUncompressed,
+		sk: *const SecretKeyImpl,
 	) -> i32;
 
 	pub fn secp256k1_aggsig_generate_nonce(
@@ -98,7 +98,7 @@ extern "C" {
 		aggctx: *mut Secp256k1AggsigContext,
 		sig: *mut AggSigPartialSignature,
 		msghash32: *const u8,
-		seckey32: *const SecretKey,
+		seckey32: *const SecretKeyImpl,
 		index: usize,
 	) -> i32;
 
@@ -114,7 +114,7 @@ extern "C" {
 		cx: *const Secp256k1Context,
 		sig64: *const Signature,
 		msg32: *const u8,
-		pks: *const PublicKey,
+		pks: *const PublicKeyUncompressed,
 		n_pubkeys: usize,
 	) -> i32;
 
@@ -127,42 +127,42 @@ extern "C" {
 	// Pedersen commitments
 	pub fn secp256k1_pedersen_commit(
 		cx: *const Secp256k1Context,
-		commit: *mut Commitment,
-		blind: *const SecretKey,
+		commit: *mut CommitmentUncompressed,
+		blind: *const SecretKeyImpl,
 		value: u64,
-		value_gen: *const PublicKey,
-		blind_gen: *const PublicKey,
+		value_gen: *const PublicKeyUncompressed,
+		blind_gen: *const PublicKeyUncompressed,
 	) -> i32;
 
 	pub fn secp256k1_pedersen_commit_sum(
 		cx: *const Secp256k1Context,
-		commit_out: *mut Commitment,
-		commits: *const *const Commitment,
+		commit_out: *mut CommitmentUncompressed,
+		commits: *const *const CommitmentUncompressed,
 		pcnt: usize,
-		ncommits: *const *const Commitment,
+		ncommits: *const *const CommitmentUncompressed,
 		ncnt: usize,
 	) -> i32;
 
 	pub fn secp256k1_pedersen_verify_tally(
 		cx: *const Secp256k1Context,
-		commits: *const *const Commitment,
+		commits: *const *const CommitmentUncompressed,
 		n_commits: usize,
-		neg_commits: *const *const Commitment,
+		neg_commits: *const *const CommitmentUncompressed,
 		n_neg_commits: usize,
 	) -> i32;
 
 	// Tweak operations for scalar arithmetic
 	pub fn secp256k1_ec_privkey_tweak_add(
 		cx: *const Secp256k1Context,
-		seckey: *mut SecretKey,
-		tweak: *const SecretKey,
+		seckey: *mut SecretKeyImpl,
+		tweak: *const SecretKeyImpl,
 	) -> i32;
 
 	// Pedersen blind sum for combining blinding factors
 	pub fn secp256k1_pedersen_blind_sum(
 		cx: *const Secp256k1Context,
-		blind_out: *mut SecretKey,
-		blinds: *const *const SecretKey,
+		blind_out: *mut SecretKeyImpl,
+		blinds: *const *const SecretKeyImpl,
 		nblinds: usize,
 		npositive: usize,
 	) -> i32;
@@ -170,7 +170,7 @@ extern "C" {
 	// Range proof
 	pub fn secp256k1_bulletproof_generators_create(
 		ctx: *const Secp256k1Context,
-		blinding_gen: *const PublicKey,
+		blinding_gen: *const PublicKeyUncompressed,
 		n: usize,
 	) -> *mut BulletproofGenerators;
 	pub fn secp256k1_bulletproof_generators_destroy(
@@ -185,14 +185,14 @@ extern "C" {
 		proof: *mut u8,
 		plen: *mut usize,
 		tau_x: *mut [u8; 32],
-		t_one: *mut PublicKey,
-		t_two: *mut PublicKey,
+		t_one: *mut PublicKeyUncompressed,
+		t_two: *mut PublicKeyUncompressed,
 		value: *const u64,
 		min_value: *const u64,
-		blind: *const *const SecretKey,
-		commits: *const *const Commitment,
+		blind: *const *const SecretKeyImpl,
+		commits: *const *const CommitmentUncompressed,
 		n_commits: usize,
-		value_gen: *const PublicKey,
+		value_gen: *const PublicKeyUncompressed,
 		nbits: usize,
 		nonce: *const [u8; 32],
 		private_nonce: *const [u8; 32],
@@ -208,10 +208,10 @@ extern "C" {
 		proof: *const u8,
 		plen: usize,
 		min_value: *const u64,
-		commit: *const Commitment,
+		commit: *const CommitmentUncompressed,
 		n_commits: usize,
 		nbits: usize,
-		value_gen: *const PublicKey,
+		value_gen: *const PublicKeyUncompressed,
 		extra_commit: *const u8,
 		extra_commit_len: usize,
 	) -> i32;
@@ -273,20 +273,20 @@ mod test {
 			// create first pubkey from skey
 			secp256k1_ec_pubkey_create(
 				ctx,
-				pkeys.as_mut_ptr() as *mut PublicKey,
-				skeys.as_ptr() as *const SecretKey,
+				pkeys.as_mut_ptr() as *mut PublicKeyUncompressed,
+				skeys.as_ptr() as *const SecretKeyImpl,
 			);
 			// create second pubkey frommm skey
 			secp256k1_ec_pubkey_create(
 				ctx,
-				(&pkeys as *const u8).add(64) as *mut PublicKey,
-				(&skeys as *const u8).add(32) as *const SecretKey,
+				(&pkeys as *const u8).add(64) as *mut PublicKeyUncompressed,
+				(&skeys as *const u8).add(32) as *const SecretKeyImpl,
 			);
 
 			// create the aggsig context
 			let aggctx = secp256k1_aggsig_context_create(
 				ctx,
-				&pkeys[0] as *const u8 as *const PublicKey,
+				&pkeys[0] as *const u8 as *const PublicKeyUncompressed,
 				2,
 				seed.as_ptr(),
 			);
@@ -308,7 +308,7 @@ mod test {
 					aggctx,
 					&mut partial_sigs as *mut u8 as *mut AggSigPartialSignature,
 					msg32.as_ptr(),
-					skeys.as_ptr() as *const SecretKey,
+					skeys.as_ptr() as *const SecretKeyImpl,
 					0,
 				),
 				1
@@ -321,7 +321,7 @@ mod test {
 					aggctx,
 					(&mut partial_sigs as *mut u8).add(32) as *mut AggSigPartialSignature,
 					msg32.as_ptr(),
-					(&skeys as *const u8).add(32) as *const SecretKey,
+					(&skeys as *const u8).add(32) as *const SecretKeyImpl,
 					1,
 				),
 				1
@@ -345,7 +345,7 @@ mod test {
 				ctx,
 				&final_sig as *const Signature,
 				msg32.as_ptr(),
-				pkeys.as_ptr() as *const PublicKey,
+				pkeys.as_ptr() as *const PublicKeyUncompressed,
 				2,
 			);
 			assert_eq!(result, 1, "Verification failed: {}", result);
@@ -366,43 +366,43 @@ mod test {
 			let key = [2u8; 32];
 			cpsrng_test_seed(r, iv.as_ptr(), key.as_ptr());
 
-			let mut blind1 = SecretKey([0u8; 32]);
-			let mut blind2 = SecretKey([0u8; 32]);
+			let mut blind1 = SecretKeyImpl([0u8; 32]);
+			let mut blind2 = SecretKeyImpl([0u8; 32]);
 			cpsrng_rand_bytes(r, blind1.0.as_mut_ptr(), 32);
 			cpsrng_rand_bytes(r, blind2.0.as_mut_ptr(), 32);
 
-			let mut c1 = Commitment([0u8; 64]);
-			let mut c2 = Commitment([0u8; 64]);
+			let mut c1 = CommitmentUncompressed([0u8; 64]);
+			let mut c2 = CommitmentUncompressed([0u8; 64]);
 			assert_eq!(
 				secp256k1_pedersen_commit(
 					ctx,
-					&mut c1 as *mut Commitment,
-					&blind1 as *const SecretKey,
+					&mut c1 as *mut CommitmentUncompressed,
+					&blind1 as *const SecretKeyImpl,
 					1000,
-					&GENERATOR_H as *const PublicKey,
-					&GENERATOR_G as *const PublicKey
+					&GENERATOR_H as *const PublicKeyUncompressed,
+					&GENERATOR_G as *const PublicKeyUncompressed
 				),
 				1
 			);
 			assert_eq!(
 				secp256k1_pedersen_commit(
 					ctx,
-					&mut c2 as *mut Commitment,
-					&blind2 as *const SecretKey,
+					&mut c2 as *mut CommitmentUncompressed,
+					&blind2 as *const SecretKeyImpl,
 					2000,
-					&GENERATOR_H as *const PublicKey,
-					&GENERATOR_G as *const PublicKey
+					&GENERATOR_H as *const PublicKeyUncompressed,
+					&GENERATOR_G as *const PublicKeyUncompressed
 				),
 				1
 			);
 
-			let mut sum = Commitment([0u8; 64]);
-			let commits = [&c1 as *const Commitment];
-			let ncommits = [&c2 as *const Commitment];
+			let mut sum = CommitmentUncompressed([0u8; 64]);
+			let commits = [&c1 as *const CommitmentUncompressed];
+			let ncommits = [&c2 as *const CommitmentUncompressed];
 			assert_eq!(
 				secp256k1_pedersen_commit_sum(
 					ctx,
-					&mut sum as *mut Commitment,
+					&mut sum as *mut CommitmentUncompressed,
 					commits.as_ptr(),
 					1,
 					ncommits.as_ptr(),
@@ -412,8 +412,11 @@ mod test {
 			);
 
 			// Verify: c1 = c2 + sum (i.e., c1 - c2 - sum = 0)
-			let positive = [&c1 as *const Commitment];
-			let negative = [&c2 as *const Commitment, &sum as *const Commitment];
+			let positive = [&c1 as *const CommitmentUncompressed];
+			let negative = [
+				&c2 as *const CommitmentUncompressed,
+				&sum as *const CommitmentUncompressed,
+			];
 			assert_eq!(
 				secp256k1_pedersen_verify_tally(ctx, positive.as_ptr(), 1, negative.as_ptr(), 2),
 				1
@@ -436,18 +439,18 @@ mod test {
 			cpsrng_test_seed(r, iv.as_ptr(), key.as_ptr());
 
 			// Create a commitment
-			let mut blind = SecretKey([0u8; 32]);
+			let mut blind = SecretKeyImpl([0u8; 32]);
 			cpsrng_rand_bytes(r, blind.0.as_mut_ptr(), 32);
 			let value = 1000u64;
-			let mut commit = Commitment([0u8; 64]);
+			let mut commit = CommitmentUncompressed([0u8; 64]);
 			assert_eq!(
 				secp256k1_pedersen_commit(
 					ctx,
-					&mut commit as *mut Commitment,
-					&blind as *const SecretKey,
+					&mut commit as *mut CommitmentUncompressed,
+					&blind as *const SecretKeyImpl,
 					value,
-					&GENERATOR_H as *const PublicKey,
-					&GENERATOR_G as *const PublicKey
+					&GENERATOR_H as *const PublicKeyUncompressed,
+					&GENERATOR_G as *const PublicKeyUncompressed
 				),
 				1
 			);
@@ -464,7 +467,7 @@ mod test {
 			let mut proof = [0u8; 1024];
 			let mut proof_len = 1024usize;
 			let nonce = [3u8; 32];
-			let blinds = [&blind as *const SecretKey];
+			let blinds = [&blind as *const SecretKeyImpl];
 			let result = secp256k1_bulletproof_rangeproof_prove(
 				ctx,
 				scratch,
@@ -479,7 +482,7 @@ mod test {
 				blinds.as_ptr(),
 				ptr::null_mut(),
 				1,
-				&GENERATOR_H as *const PublicKey,
+				&GENERATOR_H as *const PublicKeyUncompressed,
 				64,
 				&nonce,
 				ptr::null(),
@@ -498,10 +501,10 @@ mod test {
 					proof.as_ptr(),
 					proof_len,
 					ptr::null(),
-					&commit as *const Commitment,
+					&commit as *const CommitmentUncompressed,
 					1,
 					64,
-					&GENERATOR_H as *const PublicKey,
+					&GENERATOR_H as *const PublicKeyUncompressed,
 					ptr::null(),
 					0
 				),
@@ -523,79 +526,85 @@ mod test {
 			let key = [2u8; 32];
 			cpsrng_test_seed(r, iv.as_ptr(), key.as_ptr());
 
-			let mut blind1 = SecretKey([0u8; 32]);
-			let mut blind2 = SecretKey([0u8; 32]);
-			let mut blind3 = SecretKey([0u8; 32]);
-			let mut blind4 = SecretKey([0u8; 32]);
+			let mut blind1 = SecretKeyImpl([0u8; 32]);
+			let mut blind2 = SecretKeyImpl([0u8; 32]);
+			let mut blind3 = SecretKeyImpl([0u8; 32]);
+			let mut blind4 = SecretKeyImpl([0u8; 32]);
 			cpsrng_rand_bytes(r, blind1.0.as_mut_ptr(), 32);
 			cpsrng_rand_bytes(r, blind2.0.as_mut_ptr(), 32);
 			cpsrng_rand_bytes(r, blind3.0.as_mut_ptr(), 32);
 
 			// Compute blind4 = blind1 + blind2 - blind3 using tweak add and blind sum
-			let mut sum_in = SecretKey(blind1.0); // Copy blind1
+			let mut sum_in = SecretKeyImpl(blind1.0); // Copy blind1
 			assert_eq!(
 				secp256k1_ec_privkey_tweak_add(ctx, &mut sum_in, &blind2),
 				1,
 				"Tweak add failed for input blinds"
 			);
-			let blinds = [&sum_in as *const SecretKey, &blind3 as *const SecretKey];
+			let blinds = [&sum_in as *const SecretKeyImpl, &blind3 as *const SecretKeyImpl];
 			assert_eq!(
 				secp256k1_pedersen_blind_sum(ctx, &mut blind4, blinds.as_ptr(), 2, 1), // 1 positive (sum_in), 1 negative (blind3)
 				1,
 				"Blind sum failed for output blind"
 			);
 
-			let mut input1 = Commitment([0u8; 64]);
-			let mut input2 = Commitment([0u8; 64]);
-			let mut output1 = Commitment([0u8; 64]);
-			let mut output2 = Commitment([0u8; 64]);
+			let mut input1 = CommitmentUncompressed([0u8; 64]);
+			let mut input2 = CommitmentUncompressed([0u8; 64]);
+			let mut output1 = CommitmentUncompressed([0u8; 64]);
+			let mut output2 = CommitmentUncompressed([0u8; 64]);
 			assert_eq!(
 				secp256k1_pedersen_commit(
 					ctx,
-					&mut input1 as *mut Commitment,
-					&blind1 as *const SecretKey,
+					&mut input1 as *mut CommitmentUncompressed,
+					&blind1 as *const SecretKeyImpl,
 					1000,
-					&GENERATOR_H as *const PublicKey,
-					&GENERATOR_G as *const PublicKey
+					&GENERATOR_H as *const PublicKeyUncompressed,
+					&GENERATOR_G as *const PublicKeyUncompressed
 				),
 				1
 			);
 			assert_eq!(
 				secp256k1_pedersen_commit(
 					ctx,
-					&mut input2 as *mut Commitment,
-					&blind2 as *const SecretKey,
+					&mut input2 as *mut CommitmentUncompressed,
+					&blind2 as *const SecretKeyImpl,
 					3000,
-					&GENERATOR_H as *const PublicKey,
-					&GENERATOR_G as *const PublicKey
+					&GENERATOR_H as *const PublicKeyUncompressed,
+					&GENERATOR_G as *const PublicKeyUncompressed
 				),
 				1
 			);
 			assert_eq!(
 				secp256k1_pedersen_commit(
 					ctx,
-					&mut output1 as *mut Commitment,
-					&blind3 as *const SecretKey,
+					&mut output1 as *mut CommitmentUncompressed,
+					&blind3 as *const SecretKeyImpl,
 					2000,
-					&GENERATOR_H as *const PublicKey,
-					&GENERATOR_G as *const PublicKey
+					&GENERATOR_H as *const PublicKeyUncompressed,
+					&GENERATOR_G as *const PublicKeyUncompressed
 				),
 				1
 			);
 			assert_eq!(
 				secp256k1_pedersen_commit(
 					ctx,
-					&mut output2 as *mut Commitment,
-					&blind4 as *const SecretKey,
+					&mut output2 as *mut CommitmentUncompressed,
+					&blind4 as *const SecretKeyImpl,
 					2000,
-					&GENERATOR_H as *const PublicKey,
-					&GENERATOR_G as *const PublicKey
+					&GENERATOR_H as *const PublicKeyUncompressed,
+					&GENERATOR_G as *const PublicKeyUncompressed
 				),
 				1
 			);
 
-			let positive = [&input1 as *const Commitment, &input2 as *const Commitment];
-			let negative = [&output1 as *const Commitment, &output2 as *const Commitment];
+			let positive = [
+				&input1 as *const CommitmentUncompressed,
+				&input2 as *const CommitmentUncompressed,
+			];
+			let negative = [
+				&output1 as *const CommitmentUncompressed,
+				&output2 as *const CommitmentUncompressed,
+			];
 			assert_eq!(
 				secp256k1_pedersen_verify_tally(ctx, positive.as_ptr(), 2, negative.as_ptr(), 2),
 				1
