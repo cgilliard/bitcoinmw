@@ -8,7 +8,7 @@
 [![Stars](https://img.shields.io/github/stars/cgilliard/bitcoinmw.svg?style=social)](https://github.com/cgilliard/bitcoinmw/stargazers)
 
 <p align="center">
-    <img src="docs/logo.png" alt="Logo">
+    <img src="docs/logo.jpg" alt="Logo">
 </p>
 
  “Just as a body, though one, has many parts, but all its many parts form one body, so it is with Christ. For we were all baptized by one Spirit so as to form one body—whether Jews or Gentiles, slave or free—and we were all given the one Spirit to drink. Even so the body is not made up of one part but of many”.
