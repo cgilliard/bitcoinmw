@@ -1,8 +1,7 @@
 use core::marker::Sized;
 use core::mem::size_of;
 use core::ops::{Deref, DerefMut, Index, IndexMut};
-use core::ptr::{drop_in_place, null_mut, write, write_bytes, NonNull};
-use core::slice::from_raw_parts_mut;
+use core::ptr::{drop_in_place, null_mut, write};
 use ffi::{alloc, release};
 use prelude::*;
 
@@ -168,30 +167,6 @@ impl<T> Box<T> {
 			ptr
 		};
 		Ok(Box { ptr })
-	}
-}
-
-impl<T> Box<[T]> {
-	pub fn new_zeroed_byte_slice(len: usize) -> Result<Box<[T]>, Error> {
-		if len == 0 {
-			unsafe {
-				let ptr = NonNull::<T>::dangling().as_ptr();
-				let ptr = from_raw_parts_mut(ptr, 0);
-				let mut ret: Box<[T]> = Box::from_raw(Ptr::new(ptr));
-				ret.leak();
-				return Ok(ret);
-			}
-		}
-		let ptr = unsafe { alloc(len * size_of::<T>()) };
-		if ptr.is_null() {
-			return Err(Error::new(Alloc));
-		}
-		unsafe {
-			write_bytes(ptr as *mut T, 0, len);
-		}
-		let box_slice = unsafe { Box::from_raw(Ptr::new(from_raw_parts_mut(ptr as *mut T, len))) };
-
-		Ok(box_slice)
 	}
 }
 
@@ -397,7 +372,7 @@ mod test {
 				assert_eq!(8u8, box1.as_ref()[i]);
 			}
 
-			let mut box2 = Box::new_zeroed_byte_slice(20000).unwrap();
+			let mut box2: Box<[i32]> = box_slice!(0u8, 20000);
 			for i in 0..20000 {
 				box2.as_mut()[i] = 10;
 			}
@@ -430,7 +405,7 @@ mod test {
 	fn test_drop_box() {
 		let initial = unsafe { getalloccount() };
 		{
-			let _big = Box::<[u8]>::new_zeroed_byte_slice(100000);
+			let _big: Box<[u8]> = box_slice!(0u8, 100000);
 			let _v = Box::new(DropBox { x: 1 }).unwrap();
 			assert_eq!(unsafe { COUNT }, 0);
 		}
@@ -476,7 +451,7 @@ mod test {
 
 	#[test]
 	fn test_box_index() {
-		let mut mybox = Box::<[u64]>::new_zeroed_byte_slice(3).unwrap();
+		let mut mybox: Box<[u64]> = box_slice!(0u64, 3);
 		mybox[0] = 1;
 		mybox[1] = 2;
 		mybox[2] = 3;
