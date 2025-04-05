@@ -1,6 +1,3 @@
-use core::clone::Clone as CoreClone;
-use core::cmp::PartialEq;
-use core::marker::{Copy, Sized};
 use core::mem::size_of;
 use core::ops::{Deref, DerefMut};
 use core::ptr::{null, write};
@@ -17,7 +14,7 @@ impl<T: ?Sized> PartialEq for Ptr<T> {
 	}
 }
 
-impl<T: ?Sized> CoreClone for Ptr<T> {
+impl<T: ?Sized> Clone for Ptr<T> {
 	fn clone(&self) -> Self {
 		*self
 	}
@@ -102,14 +99,6 @@ impl<T: ?Sized> Ptr<T> {
 				ptr: ptr as *const R,
 			})
 		}
-	}
-
-	pub fn byte_add(&self, n: i64) -> *mut u8 {
-		let mut ret = self.raw() as *mut u8;
-		unsafe {
-			ptr_add(&mut ret as *mut _ as *mut u8, n);
-		}
-		ret
 	}
 
 	pub fn as_ref(&self) -> &T {

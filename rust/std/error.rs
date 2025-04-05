@@ -1,3 +1,5 @@
+use prelude::*;
+
 macro_rules! define_errorkind_with_strings {
     ( $( $variant:ident ),* ) => {
         #[derive(PartialEq)]
@@ -36,10 +38,6 @@ impl Error {
 	}
 }
 
-#[cfg(test)]
-use prelude::*;
-
-#[cfg(test)]
 impl Debug for Error {
 	fn fmt(&self, _: &mut Formatter<'_>) -> Result<(), FmtError> {
 		Ok(())

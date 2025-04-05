@@ -57,9 +57,6 @@ fi
 echo "Code Coverage Report for commit: $GREEN`git log -1 | grep "^commit " | cut -f2 -d ' '`$RESET";
 echo "$BLUE----------------------------------------------------------------------------------------------------$RESET";
 
-echo "Code Coverage Report for commit: $GREEN`git log -1 | grep "^commit " | cut -f2 -d ' '`$RESET";
-echo "$BLUE----------------------------------------------------------------------------------------------------$RESET";
-
 for line in $(cat /tmp/coverage.txt)
 do
         if [ "`echo $line | grep "^SF:"`" != "" ]; then
