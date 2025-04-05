@@ -1,5 +1,3 @@
-use prelude::*;
-
 macro_rules! define_errorkind_with_strings {
     ( $( $variant:ident ),* ) => {
         #[derive(PartialEq)]
@@ -39,6 +37,9 @@ impl Error {
 }
 
 #[cfg(test)]
+use prelude::*;
+
+#[cfg(test)]
 impl Debug for Error {
 	fn fmt(&self, _: &mut Formatter<'_>) -> Result<(), FmtError> {
 		Ok(())
@@ -54,13 +55,20 @@ mod test {
 		let e1 = Error::new(Alloc);
 		let e2 = Error::new(Todo);
 		let e3 = Error::new(Alloc);
+		let e4 = Error::new(IllegalArgument);
+		let e5 = Error::new(IllegalState);
+		let e6 = Error::new(ArrayIndexOutOfBounds);
+		let e7 = Error::new(Serialization);
+		let e8 = Error::new(Secp);
 		assert_eq!(e1, e3);
 		assert!(e1 != e2);
+		assert!(e4 != e5);
+		assert!(e6 != e7);
+		assert!(e8 != e1);
+		assert!(e8.kind.as_str() == "Secp");
 
 		let res = match e3.kind {
-			Alloc => 1,
-			Todo => 2,
-			_ => 3,
+			_ => 1,
 		};
 		assert_eq!(res, 1);
 	}
