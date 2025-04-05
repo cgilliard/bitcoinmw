@@ -26,7 +26,6 @@ elif [ "mrustc" = "$1" ]; then
         cd ..
 	${MRUSTC} -C panic=abort \
 		-O \
-		--emit=obj \
 		--crate-type=lib \
 		-L${OUTPUT} \
 		--cfg mrustc \

@@ -14,13 +14,13 @@ pub struct CsprngCtx(usize);
 #[repr(C)]
 pub struct PublicKeyUncompressed([u8; 64]); // pubkey
 #[repr(C)]
-pub struct SecretKeyImpl([u8; 32]); // Secret key
+pub struct SecretKeyImpl(pub(crate) [u8; 32]); // Secret key
 #[repr(C)]
 pub struct AggSigPartialSignature([u8; 32]); // Partial signature
 #[repr(C)]
-pub struct Signature([u8; 64]); // Final signature
+pub struct SignatureImpl([u8; 64]); // Final signature
 #[repr(C)]
-pub struct CommitmentUncompressed([u8; 64]);
+pub struct CommitmentUncompressed(pub(crate) [u8; 64]);
 #[repr(C)]
 pub struct ScratchSpace(usize);
 #[repr(C)]
@@ -51,6 +51,11 @@ pub const SECP256K1_SER_UNCOMPRESSED: u32 = (1 << 1) | 0;
 /// Flag for keys to indicate compressed serialization format
 pub const SECP256K1_SER_COMPRESSED: u32 = (1 << 1) | (1 << 8);
 
+const SECP256K1_FLAGS_TYPE_COMPRESSION: u32 = 1 << 1; // 0x02
+const SECP256K1_FLAGS_BIT_COMPRESSION: u32 = 1 << 8; // 0x100
+pub const SECP256K1_EC_COMPRESSED: u32 =
+	SECP256K1_FLAGS_TYPE_COMPRESSION | SECP256K1_FLAGS_BIT_COMPRESSION; // 0x102
+
 static mut SHARED_BULLETGENERATORS: Option<*mut BulletproofGenerators> = None;
 
 unsafe fn shared_generators(ctx: *mut Secp256k1Context) -> *mut BulletproofGenerators {
@@ -69,6 +74,12 @@ unsafe fn shared_generators(ctx: *mut Secp256k1Context) -> *mut BulletproofGener
 }
 
 extern "C" {
+	// memory allocation
+	pub fn alloc(bytes: usize) -> *const u8;
+	pub fn release(ptr: *const u8);
+	pub fn resize(ptr: *const u8, bytes: usize) -> *const u8;
+	pub fn getalloccount() -> usize;
+
 	// secp256k1
 	pub fn secp256k1_context_create(flags: u32) -> *mut Secp256k1Context;
 	pub fn secp256k1_context_destroy(ctx: *mut Secp256k1Context);
@@ -80,11 +91,27 @@ extern "C" {
 		seed32: *const u8,
 	) -> *mut Secp256k1AggsigContext;
 	pub fn secp256k1_aggsig_context_destroy(aggctx: *mut Secp256k1AggsigContext);
-	pub fn secp256k1_ec_seckey_verify(cx: *const Secp256k1Context, sk: *const SecretKeyImpl) -> i32;
+	pub fn secp256k1_ec_seckey_verify(cx: *const Secp256k1Context, sk: *const SecretKeyImpl)
+		-> i32;
 	pub fn secp256k1_ec_pubkey_create(
 		cx: *const Secp256k1Context,
 		pk: *mut PublicKeyUncompressed,
 		sk: *const SecretKeyImpl,
+	) -> i32;
+
+	pub fn secp256k1_ec_pubkey_serialize(
+		cx: *const Secp256k1Context,
+		output: *mut u8,
+		outputlen: *const usize,
+		pubkey: *const PublicKeyUncompressed,
+		flags: u32,
+	) -> i32;
+
+	pub fn secp256k1_ec_pubkey_parse(
+		cx: *const Secp256k1Context,
+		pk: *mut PublicKeyUncompressed,
+		input: *const u8,
+		intputlen: usize,
 	) -> i32;
 
 	pub fn secp256k1_aggsig_generate_nonce(
@@ -105,14 +132,14 @@ extern "C" {
 	pub fn secp256k1_aggsig_combine_signatures(
 		cx: *const Secp256k1Context,
 		aggctx: *mut Secp256k1AggsigContext,
-		sig64: *mut Signature,
+		sig64: *mut SignatureImpl,
 		partial: *const AggSigPartialSignature,
-		index: usize,
+		nsigs: usize,
 	) -> i32;
 
 	pub fn secp256k1_aggsig_build_scratch_and_verify(
 		cx: *const Secp256k1Context,
-		sig64: *const Signature,
+		sig64: *const SignatureImpl,
 		msg32: *const u8,
 		pks: *const PublicKeyUncompressed,
 		n_pubkeys: usize,
@@ -328,12 +355,12 @@ mod test {
 			);
 
 			// combine into final_sig
-			let mut final_sig = Signature([0u8; 64]);
+			let mut final_sig = SignatureImpl([0u8; 64]);
 			assert_eq!(
 				secp256k1_aggsig_combine_signatures(
 					ctx,
 					aggctx,
-					&mut final_sig as *mut Signature,
+					&mut final_sig as *mut SignatureImpl,
 					&mut partial_sigs as *mut u8 as *mut AggSigPartialSignature,
 					2,
 				),
@@ -343,7 +370,7 @@ mod test {
 			// verify final signature
 			let result = secp256k1_aggsig_build_scratch_and_verify(
 				ctx,
-				&final_sig as *const Signature,
+				&final_sig as *const SignatureImpl,
 				msg32.as_ptr(),
 				pkeys.as_ptr() as *const PublicKeyUncompressed,
 				2,
@@ -541,7 +568,10 @@ mod test {
 				1,
 				"Tweak add failed for input blinds"
 			);
-			let blinds = [&sum_in as *const SecretKeyImpl, &blind3 as *const SecretKeyImpl];
+			let blinds = [
+				&sum_in as *const SecretKeyImpl,
+				&blind3 as *const SecretKeyImpl,
+			];
 			assert_eq!(
 				secp256k1_pedersen_blind_sum(ctx, &mut blind4, blinds.as_ptr(), 2, 1), // 1 positive (sum_in), 1 negative (blind3)
 				1,
@@ -612,6 +642,18 @@ mod test {
 
 			secp256k1_context_destroy(ctx);
 			cpsrng_context_destroy(r);
+		}
+	}
+
+	#[test]
+	fn test_mem() {
+		unsafe {
+			let start = getalloccount();
+			let x = alloc(100);
+			let y = resize(x, 200);
+			assert!(start != getalloccount());
+			release(y);
+			assert_eq!(start, getalloccount());
 		}
 	}
 }
