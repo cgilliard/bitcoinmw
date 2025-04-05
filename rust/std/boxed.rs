@@ -381,7 +381,6 @@ mod test {
 		}
 	}
 
-	/*
 	#[test]
 	fn test_box4() {
 		let initial = unsafe { getalloccount() };
@@ -468,7 +467,7 @@ mod test {
 		{
 			let x = CloneBox { x: 10 };
 			let y = Box::new(x).unwrap();
-			let z = Box::clone(&y).unwrap();
+			let z = Box::clone(&y);
 			assert_eq!(*z, *y);
 			assert_eq!(unsafe { CLONE_DROP_COUNT }, 0);
 		}
@@ -485,5 +484,4 @@ mod test {
 		assert_eq!(mybox[1], 2);
 		assert_eq!(mybox[2], 3);
 	}
-		*/
 }
