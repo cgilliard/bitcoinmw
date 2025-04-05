@@ -372,7 +372,7 @@ mod test {
 				assert_eq!(8u8, box1.as_ref()[i]);
 			}
 
-			let mut box2: Box<[i32]> = box_slice!(0u8, 20000);
+			let mut box2: Box<[u8]> = box_slice!(0u8, 20000);
 			for i in 0..20000 {
 				box2.as_mut()[i] = 10;
 			}
