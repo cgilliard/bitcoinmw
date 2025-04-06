@@ -77,6 +77,54 @@ impl Secp {
 		}
 	}
 
+	pub fn blind_sum(
+		&self,
+		positive: &[SecretKey],
+		negative: &[SecretKey],
+	) -> Result<SecretKey, Error> {
+		let mut blind_out = SecretKey([0u8; 32]);
+		let total_len = positive.len() + negative.len();
+
+		// Allocate memory for an array of *const SecretKey pointers
+		let ptr_size = size_of::<*const SecretKey>();
+		let blinds_ptr = unsafe { alloc(total_len * ptr_size) as *mut *const SecretKey };
+
+		if blinds_ptr.is_null() {
+			return Err(Error::new(Alloc));
+		}
+
+		unsafe {
+			// Populate the pointer array with positive keys
+			for (i, key) in positive.iter().enumerate() {
+				*blinds_ptr.add(i) = key as *const SecretKey;
+			}
+
+			// Append negative keys
+			for (i, key) in negative.iter().enumerate() {
+				*blinds_ptr.add(positive.len() + i) = key as *const SecretKey;
+			}
+
+			// Call the Pedersen blind sum function
+			let result = secp256k1_pedersen_blind_sum(
+				self.ctx,
+				&mut blind_out,
+				blinds_ptr,
+				total_len,
+				positive.len(),
+			);
+
+			// Free the allocated memory
+			release(blinds_ptr as *mut u8);
+
+			// Check result and return
+			if result != 1 {
+				Err(Error::new(Secp))
+			} else {
+				Ok(blind_out)
+			}
+		}
+	}
+
 	pub fn verify_balance(
 		&self,
 		positive: &[Commitment],
@@ -429,34 +477,24 @@ mod test {
 
 	#[test]
 	fn test_secp_commit() {
+		// create secp instance
 		let secp = Secp::new().unwrap();
-		let ctx = secp.ctx;
-
+		// create three random blind sums
 		let blind1 = SecretKey::new(&secp);
 		let blind2 = SecretKey::new(&secp);
 		let blind3 = SecretKey::new(&secp);
-		let mut blind4 = SecretKey([0u8; 32]);
-		unsafe {
-			// Compute blind4 = blind1 + blind2 - blind3 using tweak add and blind sum
-			let mut sum_in = SecretKey(blind1.0); // Copy blind1
-			assert_eq!(
-				secp256k1_ec_privkey_tweak_add(ctx, &mut sum_in, &blind2),
-				1,
-				"Tweak add failed for input blinds"
-			);
-			let blinds = [&sum_in as *const SecretKey, &blind3 as *const SecretKey];
-			assert_eq!(
-				secp256k1_pedersen_blind_sum(ctx, &mut blind4, blinds.as_ptr(), 2, 1), // 1 positive (sum_in), 1 negative (blind3)
-				1,
-				"Blind sum failed for output blind"
-			);
-		}
 
+		// create their coresponding inputs/outputs with specified amounts
 		let input1 = secp.commit(1000, &blind1).unwrap();
 		let input2 = secp.commit(3000, &blind2).unwrap();
 		let output1 = secp.commit(2000, &blind3).unwrap();
+
+		// create blind sum that balances other sums
+		let blind4 = secp.blind_sum(&[blind1, blind2], &[blind3]).unwrap();
+		// create an output with this balancing factor and amount
 		let output2 = secp.commit(2000, &blind4).unwrap();
 
+		// verify balance
 		assert!(secp
 			.verify_balance(&[input1, input2], &[output1, output2])
 			.unwrap());
