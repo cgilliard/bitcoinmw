@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-use prelude::*;
 use types::*;
 
 pub const MAX_GENERATORS: usize = 256;
@@ -20,8 +19,6 @@ const SECP256K1_FLAGS_TYPE_COMPRESSION: u32 = 1 << 1;
 const SECP256K1_FLAGS_BIT_COMPRESSION: u32 = 1 << 8;
 pub const SECP256K1_EC_COMPRESSED: u32 =
 	SECP256K1_FLAGS_TYPE_COMPRESSION | SECP256K1_FLAGS_BIT_COMPRESSION;
-
-static mut SHARED_BULLETGENERATORS: Option<*mut BulletproofGenerators> = None;
 
 pub const GENERATOR_G: PublicKeyUncompressed = PublicKeyUncompressed([
 	0x79, 0xbe, 0x66, 0x7e, 0xf9, 0xdc, 0xbb, 0xac, 0x55, 0xa0, 0x62, 0x95, 0xce, 0x87, 0x0b, 0x07,
