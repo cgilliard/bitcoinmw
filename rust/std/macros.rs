@@ -235,8 +235,9 @@ macro_rules! format {
 #[macro_export]
 macro_rules! println {
     ($fmt:expr) => {{
-            crate::ffi::write(2, $fmt.as_ptr(), $fmt.len());
-            crate::ffi::write(2, "\n".as_ptr(), 1);
+            use ffi::write;
+            write(2, $fmt.as_ptr(), $fmt.len());
+            write(2, "\n".as_ptr(), 1);
     }};
     ($fmt:expr, $($t:expr),*) => {{
         match format!($fmt, $($t),*) {
