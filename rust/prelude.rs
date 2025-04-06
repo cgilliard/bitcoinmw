@@ -19,3 +19,6 @@ pub use core::marker::{Copy, Sized};
 pub use core::ops::Drop;
 pub use core::option::{Option, Option::None, Option::Some};
 pub use core::result::{Result, Result::Err, Result::Ok};
+
+#[cfg(test)]
+pub use core::panic;

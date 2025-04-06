@@ -127,8 +127,8 @@ impl Secp {
 
 	pub fn verify_balance(
 		&self,
-		positive: &[Commitment],
-		negative: &[Commitment],
+		positive: &[&Commitment],
+		negative: &[&Commitment],
 	) -> Result<bool, Error> {
 		// convert slice of positive/negative commitments to vecs of uncompressed
 		// commitments
@@ -496,7 +496,7 @@ mod test {
 
 		// verify balance
 		assert!(secp
-			.verify_balance(&[input1, input2], &[output1, output2])
+			.verify_balance(&[&input1, &input2], &[&output1, &output2])
 			.unwrap());
 
 		// negative test
@@ -509,7 +509,16 @@ mod test {
 		let blind4 = secp.blind_sum(&[&blind1, &blind2], &[&blind3]).unwrap();
 		let output_bad = secp.commit(2001, &blind4).unwrap();
 		assert!(!secp
-			.verify_balance(&[input1, input2], &[output1, output_bad])
+			.verify_balance(&[&input1, &input2], &[&output1, &output_bad])
+			.unwrap());
+
+		assert!(
+			secp.verify_balance(&[], &[]).unwrap(),
+			"Empty commitments should balance"
+		);
+		let zero_commit = secp.commit(0, &blind1).unwrap();
+		assert!(secp
+			.verify_balance(&[&zero_commit], &[&zero_commit])
 			.unwrap());
 	}
 }
