@@ -7,3 +7,4 @@ pub mod error;
 pub mod misc;
 pub mod ptr;
 pub mod rc;
+pub mod string;

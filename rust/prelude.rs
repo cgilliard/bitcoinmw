@@ -3,6 +3,7 @@ pub use std::boxed::Box;
 pub use std::clone::TryClone;
 pub use std::error::{Error, ErrorKind, ErrorKind::*};
 pub use std::ptr::Ptr;
+pub use std::rc::Rc;
 
 // External
 pub use core::clone::Clone;

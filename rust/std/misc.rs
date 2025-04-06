@@ -209,3 +209,23 @@ pub fn i128_to_str(mut n: i128, buf: &mut [u8], base: u8) -> usize {
 		u128_to_str(n as u128, 0, buf, base)
 	}
 }
+
+pub fn strcmp(a: &str, b: &str) -> i32 {
+	let len = if a.len() > b.len() { b.len() } else { a.len() };
+	let x = a.as_bytes();
+	let y = b.as_bytes();
+
+	for i in 0..len {
+		if x[i] != y[i] {
+			return if x[i] > y[i] { 1 } else { -1 };
+		}
+	}
+
+	if a.len() < b.len() {
+		1
+	} else if a.len() > b.len() {
+		-1
+	} else {
+		0
+	}
+}
