@@ -1,6 +1,6 @@
-extern crate core;
 use core::cmp::PartialEq;
 use core::fmt::Debug;
+use core::fmt::Formatter;
 use core::ptr::copy_nonoverlapping;
 use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
@@ -13,16 +13,8 @@ pub struct String {
 	start: usize,
 }
 
-/*
-impl Display for String {
-	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
-		f.write_str(self.to_str(), self.len())
-	}
-}
-*/
-
 impl Debug for String {
-	fn fmt(&self, _: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
+	fn fmt(&self, _: &mut Formatter<'_>) -> Result<(), FmtError> {
 		Ok(())
 	}
 }

@@ -1,3 +1,4 @@
+use core::fmt::Formatter as CoreFormatter;
 use prelude::*;
 
 macro_rules! define_errorkind_with_strings {
@@ -18,6 +19,7 @@ macro_rules! define_errorkind_with_strings {
 }
 
 define_errorkind_with_strings!(
+	Unknown,
 	Alloc,
 	IllegalArgument,
 	ArrayIndexOutOfBounds,
@@ -39,7 +41,7 @@ impl Error {
 }
 
 impl Debug for Error {
-	fn fmt(&self, _: &mut Formatter<'_>) -> Result<(), FmtError> {
+	fn fmt(&self, _: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
 		Ok(())
 	}
 }

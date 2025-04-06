@@ -137,3 +137,26 @@ macro_rules! try_box_slice {
 		}
 	}};
 }
+
+#[macro_export]
+macro_rules! vec {
+                ($($elem:expr),*) => {
+                    {
+                                let mut vec = Vec::new();
+                                let mut err: Error = Error::new(Unknown);
+                                $(
+                                        if err.kind == ErrorKind::Unknown {
+                                                match vec.push($elem) {
+                                                        Ok(_) => {},
+                                                        Err(e) => err = e,
+                                                }
+                                        }
+                                )*
+                                if err.kind != ErrorKind::Unknown {
+                                        Err(err)
+                                } else {
+                                        Ok(vec)
+                                }
+                    }
+                };
+}

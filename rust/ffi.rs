@@ -7,7 +7,7 @@ extern "C" {
 	pub fn resize(ptr: *const u8, bytes: usize) -> *const u8;
 
 	// sys
-	pub fn write(fd: i32, buf: *const u8, len: usize) -> i64;
+	pub fn write(fd: i32, buf: *const u8, len: usize) -> i32;
 	pub fn ptr_add(p: *mut u8, v: i64);
 	pub fn exit(code: i32);
 	pub fn getalloccount() -> usize;
