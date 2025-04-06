@@ -1,6 +1,6 @@
 use core::cmp::PartialEq;
 use core::fmt::Debug;
-use core::fmt::Formatter;
+use core::fmt::Formatter as CoreFormatter;
 use core::ptr::copy_nonoverlapping;
 use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
@@ -14,8 +14,14 @@ pub struct String {
 }
 
 impl Debug for String {
-	fn fmt(&self, _: &mut Formatter<'_>) -> Result<(), FmtError> {
+	fn fmt(&self, _: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
 		Ok(())
+	}
+}
+
+impl Display for String {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
+		f.write_str(self.to_str(), self.len())
 	}
 }
 
@@ -50,6 +56,32 @@ impl String {
 					let valueptr = value.as_mut_ptr() as *mut u8;
 					unsafe {
 						copy_nonoverlapping(s.as_ptr(), valueptr, end);
+					}
+					match Rc::new(value) {
+						Ok(rc) => Ok(Self {
+							value: Some(rc),
+							start,
+							end,
+						}),
+						Err(e) => Err(e),
+					}
+				}
+				Err(e) => Err(e),
+			}
+		}
+	}
+
+	pub fn newb(b: &[u8]) -> Result<Self, Error> {
+		let end = b.len();
+		let start = 0;
+		if end == 0 {
+			Ok(String::empty())
+		} else {
+			match try_box_slice!(0u8, end) {
+				Ok(mut value) => {
+					let valueptr = value.as_mut_ptr() as *mut u8;
+					unsafe {
+						copy_nonoverlapping(b.as_ptr(), valueptr, end);
 					}
 					match Rc::new(value) {
 						Ok(rc) => Ok(Self {

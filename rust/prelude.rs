@@ -6,6 +6,8 @@ pub use std::error::{Error, ErrorKind, ErrorKind::*};
 pub use std::format::Formatter;
 pub use std::ptr::Ptr;
 pub use std::rc::Rc;
+pub use std::string::String;
+pub use std::vec::Vec;
 
 // External
 pub use core::clone::Clone;

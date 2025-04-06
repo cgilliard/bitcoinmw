@@ -59,7 +59,7 @@ impl<T> Index<usize> for Vec<T> {
 
 	fn index(&self, index: usize) -> &Self::Output {
 		if index >= self.elements as usize {
-			panic!("array index out of bounds!");
+			exit!("array index out of bounds!");
 		}
 
 		unsafe {
@@ -73,7 +73,7 @@ impl<T> Index<usize> for Vec<T> {
 impl<T> IndexMut<usize> for Vec<T> {
 	fn index_mut(&mut self, index: usize) -> &mut Self::Output {
 		if index >= self.elements as usize {
-			panic!("array index out of bounds!");
+			exit!("array index out of bounds!");
 		}
 
 		unsafe {
@@ -250,25 +250,30 @@ impl<T> Vec<T> {
 
 	pub fn slice(&self, start: usize, end: usize) -> &[T] {
 		if start > end || end > self.elements {
-			panic!(
+			exit!(
 				"Slice out of bounds: {}..{} > {}",
-				start, end, self.elements
+				start,
+				end,
+				self.elements
 			);
+		} else {
+			let size = size_of::<T>();
+			unsafe { from_raw_parts(self.value.raw().add(start * size) as *const T, end - start) }
 		}
-
-		let size = size_of::<T>();
-		unsafe { from_raw_parts(self.value.raw().add(start * size) as *const T, end - start) }
 	}
 
 	pub fn slice_mut(&mut self, start: usize, end: usize) -> &mut [T] {
 		if start > end || end > self.elements {
-			panic!(
+			exit!(
 				"Slice out of bounds: {}..{} > {}",
-				start, end, self.elements
+				start,
+				end,
+				self.elements
 			);
+		} else {
+			let size = size_of::<T>();
+			unsafe { from_raw_parts_mut(self.value.raw().add(start * size) as *mut T, end - start) }
 		}
-		let size = size_of::<T>();
-		unsafe { from_raw_parts_mut(self.value.raw().add(start * size) as *mut T, end - start) }
 	}
 
 	fn next_power_of_two(&self, mut n: usize) -> usize {

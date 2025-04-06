@@ -160,3 +160,126 @@ macro_rules! vec {
                     }
                 };
 }
+
+#[macro_export]
+macro_rules! writeb {
+        ($f:expr, $fmt:expr) => {{
+            writeb!($f, "{}", $fmt)
+        }};
+        ($f:expr, $fmt:expr, $($t:expr),*) => {{
+            let mut err = Error::new(Unknown);
+            match String::new($fmt) {
+                Ok(fmt) => {
+                    let mut cur = 0;
+                    $(
+                        match fmt.findn("{}", cur) {
+                            Some(index) => {
+                                match fmt.substring( cur, cur + index) {
+                                    Ok(s) => {
+                                        let s = s.to_str();
+                                        match $f.write_str(s, s.len()) {
+                                            Ok(_) => {},
+                                            Err(e) => err = e,
+                                        }
+                                        cur += index + 2;
+                                    }
+                                    Err(e) => err = e,
+                                }
+                            },
+                            None => {
+                            },
+                        }
+                        match $t.format(&mut $f) {
+                            Ok(_) => {},
+                            Err(e) => err = e,
+                        }
+                    )*
+
+                    match fmt.substring( cur, fmt.len()) {
+                        Ok(s) => {
+                            let s = s.to_str();
+                            match $f.write_str(s, s.len()) {
+                                Ok(_) =>{},
+                                Err(e) => err = e,
+                            }
+                        }
+                        Err(e) => err = e,
+                    }
+                }
+                Err(e) => err = e,
+            }
+
+
+            if err.kind == ErrorKind::Unknown {
+                Ok(())
+            } else {
+                Err(err)
+            }
+        }};
+}
+
+#[macro_export]
+macro_rules! format {
+        ($fmt:expr) => {{
+                format!("{}", $fmt)
+        }};
+        ($fmt:expr, $($t:expr),*) => {{
+                let mut formatter = Formatter::new();
+                match writeb!(formatter, $fmt, $($t),*) {
+                    Ok(_) => String::new(formatter.as_str()),
+                    Err(e) => Err(e)
+                }
+        }};
+}
+
+#[macro_export]
+macro_rules! println {
+    ($fmt:expr) => {{
+            crate::ffi::write(2, $fmt.as_ptr(), $fmt.len());
+            crate::ffi::write(2, "\n".as_ptr(), 1);
+    }};
+    ($fmt:expr, $($t:expr),*) => {{
+        match format!($fmt, $($t),*) {
+            Ok(line) => {
+                use ffi::write;
+                unsafe {
+                        write(2, line.to_str().as_ptr(), line.len());
+                        write(2, "\n".as_ptr(), 1);
+                }
+            },
+            Err(_e) => {},
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! print {
+    ($fmt:expr) => {{
+        unsafe { crate::ffi::write(2, $fmt.as_ptr(), $fmt.len()); }
+    }};
+    ($fmt:expr, $($t:expr),*) => {{
+        match format!($fmt, $($t),*) {
+            Ok(line) => {
+                unsafe { crate::ffi::write(2, line.to_str().as_ptr(), line.len()); }
+            },
+            Err(_e) => {},
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! exit {
+        ($fmt:expr) => {{
+                exit!("{}", $fmt);
+        }};
+        ($fmt:expr,  $($t:expr),*) => {{
+                print!("Panic[@{}:{}]: ", file!(), line!());
+                println!($fmt, $($t),*);
+
+                unsafe {
+                        use ffi::exit;
+                        exit(-1);
+                }
+                loop {}
+        }};
+}

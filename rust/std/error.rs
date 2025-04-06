@@ -26,6 +26,7 @@ define_errorkind_with_strings!(
 	IllegalState,
 	Serialization,
 	Secp,
+	IO,
 	Todo
 );
 

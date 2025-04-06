@@ -102,7 +102,7 @@ impl<T> Index<usize> for Box<[T]> {
 	fn index(&self, index: usize) -> &Self::Output {
 		let len = unsafe { (*self.ptr.raw()).len() };
 		if index >= len {
-			panic!("Index out of bounds: {} >= {}", index, len);
+			exit!("Index out of bounds: {} >= {}", index, len);
 		}
 		unsafe { &*(self.ptr.raw() as *mut T).add(index) }
 	}
@@ -112,7 +112,7 @@ impl<T> IndexMut<usize> for Box<[T]> {
 	fn index_mut(&mut self, index: usize) -> &mut Self::Output {
 		let len = unsafe { (*self.ptr.raw()).len() };
 		if index >= len {
-			panic!("Index out of bounds: {} >= {}", index, len);
+			exit!("Index out of bounds: {} >= {}", index, len);
 		}
 		unsafe { &mut *(self.ptr.raw() as *mut T).add(index) }
 	}
