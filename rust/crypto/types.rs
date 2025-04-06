@@ -79,8 +79,8 @@ impl Secp {
 
 	pub fn blind_sum(
 		&self,
-		positive: &[SecretKey],
-		negative: &[SecretKey],
+		positive: &[&SecretKey],
+		negative: &[&SecretKey],
 	) -> Result<SecretKey, Error> {
 		let mut blind_out = SecretKey([0u8; 32]);
 		let total_len = positive.len() + negative.len();
@@ -96,12 +96,12 @@ impl Secp {
 		unsafe {
 			// Populate the pointer array with positive keys
 			for (i, key) in positive.iter().enumerate() {
-				*blinds_ptr.add(i) = key as *const SecretKey;
+				*blinds_ptr.add(i) = *key as *const SecretKey;
 			}
 
 			// Append negative keys
 			for (i, key) in negative.iter().enumerate() {
-				*blinds_ptr.add(positive.len() + i) = key as *const SecretKey;
+				*blinds_ptr.add(positive.len() + i) = *key as *const SecretKey;
 			}
 
 			// Call the Pedersen blind sum function
@@ -490,13 +490,26 @@ mod test {
 		let output1 = secp.commit(2000, &blind3).unwrap();
 
 		// create blind sum that balances other sums
-		let blind4 = secp.blind_sum(&[blind1, blind2], &[blind3]).unwrap();
+		let blind4 = secp.blind_sum(&[&blind1, &blind2], &[&blind3]).unwrap();
 		// create an output with this balancing factor and amount
 		let output2 = secp.commit(2000, &blind4).unwrap();
 
 		// verify balance
 		assert!(secp
 			.verify_balance(&[input1, input2], &[output1, output2])
+			.unwrap());
+
+		// negative test
+		let blind1 = SecretKey::new(&secp);
+		let blind2 = SecretKey::new(&secp);
+		let blind3 = SecretKey::new(&secp);
+		let input1 = secp.commit(1000, &blind1).unwrap();
+		let input2 = secp.commit(3000, &blind2).unwrap();
+		let output1 = secp.commit(2000, &blind3).unwrap();
+		let blind4 = secp.blind_sum(&[&blind1, &blind2], &[&blind3]).unwrap();
+		let output_bad = secp.commit(2001, &blind4).unwrap();
+		assert!(!secp
+			.verify_balance(&[input1, input2], &[output1, output_bad])
 			.unwrap());
 	}
 }
