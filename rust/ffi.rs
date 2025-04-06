@@ -43,6 +43,20 @@ extern "C" {
 		sk: *const SecretKey,
 	) -> i32;
 
+	// Parse a 33-byte commitment into 64 byte internal commitment object
+	pub fn secp256k1_pedersen_commitment_parse(
+		cx: *const Secp256k1Context,
+		commit: *mut u8,
+		input: *const u8,
+	) -> i32;
+
+	// Serialize a 64-byte commit object into a 33 byte serialized byte sequence
+	pub fn secp256k1_pedersen_commitment_serialize(
+		cx: *const Secp256k1Context,
+		output: *mut u8,
+		commit: *const u8,
+	) -> i32;
+
 	pub fn secp256k1_ec_pubkey_serialize(
 		cx: *const Secp256k1Context,
 		output: *mut u8,

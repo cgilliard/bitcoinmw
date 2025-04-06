@@ -1,8 +1,8 @@
 use core::marker::PhantomData;
-use core::mem::{needs_drop, size_of, zeroed};
+use core::mem::{needs_drop, size_of};
 use core::ops::{Index, IndexMut};
 use core::ptr;
-use core::ptr::{copy_nonoverlapping, drop_in_place, null_mut, replace, write_bytes};
+use core::ptr::{copy_nonoverlapping, drop_in_place, null_mut, write_bytes};
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use ffi::{alloc, release, resize};
 use prelude::*;
@@ -87,6 +87,7 @@ impl<T> IndexMut<usize> for Vec<T> {
 pub struct VecIterator<T> {
 	vec: Vec<T>,
 	index: usize,
+	len: usize,
 }
 
 impl<T> Iterator for VecIterator<T> {
@@ -94,16 +95,30 @@ impl<T> Iterator for VecIterator<T> {
 
 	fn next(&mut self) -> Option<Self::Item> {
 		let size = size_of::<T>();
-		if self.index < self.vec.elements {
+		if self.index < self.len {
 			let ptr = self.vec.value.raw() as *const u8;
 			let ptr = unsafe { ptr.add(self.index * size) as *mut T };
-			let element = unsafe { replace(&mut *ptr, zeroed()) };
+			let element = unsafe { ptr::read(ptr) }; // Move the element out
 			self.index += 1;
 			Some(element)
 		} else {
-			self.vec.elements = 0;
 			None
 		}
+	}
+}
+
+impl<T> Drop for VecIterator<T> {
+	fn drop(&mut self) {
+		let size = size_of::<T>();
+		// Drop any remaining elements that weren't moved out
+		while self.index < self.vec.elements {
+			let ptr = self.vec.value.raw() as *const u8;
+			let ptr = unsafe { ptr.add(self.index * size) as *mut T };
+			unsafe { ptr::drop_in_place(ptr) };
+			self.index += 1;
+		}
+		// Tell Vec that all elements are gone to prevent its Drop from running on them
+		self.vec.elements = 0;
 	}
 }
 
@@ -112,9 +127,11 @@ impl<T> IntoIterator for Vec<T> {
 	type IntoIter = VecIterator<T>;
 
 	fn into_iter(self) -> Self::IntoIter {
+		let len = self.elements;
 		let ret = VecIterator {
 			vec: self,
 			index: 0,
+			len,
 		};
 		ret
 	}

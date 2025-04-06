@@ -2,6 +2,7 @@
 
 use types::*;
 
+pub const ZERO_KEY: [u8; 32] = [0; 32];
 pub const MAX_GENERATORS: usize = 256;
 
 /// Flag for context to enable no precomputation

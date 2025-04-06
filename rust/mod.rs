@@ -5,6 +5,7 @@
 pub mod std;
 
 mod constants;
+pub mod crypto;
 mod ffi;
 mod prelude;
 mod real_main;

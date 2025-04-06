@@ -8,6 +8,7 @@ pub use std::ptr::Ptr;
 pub use std::rc::Rc;
 pub use std::string::String;
 pub use std::vec::Vec;
+pub use types::*;
 
 // External
 pub use core::clone::Clone;
