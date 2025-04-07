@@ -4,6 +4,8 @@ use constants::*;
 use prelude::*;
 
 #[repr(C)]
+pub struct Sha3Context(usize);
+#[repr(C)]
 pub struct Secp256k1Context(usize);
 #[repr(C)]
 pub struct Secp256k1AggsigContext(usize);
@@ -17,6 +19,9 @@ pub struct SecretKey(pub [u8; 32]);
 pub struct AggSigPartialSignature(pub [u8; 32]);
 #[repr(C)]
 pub struct Signature(pub [u8; 64]);
+#[repr(C)]
+#[derive(Clone)]
+pub struct SignatureScalar(pub [u8; 32]);
 #[repr(C)]
 pub struct CommitmentUncompressed(pub [u8; 64]);
 #[repr(C)]

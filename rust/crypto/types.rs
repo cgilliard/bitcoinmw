@@ -7,6 +7,7 @@ use core::ptr::{copy_nonoverlapping, null, null_mut};
 use core::sync::atomic::{compiler_fence, Ordering};
 use ffi::*;
 use prelude::*;
+use std::misc::to_le_bytes_u64;
 
 pub struct Message([u8; 32]);
 
@@ -38,6 +39,28 @@ impl Secp {
 				Ok(Self { ctx, rand })
 			}
 		}
+	}
+
+	pub fn hash_kernel(
+		&self,
+		excess: &Commitment,
+		fee: u64,
+		features: u64,
+	) -> Result<Message, Error> {
+		let mut sha3 = Sha3::new(Sha3_256)?;
+		sha3.update(&excess.0); // 33 bytes
+
+		let mut fee_bytes = [0u8; 8];
+		to_le_bytes_u64(fee, &mut fee_bytes);
+		sha3.update(&fee_bytes); // 8 bytes
+
+		let mut features_bytes = [0u8; 8];
+		to_le_bytes_u64(features, &mut features_bytes);
+		sha3.update(&features_bytes); // 8 bytes
+
+		let mut hash = [0u8; 32];
+		sha3.finalize(&mut hash)?;
+		Ok(Message(hash))
 	}
 
 	pub fn commit(&self, v: u64, blind: &SecretKey) -> Result<Commitment, Error> {
@@ -75,6 +98,53 @@ impl Secp {
 				Ok(Commitment(cbytes))
 			}
 		}
+	}
+
+	pub fn sign_ecdsa(&self, msg: &[u8; 32], seckey: &SecretKey) -> Result<SignatureScalar, Error> {
+		let mut sig = [0u8; 64];
+		unsafe {
+			if secp256k1_ecdsa_sign(
+				self.ctx,
+				sig.as_mut_ptr() as *mut Signature,
+				msg.as_ptr(),
+				seckey.0.as_ptr() as *const SecretKey,
+				secp256k1_nonce_function_rfc6979,
+				null_mut(),
+			) != 1
+			{
+				return Err(Error::new(Secp));
+			}
+		}
+		SignatureScalar::from_bytes(&sig[32..])
+	}
+
+	pub fn sign_partial(
+		&self,
+		msg: &Message,
+		inputs: &[&SecretKey],
+		outputs: &[&SecretKey],
+	) -> Result<SignatureScalar, Error> {
+		let mut total_s = SignatureScalar::zero();
+		for &seckey in inputs {
+			let s = self.sign_ecdsa(&msg.0, seckey)?;
+			total_s.add(self, &s)?;
+		}
+		for &seckey in outputs {
+			let s = self.sign_ecdsa(&msg.0, seckey)?;
+			total_s.sub(self, &s)?;
+		}
+		Ok(total_s)
+	}
+
+	pub fn aggregate_signatures(
+		&self,
+		partial_sigs: &[SignatureScalar],
+	) -> Result<SignatureScalar, Error> {
+		let mut total_s = SignatureScalar::zero();
+		for sig in partial_sigs {
+			total_s.add(self, sig)?;
+		}
+		Ok(total_s)
 	}
 
 	pub fn blind_sum(
@@ -202,6 +272,52 @@ impl Secp {
 
 			Ok(res == 1)
 		}
+	}
+}
+
+impl SignatureScalar {
+	pub fn zero() -> Self {
+		SignatureScalar([0u8; 32])
+	}
+
+	pub fn from_bytes(b: &[u8]) -> Result<Self, Error> {
+		if b.len() != 32 {
+			Err(Error::new(IllegalArgument))
+		} else {
+			let mut arr = [0u8; 32];
+			arr.copy_from_slice(b);
+			Ok(SignatureScalar(arr))
+		}
+	}
+
+	pub fn add(&mut self, secp: &Secp, other: &SignatureScalar) -> Result<(), Error> {
+		unsafe {
+			if secp256k1_ec_privkey_tweak_add(
+				secp.ctx,
+				self.0.as_mut_ptr() as *mut SecretKey,
+				other.0.as_ptr() as *const SecretKey,
+			) != 1
+			{
+				return Err(Error::new(InvalidScalar));
+			}
+		}
+		Ok(())
+	}
+
+	pub fn sub(&mut self, secp: &Secp, other: &SignatureScalar) -> Result<(), Error> {
+		let mut neg = other.clone();
+		unsafe {
+			if secp256k1_ec_privkey_negate(secp.ctx, neg.0.as_mut_ptr() as *mut SecretKey) != 1
+				|| secp256k1_ec_privkey_tweak_add(
+					secp.ctx,
+					self.0.as_mut_ptr() as *mut SecretKey,
+					neg.0.as_ptr() as *const SecretKey,
+				) != 1
+			{
+				return Err(Error::new(InvalidScalar));
+			}
+		}
+		Ok(())
 	}
 }
 
@@ -519,6 +635,75 @@ mod test {
 		let zero_commit = secp.commit(0, &blind1).unwrap();
 		assert!(secp
 			.verify_balance(&[&zero_commit], &[&zero_commit])
+			.unwrap());
+	}
+
+	#[test]
+	fn test_secp_sign_aggregate1() {
+		let secp = Secp::new().unwrap();
+
+		// Sender: Input 3000
+		let blind1 = SecretKey::new(&secp); // Input
+		let input1 = secp.commit(3000, &blind1).unwrap();
+
+		// Sender: Change 1000
+		let blind2 = SecretKey::new(&secp); // Change
+		let change = secp.commit(1000, &blind2).unwrap();
+
+		// Compute excess_blind to balance
+		let excess_blind = secp.blind_sum(&[&blind1], &[&blind2]).unwrap(); // blind1 - blind2
+		let output1 = secp.commit(2000, &excess_blind).unwrap(); // Receiver output
+
+		// Kernel message
+		let excess = secp.commit(0, &excess_blind).unwrap();
+		let msg = secp.hash_kernel(&excess, 0, 0).unwrap();
+
+		// Partial signatures
+		let s_sender = secp.sign_partial(&msg, &[&blind1], &[&blind2]).unwrap();
+		let s_receiver = secp.sign_partial(&msg, &[], &[&excess_blind]).unwrap();
+
+		// Aggregate
+		let _final_sig = secp.aggregate_signatures(&[s_sender, s_receiver]).unwrap();
+
+		// Balance check (excess not needed separately)
+		assert!(secp
+			.verify_balance(&[&input1], &[&change, &output1])
+			.unwrap());
+	}
+
+	#[test]
+	fn test_secp_sign_aggregate2() {
+		let secp = Secp::new().unwrap();
+
+		// Sender: Input 3000
+		let blind1 = SecretKey::new(&secp); // Input
+		let input1 = secp.commit(3000, &blind1).unwrap();
+
+		// Sender: Change 1000
+		let blind2 = SecretKey::new(&secp); // Change
+		let change = secp.commit(1000, &blind2).unwrap();
+
+		// Receiver: Output 2000
+		let blind3 = SecretKey::new(&secp); // Receiver chooses blind3
+		let output1 = secp.commit(2000, &blind3).unwrap();
+
+		// Compute full excess: blind1 - blind2 - blind3
+		let excess_blind = secp.blind_sum(&[&blind1], &[&blind2, &blind3]).unwrap();
+
+		// Kernel message
+		let excess = secp.commit(0, &excess_blind).unwrap();
+		let msg = secp.hash_kernel(&excess, 0, 0).unwrap();
+
+		// Partial signatures
+		let s_sender = secp.sign_partial(&msg, &[&blind1], &[&blind2]).unwrap();
+		let s_receiver = secp.sign_partial(&msg, &[], &[&blind3]).unwrap();
+
+		// Aggregate
+		let _final_sig = secp.aggregate_signatures(&[s_sender, s_receiver]).unwrap();
+
+		// Balance check with excess
+		assert!(secp
+			.verify_balance(&[&input1], &[&change, &output1, &excess])
 			.unwrap());
 	}
 }

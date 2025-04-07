@@ -25,6 +25,7 @@ define_errorkind_with_strings!(
 	ArrayIndexOutOfBounds,
 	IllegalState,
 	Serialization,
+	InvalidScalar,
 	Secp,
 	IO,
 	Todo

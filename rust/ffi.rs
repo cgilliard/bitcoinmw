@@ -2,6 +2,22 @@
 
 use types::*;
 
+/// A nonce generation function. Ordinary users of the library
+/// never need to see this type; only if you need to control
+/// nonce generation do you need to use it. I have deliberately
+/// made this hard to do: you have to write your own wrapper
+/// around the FFI functions to use it. And it's an unsafe type.
+/// Nonces are generated deterministically by RFC6979 by
+/// default; there should be no need to ever change this.
+pub type NonceFn = unsafe extern "C" fn(
+	nonce32: *mut u8,
+	msg32: *const u8,
+	key32: *const u8,
+	algo16: *const u8,
+	attempt: i32,
+	data: *const u8,
+);
+
 extern "C" {
 	// memory allocation
 	pub fn alloc(bytes: usize) -> *const u8;
@@ -24,6 +40,13 @@ extern "C" {
 	pub fn atomic_fetch_add_u64(ptr: *mut u64, value: u64) -> u64;
 	pub fn atomic_fetch_sub_u64(ptr: *mut u64, value: u64) -> u64;
 	pub fn cas_release(ptr: *mut u64, expect: *const u64, desired: u64) -> bool;
+
+	// sha3
+	pub fn sha3_context_size() -> usize;
+	pub fn sha3_Init(ctx: *const Sha3Context, bit_size: u32) -> u64;
+	pub fn sha3_SetFlags(ctx: *const Sha3Context, flags: i32) -> i32;
+	pub fn sha3_Update(ctx: *const Sha3Context, buf_in: *const u8, len: usize);
+	pub fn sha3_Finalize(ctx: *const Sha3Context) -> *const u8;
 
 	// secp256k1
 	pub fn secp256k1_context_create(flags: u32) -> *mut Secp256k1Context;
@@ -109,6 +132,15 @@ extern "C" {
 	) -> *mut ScratchSpace;
 	pub fn secp256k1_scratch_space_destroy(scratch: *mut ScratchSpace);
 
+	pub fn secp256k1_ecdsa_sign(
+		cx: *const Secp256k1Context,
+		sig: *mut Signature,
+		msg32: *const u8,
+		sk: *const SecretKey,
+		noncefn: NonceFn,
+		noncedata: *const u8,
+	) -> i32;
+
 	// Pedersen commitments
 	pub fn secp256k1_pedersen_commit(
 		cx: *const Secp256k1Context,
@@ -142,6 +174,8 @@ extern "C" {
 		seckey: *mut SecretKey,
 		tweak: *const SecretKey,
 	) -> i32;
+
+	pub fn secp256k1_ec_privkey_negate(cx: *const Secp256k1Context, seckey: *mut SecretKey) -> i32;
 
 	// Pedersen blind sum for combining blinding factors
 	pub fn secp256k1_pedersen_blind_sum(
@@ -200,6 +234,8 @@ extern "C" {
 		extra_commit: *const u8,
 		extra_commit_len: usize,
 	) -> i32;
+
+	pub static secp256k1_nonce_function_rfc6979: NonceFn;
 
 	// cpsrng
 	pub fn cpsrng_reseed();
