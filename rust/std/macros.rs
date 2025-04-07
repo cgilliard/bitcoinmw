@@ -87,7 +87,7 @@ macro_rules! box_slice {
 			unsafe {
 				let rptr = alloc(total_size) as *mut u8;
 				if rptr.is_null() {
-					panic!("Allocation failed");
+					exit!("Allocation failed");
 				}
 				let mut write_ptr = rptr;
 				for _ in 0..count {
@@ -245,6 +245,7 @@ macro_rules! println {
         match format!($fmt, $($t),*) {
             Ok(line) => {
                 use ffi::write;
+                #[allow(unused_unsafe)]
                 unsafe {
                         write(2, line.to_str().as_ptr(), line.len());
                         write(2, "\n".as_ptr(), 1);
@@ -258,11 +259,13 @@ macro_rules! println {
 #[macro_export]
 macro_rules! print {
     ($fmt:expr) => {{
+        #[allow(unused_unsafe)]
         unsafe { crate::ffi::write(2, $fmt.as_ptr(), $fmt.len()); }
     }};
     ($fmt:expr, $($t:expr),*) => {{
         match format!($fmt, $($t),*) {
             Ok(line) => {
+                #[allow(unused_unsafe)]
                 unsafe { crate::ffi::write(2, line.to_str().as_ptr(), line.len()); }
             },
             Err(_e) => {},
@@ -279,6 +282,7 @@ macro_rules! exit {
                 print!("Panic[@{}:{}]: ", file!(), line!());
                 println!($fmt, $($t),*);
 
+                #[allow(unused_unsafe)]
                 unsafe {
                         use ffi::exit;
                         exit(-1);

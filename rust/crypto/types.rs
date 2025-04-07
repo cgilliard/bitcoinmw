@@ -285,7 +285,9 @@ impl SignatureScalar {
 			Err(Error::new(IllegalArgument))
 		} else {
 			let mut arr = [0u8; 32];
-			arr.copy_from_slice(b);
+			unsafe {
+				copy_nonoverlapping(b.as_ptr(), arr.as_mut_ptr(), b.len());
+			}
 			Ok(SignatureScalar(arr))
 		}
 	}
