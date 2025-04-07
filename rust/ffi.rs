@@ -168,11 +168,18 @@ extern "C" {
 		n_neg_commits: usize,
 	) -> i32;
 
-	// Tweak operations for scalar arithmetic
+	// Tweak operations for scalar add
 	pub fn secp256k1_ec_privkey_tweak_add(
 		cx: *const Secp256k1Context,
 		seckey: *mut SecretKey,
 		tweak: *const SecretKey,
+	) -> i32;
+
+	// Tweak operations for scalar multiply
+	pub fn secp256k1_ec_pubkey_tweak_mul(
+		ctx: *const Secp256k1Context,
+		pubkey: *mut u8,
+		tweak: *const u8,
 	) -> i32;
 
 	pub fn secp256k1_ec_privkey_negate(cx: *const Secp256k1Context, seckey: *mut SecretKey) -> i32;

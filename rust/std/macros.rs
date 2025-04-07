@@ -236,6 +236,7 @@ macro_rules! format {
 macro_rules! println {
     ($fmt:expr) => {{
             use ffi::write;
+            #[allow(unused_unsafe)]
             unsafe {
                     write(2, $fmt.as_ptr(), $fmt.len());
                     write(2, "\n".as_ptr(), 1);

@@ -195,6 +195,50 @@ impl Secp {
 		}
 	}
 
+	pub fn verify_kernel(
+		&self,
+		msg: &Message,         // Kernel hash
+		sig: &SignatureScalar, // Aggregated s
+		excess: &Commitment,   // Excess commitment
+	) -> Result<bool, Error> {
+		unsafe {
+			// Compute s * G
+			let mut s_g = [0u8; 64];
+			if secp256k1_ec_pubkey_create(
+				self.ctx,
+				s_g.as_mut_ptr() as *mut PublicKeyUncompressed,
+				sig.0.as_ptr() as *const SecretKey,
+			) != 1
+			{
+				println!("Failed to create s * G");
+				return Err(Error::new(InvalidScalar));
+			}
+
+			// Compute H(m) * Excess
+			let mut h_excess = [0u8; 64];
+			if secp256k1_pedersen_commitment_parse(
+				self.ctx,
+				h_excess.as_mut_ptr(),
+				excess.0.as_ptr(),
+			) != 1
+			{
+				println!("Failed to parse excess commitment");
+				return Err(Error::new(InvalidCommitment));
+			}
+
+			// Use msg as scalar (needs reduction modulo curve order)
+			if secp256k1_ec_pubkey_tweak_mul(self.ctx, h_excess.as_mut_ptr(), msg.0.as_ptr()) != 1 {
+				println!("Failed to tweak mul with msg");
+				return Err(Error::new(InvalidScalar));
+			}
+
+			println!("assertion here");
+			// Compare s * G == H(m) * Excess
+			//Ok(s_g == h_excess)
+			Ok(false)
+		}
+	}
+
 	pub fn verify_balance(
 		&self,
 		positive: &[&Commitment],
@@ -701,11 +745,13 @@ mod test {
 		let s_receiver = secp.sign_partial(&msg, &[], &[&blind3]).unwrap();
 
 		// Aggregate
-		let _final_sig = secp.aggregate_signatures(&[s_sender, s_receiver]).unwrap();
+		let final_sig = secp.aggregate_signatures(&[s_sender, s_receiver]).unwrap();
 
 		// Balance check with excess
 		assert!(secp
 			.verify_balance(&[&input1], &[&change, &output1, &excess])
 			.unwrap());
+
+		//	assert!(secp.verify_kernel(&msg, &final_sig, &excess).unwrap());
 	}
 }
