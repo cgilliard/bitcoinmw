@@ -1,4 +1,5 @@
 // Internal
+pub use crypto::types::Sha3Context;
 pub use std::boxed::Box;
 pub use std::clone::TryClone;
 pub use std::display::Display;
