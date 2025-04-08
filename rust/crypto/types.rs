@@ -123,6 +123,39 @@ impl Secp {
 		msg: &Message,
 		seckey: &SecretKey,
 		secnonce: &SecretKey,
+		pubnonce: &PublicKey,
+		pe: &PublicKey,
+		final_nonce_sum: &PublicKey,
+	) -> Result<Signature, Error> {
+		let pubnonce_uncomp = match pubnonce.decompress(self) {
+			Ok(p) => p,
+			Err(e) => return Err(e),
+		};
+
+		let pe_uncomp = match pe.decompress(self) {
+			Ok(p) => p,
+			Err(e) => return Err(e),
+		};
+
+		let final_nonce_sum_uncomp = match final_nonce_sum.decompress(self) {
+			Ok(f) => f,
+			Err(e) => return Err(e),
+		};
+		self.sign_single_impl(
+			msg,
+			seckey,
+			secnonce,
+			&pubnonce_uncomp,
+			&pe_uncomp,
+			&final_nonce_sum_uncomp,
+		)
+	}
+
+	pub fn sign_single_impl(
+		&self,
+		msg: &Message,
+		seckey: &SecretKey,
+		secnonce: &SecretKey,
 		pubnonce: &PublicKeyUncompressed,
 		pe: &PublicKeyUncompressed,
 		final_nonce_sum: &PublicKeyUncompressed,
@@ -154,6 +187,39 @@ impl Secp {
 	}
 
 	pub fn verify_single(
+		&self,
+		sig: &Signature,
+		msg: &Message,
+		pubnonce: &PublicKey,
+		pubkey: &PublicKey,
+		pe: &PublicKey,
+		is_partial: bool,
+	) -> Result<bool, Error> {
+		let pubnonce_uncomp = match pubnonce.decompress(self) {
+			Ok(p) => p,
+			Err(e) => return Err(e),
+		};
+
+		let pe_uncomp = match pe.decompress(self) {
+			Ok(p) => p,
+			Err(e) => return Err(e),
+		};
+
+		let pubkey_uncomp = match pubkey.decompress(self) {
+			Ok(p) => p,
+			Err(e) => return Err(e),
+		};
+		Ok(self.verify_single_impl(
+			sig,
+			msg,
+			&pubnonce_uncomp,
+			&pubkey_uncomp,
+			&pe_uncomp,
+			is_partial,
+		))
+	}
+
+	pub fn verify_single_impl(
 		&self,
 		sig: &Signature,
 		msg: &Message,
@@ -1148,8 +1214,8 @@ mod test {
 		let secp = Secp::new().unwrap();
 		let seckey = SecretKey::new(&secp);
 		let secnonce = SecretKey::new(&secp);
-		let pubnonce = secp.pubkey_uncompressed(&secnonce).unwrap();
-		let pubkey = secp.pubkey_uncompressed(&seckey).unwrap();
+		let pubnonce = PublicKey::from(&secp, &secnonce).unwrap();
+		let pubkey = PublicKey::from(&secp, &seckey).unwrap();
 
 		let msg = Message([10u8; 32]);
 		let sig = secp
@@ -1160,20 +1226,24 @@ mod test {
 			)
 			.unwrap();
 
-		assert!(secp.verify_single(
-			&sig, &msg, &pubnonce, // k * G
-			&pubkey,   // x * G
-			&pubkey,   // x * G (total for single signer)
-			true       // is_partial = true
-		));
+		assert!(secp
+			.verify_single(
+				&sig, &msg, &pubnonce, // k * G
+				&pubkey,   // x * G
+				&pubkey,   // x * G (total for single signer)
+				true       // is_partial = true
+			)
+			.unwrap());
 
 		let msg = Message([11u8; 32]);
-		assert!(!secp.verify_single(
-			&sig, &msg, &pubnonce, // k * G
-			&pubkey,   // x * G
-			&pubkey,   // x * G (total for single signer)
-			true       // is_partial = true
-		));
+		assert!(!secp
+			.verify_single(
+				&sig, &msg, &pubnonce, // k * G
+				&pubkey,   // x * G
+				&pubkey,   // x * G (total for single signer)
+				true       // is_partial = true
+			)
+			.unwrap());
 	}
 
 	/*
