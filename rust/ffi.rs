@@ -66,11 +66,30 @@ extern "C" {
 		sk: *const SecretKey,
 	) -> i32;
 
+	pub fn secp256k1_ec_pubkey_add(
+		ctx: *const Secp256k1Context,
+		pubkey: *mut u8,
+		pubkey2: *const u8,
+	) -> i32;
+
+	pub fn secp256k1_ec_pubkey_combine(
+		ctx: *const Secp256k1Context,
+		output: *mut u8,
+		pubkeys: *const *const u8,
+		n_pubkeys: usize,
+	) -> i32;
+
 	// Parse a 33-byte commitment into 64 byte internal commitment object
 	pub fn secp256k1_pedersen_commitment_parse(
 		cx: *const Secp256k1Context,
 		commit: *mut u8,
 		input: *const u8,
+	) -> i32;
+
+	pub fn secp256k1_pedersen_commitment_to_pubkey(
+		cx: *const Secp256k1Context,
+		pk: *mut u8,
+		commit: *const u8,
 	) -> i32;
 
 	// Serialize a 64-byte commit object into a 33 byte serialized byte sequence
@@ -139,6 +158,46 @@ extern "C" {
 		sk: *const SecretKey,
 		noncefn: NonceFn,
 		noncedata: *const u8,
+	) -> i32;
+
+	pub fn secp256k1_aggsig_sign_single(
+		ctx: *const Secp256k1Context,
+		sig: *mut u8,
+		msg32: *const u8,
+		seckey32: *const u8,
+		secnonce32: *const u8,
+		extra32: *const u8,
+		pubnonce_for_e: *const u8,
+		pubnonce_total: *const u8,
+		pubkey_for_e: *const u8,
+		seed32: *const u8,
+	) -> i32;
+
+	pub fn secp256k1_aggsig_verify_single(
+		ctx: *const Secp256k1Context,
+		sig: *const u8,
+		msg32: *const u8,
+		pubnonce: *const u8,
+		pk: *const u8,
+		pk_total: *const u8,
+		extra_pubkey: *const u8,
+		is_partial: u32,
+	) -> i32;
+
+	pub fn secp256k1_aggsig_add_signatures_single(
+		ctx: *const Secp256k1Context,
+		ret_sig: *mut u8,
+		sigs: *const *const u8,
+		num_sigs: usize,
+		pubnonce_total: *const u8,
+	) -> i32;
+
+	pub fn secp256k1_aggsig_subtract_partial_signature(
+		ctx: *const Secp256k1Context,
+		ret_partsig: *mut u8,
+		ret_partsig_alt: *mut u8,
+		sig: *const u8,
+		part_sig: *const u8,
 	) -> i32;
 
 	// Pedersen commitments
