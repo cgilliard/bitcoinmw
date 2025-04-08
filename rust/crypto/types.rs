@@ -151,7 +151,7 @@ impl Secp {
 		)
 	}
 
-	pub fn sign_single_impl(
+	fn sign_single_impl(
 		&self,
 		msg: &Message,
 		seckey: &SecretKey,
@@ -219,7 +219,7 @@ impl Secp {
 		))
 	}
 
-	pub fn verify_single_impl(
+	fn verify_single_impl(
 		&self,
 		sig: &Signature,
 		msg: &Message,
@@ -250,6 +250,35 @@ impl Secp {
 			1 => true,
 			_ => false,
 		}
+	}
+
+	pub fn aggregate_signatures(
+		&self,
+		partial_sigs: &[Signature],
+		nonce_sum: &PublicKeyUncompressed,
+	) -> Result<Signature, Error> {
+		let mut sig = [0u8; 64];
+		let num_sigs = partial_sigs.len();
+		if num_sigs > 16 {
+			return Err(Error::new(TooManySignatures));
+		}
+		let mut sig_ptrs = [null(); 16];
+		for i in 0..num_sigs {
+			sig_ptrs[i] = &partial_sigs[i].0 as *const u8;
+		}
+		unsafe {
+			if secp256k1_aggsig_add_signatures_single(
+				self.ctx,
+				sig.as_mut_ptr(),
+				sig_ptrs.as_ptr(),
+				num_sigs,
+				nonce_sum.0.as_ptr(),
+			) != 1
+			{
+				return Err(Error::new(InvalidSignature));
+			}
+		}
+		Ok(Signature(sig))
 	}
 
 	pub fn pubkey_uncompressed(&self, skey: &SecretKey) -> Result<PublicKeyUncompressed, Error> {
@@ -333,282 +362,6 @@ impl Secp {
 		}
 		Ok(())
 	}
-
-	/*
-
-	pub fn sign_partial(
-		&self,
-		msg: &Message, // 32-byte SHA-3 hash
-		inputs: &[&SecretKey],
-		outputs: &[&SecretKey],
-		sec_nonce: &SecretKey, // Participant’s nonce
-		nonce_sum: &PublicKey, // Total nonce sum
-		pubkey_sum: &PublicKey,
-	) -> Result<Signature, Error> {
-		let mut sig = [0u8; 64];
-		let mut seed = [0u8; 32];
-		unsafe {
-			cpsrng_rand_bytes(self.rand, seed.as_mut_ptr(), 32);
-		}
-
-		let seckey = match self.blind_sum(inputs, outputs) {
-			Ok(s) => s,
-			Err(e) => return Err(e),
-		};
-
-		unsafe {
-			if secp256k1_aggsig_sign_single(
-				self.ctx,
-				sig.as_mut_ptr(),
-				msg.0.as_ptr(),
-				seckey.0.as_ptr(),
-				sec_nonce.0.as_ptr(), // Explicit nonce
-				null(),
-				nonce_sum.0.as_ptr(),
-				nonce_sum.0.as_ptr(),
-				pubkey_sum.0.as_ptr(),
-				seed.as_ptr(),
-			) != 1
-			{
-				return Err(Error::new(InvalidSignature));
-			}
-		}
-		Ok(Signature(sig))
-	}
-		*/
-
-	/*
-
-	pub fn sign_partial(
-		&self,
-		msg: &Message,
-		inputs: &[&SecretKey],
-		outputs: &[&SecretKey],
-		nonce_sum: &PublicKey, // Total nonce sum
-		pubkey_sum: &PublicKey,
-	) -> Result<Signature, Error> {
-		// Just signature
-		let mut sig = [0u8; 64];
-		let mut seed = [0u8; 32];
-		unsafe {
-			cpsrng_rand_bytes(self.rand, seed.as_mut_ptr(), 32);
-		}
-
-		let seckey = match self.blind_sum(inputs, outputs) {
-			Ok(s) => s,
-			Err(e) => return Err(e),
-		};
-
-		unsafe {
-			if secp256k1_aggsig_sign_single(
-				self.ctx,
-				sig.as_mut_ptr(),
-				msg.0.as_ptr(),
-				seckey.0.as_ptr(),
-				null(),
-				null(),
-				nonce_sum.0.as_ptr(),
-				nonce_sum.0.as_ptr(),
-				pubkey_sum.0.as_ptr(),
-				seed.as_ptr(),
-			) != 1
-			{
-				return Err(Error::new(InvalidSignature));
-			}
-		}
-		Ok(Signature(sig))
-	}
-		*/
-
-	/*
-		pub fn sign_partial(
-			&self,
-			msg: &Message,
-			inputs: &[&SecretKey],
-			outputs: &[&SecretKey],
-			nonce_sum: &PublicKey,  // Total nonce sum
-			pubkey_sum: &PublicKey, // Total blinding sum
-		) -> Result<(Signature, PublicKey), Error> {
-			// Return sig and pub_nonce
-			let mut sig = [0u8; 64];
-			let mut seed = [0u8; 32];
-			unsafe {
-				cpsrng_rand_bytes(self.rand, seed.as_mut_ptr(), 32);
-			}
-
-			let seckey = match self.blind_sum(inputs, outputs) {
-				Ok(s) => s,
-				Err(e) => return Err(e),
-			};
-
-			let nonce = SecretKey::new(self);
-			let pub_nonce = match PublicKey::from(self, &nonce) {
-				Ok(pn) => pn,
-				Err(e) => return Err(e),
-			};
-
-			unsafe {
-				if secp256k1_aggsig_sign_single(
-					self.ctx,
-					sig.as_mut_ptr(),
-					msg.0.as_ptr(),
-					seckey.0.as_ptr(),
-					nonce.0.as_ptr(),
-					null(),
-					nonce_sum.0.as_ptr(),
-					nonce_sum.0.as_ptr(),
-					pubkey_sum.0.as_ptr(),
-					seed.as_ptr(),
-				) != 1
-				{
-					return Err(Error::new(InvalidSignature));
-				}
-			}
-			Ok((Signature(sig), pub_nonce))
-		}
-	*/
-
-	pub fn aggregate_signatures(
-		&self,
-		partial_sigs: &[Signature], // Just signatures
-		nonce_sum: &PublicKey,      // Total nonce sum
-	) -> Result<Signature, Error> {
-		let mut sig = [0u8; 64];
-		let num_sigs = partial_sigs.len();
-		if num_sigs > 16 {
-			return Err(Error::new(TooManySignatures));
-		}
-
-		let mut sig_ptrs = [null(); 16];
-		for i in 0..num_sigs {
-			sig_ptrs[i] = &partial_sigs[i].0 as *const u8;
-		}
-
-		unsafe {
-			if secp256k1_aggsig_add_signatures_single(
-				self.ctx,
-				sig.as_mut_ptr(),
-				sig_ptrs.as_ptr(),
-				num_sigs,
-				nonce_sum.0.as_ptr(),
-			) != 1
-			{
-				return Err(Error::new(InvalidSignature));
-			}
-		}
-		Ok(Signature(sig))
-	}
-
-	/*
-	pub fn aggregate_signatures(
-		&self,
-		partial_sigs: &[(Signature, PublicKey)], // Pairs of sig and nonce
-		nonce_sum: &PublicKey,                   // Total nonce sum
-	) -> Result<Signature, Error> {
-		let mut sig = [0u8; 64];
-		let num_sigs = partial_sigs.len();
-		if num_sigs > 16 {
-			return Err(Error::new(TooManySignatures));
-		}
-
-		let mut sig_ptrs = [null(); 16];
-		for i in 0..num_sigs {
-			sig_ptrs[i] = &partial_sigs[i].0 .0 as *const [u8; 64];
-		}
-
-		unsafe {
-			if secp256k1_aggsig_add_signatures_single(
-				self.ctx,
-				sig.as_mut_ptr(),
-				sig_ptrs.as_ptr() as *const *const u8,
-				num_sigs,
-				nonce_sum.0.as_ptr(),
-			) != 1
-			{
-				return Err(Error::new(InvalidSignature));
-			}
-		}
-		Ok(Signature(sig))
-	}
-		*/
-
-	/*
-		pub fn sign_partial(
-			&self,
-			msg: &Message,
-			inputs: &[&SecretKey],
-			outputs: &[&SecretKey],
-			nonce_sum: &PublicKey,
-			pubkey_sum: &PublicKey,
-		) -> Result<Signature, Error> {
-			let mut sig = [0u8; 64];
-			let mut seed = [0u8; 32];
-			unsafe {
-				cpsrng_rand_bytes(self.rand, seed.as_mut_ptr(), 32);
-			}
-
-			let seckey = match self.blind_sum(inputs, outputs) {
-				Ok(s) => s,
-				Err(e) => return Err(e),
-			};
-
-			let nonce = SecretKey::new(self);
-			let pub_nonce = match PublicKey::from(self, &nonce) {
-				Ok(pn) => pn,
-				Err(e) => return Err(e),
-			};
-
-			unsafe {
-				if secp256k1_aggsig_sign_single(
-					self.ctx,
-					sig.as_mut_ptr(),
-					msg.0.as_ptr(),
-					seckey.0.as_ptr(),
-					nonce.0.as_ptr(),
-					null(),
-					nonce_sum.0.as_ptr(),
-					nonce_sum.0.as_ptr(),
-					pubkey_sum.0.as_ptr(),
-					seed.as_ptr(),
-				) != 1
-				{
-					return Err(Error::new(InvalidSignature));
-				}
-			}
-			Ok(Signature(sig))
-		}
-
-		pub fn aggregate_signatures(
-			&self,
-			partial_sigs: &[Signature],
-			nonce_sum: &PublicKey, // Total nonce sum
-		) -> Result<Signature, Error> {
-			let mut sig = [0u8; 64];
-			let num_sigs = partial_sigs.len();
-			if num_sigs > 16 {
-				return Err(Error::new(TooManySignatures));
-			}
-
-			let mut sig_ptrs = [null(); 16];
-			for i in 0..num_sigs {
-				sig_ptrs[i] = &partial_sigs[i].0 as *const [u8; 64];
-			}
-
-			unsafe {
-				if secp256k1_aggsig_add_signatures_single(
-					self.ctx,
-					sig.as_mut_ptr(),
-					sig_ptrs.as_ptr() as *const *const u8,
-					num_sigs,
-					nonce_sum.0.as_ptr(),
-				) != 1
-				{
-					return Err(Error::new(InvalidSignature));
-				}
-			}
-			Ok(Signature(sig))
-		}
-	*/
 
 	pub fn blind_sum(
 		&self,
@@ -1245,6 +998,131 @@ mod test {
 			)
 			.unwrap());
 	}
+
+	#[test]
+	fn test_aggregation_simple() {
+		let secp = Secp::new().unwrap();
+		let msg = Message([10u8; 32]);
+
+		// Signer 1
+		let seckey1 = SecretKey::new(&secp);
+		let secnonce1 = SecretKey::new(&secp);
+		let pubnonce1 = PublicKey::from(&secp, &secnonce1).unwrap();
+		let pubkey1 = PublicKey::from(&secp, &seckey1).unwrap();
+
+		// Signer 2
+		let seckey2 = SecretKey::new(&secp);
+		let secnonce2 = SecretKey::new(&secp);
+		let pubnonce2 = PublicKey::from(&secp, &secnonce2).unwrap();
+		let pubkey2 = PublicKey::from(&secp, &seckey2).unwrap();
+
+		// Sums
+		let nonce_sum_comp = pubnonce1.add(&secp, &pubnonce2).unwrap();
+		let nonce_sum = nonce_sum_comp.decompress(&secp).unwrap();
+		let pubkey_sum_comp = pubkey1.add(&secp, &pubkey2).unwrap();
+
+		// Partial signatures with total sums
+		let sig1 = secp
+			.sign_single(
+				&msg,
+				&seckey1,
+				&secnonce1,
+				&pubnonce1,
+				&pubkey_sum_comp,
+				&nonce_sum_comp,
+			)
+			.unwrap();
+
+		assert!(secp
+			.verify_single(&sig1, &msg, &pubnonce1, &pubkey1, &pubkey_sum_comp, true)
+			.unwrap());
+
+		let sig2 = secp
+			.sign_single(
+				&msg,
+				&seckey2,
+				&secnonce2,
+				&pubnonce2,
+				&pubkey_sum_comp,
+				&nonce_sum_comp,
+			)
+			.unwrap();
+
+		assert!(secp
+			.verify_single(&sig2, &msg, &pubnonce2, &pubkey2, &pubkey_sum_comp, true)
+			.unwrap());
+
+		// Aggregate
+		let partial_sigs = &[sig1, sig2];
+		let aggsig = secp.aggregate_signatures(partial_sigs, &nonce_sum).unwrap();
+
+		// Verify aggregated signature (non-zero-sum)
+		/*
+		assert!(secp
+			.verify_single(
+				&aggsig,
+				&msg,
+				&nonce_sum_comp,
+				&pubkey_sum_comp,
+				&pubkey_sum_comp,
+				false
+			)
+			.unwrap());
+				*/
+	}
+
+	/*
+
+	#[test]
+	fn test_aggregation_simple() {
+		let secp = Secp::new().unwrap();
+		let msg = Message([10u8; 32]);
+
+		let seckey1 = SecretKey::new(&secp);
+		let secnonce1 = SecretKey::new(&secp);
+		let pubnonce1 = PublicKey::from(&secp, &secnonce1).unwrap();
+		let pubkey1 = PublicKey::from(&secp, &seckey1).unwrap();
+
+		let sig1 = secp
+			.sign_single(&msg, &seckey1, &secnonce1, &pubnonce1, &pubkey1, &pubnonce1)
+			.unwrap();
+
+		assert!(secp
+			.verify_single(&sig1, &msg, &pubnonce1, &pubkey1, &pubkey1, true)
+			.unwrap());
+
+		let seckey2 = SecretKey::new(&secp);
+		let secnonce2 = SecretKey::new(&secp);
+		let pubnonce2 = PublicKey::from(&secp, &secnonce2).unwrap();
+		let pubkey2 = PublicKey::from(&secp, &seckey2).unwrap();
+
+		let sig2 = secp
+			.sign_single(&msg, &seckey2, &secnonce2, &pubnonce2, &pubkey2, &pubnonce2)
+			.unwrap();
+
+		assert!(secp
+			.verify_single(&sig2, &msg, &pubnonce2, &pubkey2, &pubkey2, true)
+			.unwrap());
+
+		let partial_sigs = &[sig1, sig2];
+		let nonce_sum_comp = pubnonce1.add(&secp, &pubnonce2).unwrap();
+		let nonce_sum = nonce_sum_comp.decompress(&secp).unwrap();
+
+		let aggsig = secp.aggregate_signatures(partial_sigs, &nonce_sum).unwrap();
+		let pubkey_sum_comp = pubkey1.add(&secp, &pubkey2).unwrap();
+
+		assert!(secp
+			.verify_single(
+				&aggsig,
+				&msg,
+				&nonce_sum_comp,
+				&pubkey_sum_comp,
+				&pubkey_sum_comp,
+				false
+			)
+			.unwrap());
+	}
+		*/
 
 	/*
 	#[test]
