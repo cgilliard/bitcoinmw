@@ -456,14 +456,15 @@ impl Secp {
 		&self,
 		positive: &[&Commitment],
 		negative: &[&Commitment],
+		fee: u64,
 	) -> Result<bool, Error> {
 		// convert slice of positive/negative commitments to vecs of uncompressed
 		// commitments
-		let mut pos_vec = match Vec::with_capacity(positive.len()) {
+		let mut pos_vec = match Vec::with_capacity(positive.len() + 1) {
 			Ok(p) => p,
 			Err(e) => return Err(e),
 		};
-		let mut neg_vec = match Vec::with_capacity(negative.len()) {
+		let mut neg_vec = match Vec::with_capacity(negative.len() + 1) {
 			Ok(n) => n,
 			Err(e) => return Err(e),
 		};
@@ -486,9 +487,18 @@ impl Secp {
 			}
 		}
 
+		// handle fee
+		if fee != 0 {
+			let rblind = SecretKey::new(self);
+			let p = self.commit(0, &rblind)?;
+			let n = self.commit(fee, &rblind)?;
+			pos_vec.push(p.decompress(self)?)?;
+			neg_vec.push(n.decompress(self)?)?;
+		}
+
 		// build the slice in the expected format
-		let pos_ptr_size = positive.len() * size_of::<*const u8>();
-		let neg_ptr_size = negative.len() * size_of::<*const u8>();
+		let pos_ptr_size = pos_vec.len() * size_of::<*const u8>();
+		let neg_ptr_size = neg_vec.len() * size_of::<*const u8>();
 
 		let pos_ptrs = unsafe { alloc(pos_ptr_size) as *mut *const u8 };
 
@@ -519,9 +529,9 @@ impl Secp {
 			let res = secp256k1_pedersen_verify_tally(
 				self.ctx,
 				pos_ptrs as *const *const CommitmentUncompressed,
-				positive.len(),
+				pos_vec.len(),
 				neg_ptrs as *const *const CommitmentUncompressed,
-				negative.len(),
+				neg_vec.len(),
 			);
 
 			release(pos_ptrs as *const u8);
@@ -596,7 +606,7 @@ impl Drop for Secp {
 }
 
 impl Commitment {
-	fn decompress(&self, secp: &Secp) -> Result<CommitmentUncompressed, Error> {
+	pub fn decompress(&self, secp: &Secp) -> Result<CommitmentUncompressed, Error> {
 		let mut out = [0u8; 64];
 		unsafe {
 			if secp256k1_pedersen_commitment_parse(
@@ -609,6 +619,18 @@ impl Commitment {
 			} else {
 				Ok(CommitmentUncompressed(out))
 			}
+		}
+	}
+
+	pub fn compress(secp: &Secp, key: CommitmentUncompressed) -> Result<Self, Error> {
+		let mut v = [0u8; 33];
+		let serialize_result = unsafe {
+			secp256k1_pedersen_commitment_serialize(secp.ctx, v.as_mut_ptr(), &key.0 as *const u8)
+		};
+		if serialize_result == 0 {
+			Err(Error::new(Serialization))
+		} else {
+			Ok(Self(v))
 		}
 	}
 
@@ -993,7 +1015,7 @@ mod test {
 
 		// verify balance
 		assert!(secp
-			.verify_balance(&[&input1, &input2], &[&output1, &output2])
+			.verify_balance(&[&input1, &input2], &[&output1, &output2], 0)
 			.unwrap());
 
 		// negative test
@@ -1006,16 +1028,16 @@ mod test {
 		let blind4 = secp.blind_sum(&[&blind1, &blind2], &[&blind3]).unwrap();
 		let output_bad = secp.commit(2001, &blind4).unwrap();
 		assert!(!secp
-			.verify_balance(&[&input1, &input2], &[&output1, &output_bad])
+			.verify_balance(&[&input1, &input2], &[&output1, &output_bad], 0)
 			.unwrap());
 
 		assert!(
-			secp.verify_balance(&[], &[]).unwrap(),
+			secp.verify_balance(&[], &[], 0).unwrap(),
 			"Empty commitments should balance"
 		);
 		let zero_commit = secp.commit(0, &blind1).unwrap();
 		assert!(secp
-			.verify_balance(&[&zero_commit], &[&zero_commit])
+			.verify_balance(&[&zero_commit], &[&zero_commit], 0)
 			.unwrap());
 	}
 
@@ -1146,13 +1168,13 @@ mod test {
 		let excess = secp.commit(0, &excess_blind).unwrap();
 
 		assert!(secp
-			.verify_balance(&[&input1], &[&change, &output1, &excess])
+			.verify_balance(&[&input1], &[&change, &output1, &excess], 0)
 			.unwrap());
 
 		let output1 = secp.commit(2001, &blind3).unwrap();
 
 		assert!(!secp
-			.verify_balance(&[&input1], &[&change, &output1, &excess])
+			.verify_balance(&[&input1], &[&change, &output1, &excess], 0)
 			.unwrap());
 	}
 
@@ -1219,7 +1241,7 @@ mod test {
 		let aggsig = secp.aggregate_signatures(partial_sigs, &nonce_sum).unwrap();
 
 		assert!(secp
-			.verify_balance(&[&input1], &[&change, &output1, &excess])
+			.verify_balance(&[&input1], &[&change, &output1, &excess], 0)
 			.unwrap());
 		assert!(secp
 			.verify_single(&aggsig, &msg, &nonce_sum, &pubkey_sum, &pubkey_sum, false)
@@ -1227,7 +1249,7 @@ mod test {
 	}
 
 	#[test]
-	fn test_mimblewimble_interactive() {
+	fn test_mimblewimble_interactive1() {
 		let secp_send = Secp::new().unwrap();
 		let secp_recv = Secp::new().unwrap();
 
@@ -1337,7 +1359,8 @@ mod test {
 					&output2,
 					&recipient_excess,
 					&sender_excess
-				]
+				],
+				0
 			)
 			.unwrap());
 
@@ -1351,5 +1374,106 @@ mod test {
 				false
 			)
 			.unwrap());
+	}
+
+	#[test]
+	fn test_mimblewimble_interactive_with_fee() -> Result<(), Error> {
+		let secp_send = Secp::new()?;
+		let secp_recv = Secp::new()?;
+
+		let fee = 5u64;
+
+		// Sender
+		let blind1 = SecretKey::new(&secp_send);
+		let input = secp_send.commit(500, &blind1)?;
+		let blind2 = SecretKey::new(&secp_send);
+		let change = secp_send.commit(100 - fee, &blind2)?; // Fee deducted from change (95)
+		let sender_excess_blind = secp_send.blind_sum(&[&blind1], &[&blind2])?;
+		let sender_excess = secp_send.commit(0, &sender_excess_blind)?; // Excess remains 0*H
+
+		let sender_nonce = SecretKey::new(&secp_send);
+		let sender_pub_nonce = PublicKey::from(&secp_send, &sender_nonce)?;
+		let sender_pubkey_sum = PublicKey::from(&secp_send, &sender_excess_blind)?;
+
+		// Recipient
+		let blind3 = SecretKey::new(&secp_recv);
+		let output1 = secp_recv.commit(201, &blind3)?;
+		let blind4 = SecretKey::new(&secp_recv);
+		let output2 = secp_recv.commit(199, &blind4)?; // Full amount, no fee here
+		let recipient_excess_blind = secp_recv.blind_sum(&[], &[&blind3, &blind4])?;
+		let recipient_excess = secp_recv.commit(0, &recipient_excess_blind)?;
+
+		let recipient_nonce = SecretKey::new(&secp_recv);
+		let recipient_pub_nonce = PublicKey::from(&secp_recv, &recipient_nonce)?;
+		let recipient_pubkey_sum = PublicKey::from(&secp_recv, &recipient_excess_blind)?;
+
+		let pub_nonce_sum = recipient_pub_nonce.add(&secp_recv, &sender_pub_nonce)?;
+		let pubkey_sum = recipient_pubkey_sum.add(&secp_recv, &sender_pubkey_sum)?;
+
+		let excess = sender_excess.add(&secp_recv, &recipient_excess)?; // 0*H
+		let msg = secp_recv.hash_kernel(&excess, fee, 0)?;
+
+		// Recipient signs
+		let sig_recv = secp_recv.sign_single(
+			&msg,
+			&recipient_excess_blind,
+			&recipient_nonce,
+			&pub_nonce_sum,
+			&pubkey_sum,
+			&pub_nonce_sum,
+		)?;
+		assert!(secp_recv.verify_single(
+			&sig_recv,
+			&msg,
+			&pub_nonce_sum,
+			&recipient_pubkey_sum,
+			&pubkey_sum,
+			true
+		)?);
+
+		// Sender signs
+		let sig_send = secp_send.sign_single(
+			&msg,
+			&sender_excess_blind,
+			&sender_nonce,
+			&pub_nonce_sum,
+			&pubkey_sum,
+			&pub_nonce_sum,
+		)?;
+		assert!(secp_send.verify_single(
+			&sig_send,
+			&msg,
+			&pub_nonce_sum,
+			&sender_pubkey_sum,
+			&pubkey_sum,
+			true
+		)?);
+
+		// Aggregate and verify
+		let partial_sigs = &[&sig_send, &sig_recv];
+		let aggsig = secp_send.aggregate_signatures(partial_sigs, &pub_nonce_sum)?;
+		assert!(secp_send.verify_single(
+			&aggsig,
+			&msg,
+			&pub_nonce_sum,
+			&pubkey_sum,
+			&pubkey_sum,
+			false
+		)?);
+
+		// Balance check with fee
+		assert!(secp_send.verify_balance(
+			&[&input],
+			&[
+				&change,
+				&output1,
+				&output2,
+				&recipient_excess,
+				&sender_excess
+			],
+			5
+		)?);
+
+		Ok(())
 	}
 }
