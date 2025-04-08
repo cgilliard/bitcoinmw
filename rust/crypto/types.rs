@@ -360,7 +360,6 @@ impl Secp {
 				1, // is_partial = true
 			) != 1
 			{
-				println!("Incorrect partial signature");
 				return Err(Error::new(IncorrectSignature));
 			}
 		}
@@ -612,6 +611,41 @@ impl Commitment {
 			}
 		}
 	}
+
+	pub fn to_pubkey(&self, secp: &Secp) -> Result<PublicKey, Error> {
+		let mut pk = [0u8; 64];
+		unsafe {
+			let commit = self.0;
+			if secp256k1_pedersen_commitment_to_pubkey(
+				secp.ctx,
+				pk.as_mut_ptr() as *mut _,
+				commit.as_ptr(),
+			) == 1
+			{
+				match PublicKey::compress(&secp, PublicKeyUncompressed(pk)) {
+					Ok(pk) => Ok(pk),
+					Err(e) => Err(e),
+				}
+			} else {
+				Err(Error::new(InvalidPublicKey))
+			}
+		}
+	}
+
+	pub fn add(&self, secp: &Secp, other: &Commitment) -> Result<Commitment, Error> {
+		let pk1 = match self.to_pubkey(secp) {
+			Ok(pk1) => pk1,
+			Err(e) => return Err(e),
+		};
+		let pk2 = match other.to_pubkey(secp) {
+			Ok(pk2) => pk2,
+			Err(e) => return Err(e),
+		};
+		match pk1.add(secp, &pk2) {
+			Ok(sum_pk) => Ok(Commitment(sum_pk.0)),
+			Err(e) => return Err(e),
+		}
+	}
 }
 
 impl Drop for SecretKey {
@@ -673,6 +707,25 @@ impl PublicKey {
 			} else {
 				Ok(Self(v))
 			}
+		}
+	}
+
+	pub fn compress(secp: &Secp, key: PublicKeyUncompressed) -> Result<Self, Error> {
+		let mut v = [0u8; 33];
+		let mut len = 33usize;
+		let serialize_result = unsafe {
+			secp256k1_ec_pubkey_serialize(
+				secp.ctx,
+				v.as_mut_ptr(),
+				&mut len,
+				&key.0 as *const u8 as *const PublicKeyUncompressed,
+				SECP256K1_EC_COMPRESSED,
+			)
+		};
+		if serialize_result == 0 {
+			Err(Error::new(Serialization))
+		} else {
+			Ok(Self(v))
 		}
 	}
 
@@ -1170,6 +1223,133 @@ mod test {
 			.unwrap());
 		assert!(secp
 			.verify_single(&aggsig, &msg, &nonce_sum, &pubkey_sum, &pubkey_sum, false)
+			.unwrap());
+	}
+
+	#[test]
+	fn test_mimblewimble_interactive() {
+		let secp_send = Secp::new().unwrap();
+		let secp_recv = Secp::new().unwrap();
+
+		// start with sender
+		let blind1 = SecretKey::new(&secp_send);
+		let input = secp_send.commit(500, &blind1).unwrap();
+		let blind2 = SecretKey::new(&secp_send);
+		let change = secp_send.commit(100, &blind2).unwrap();
+		let sender_excess_blind = secp_send.blind_sum(&[&blind1], &[&blind2]).unwrap();
+		let sender_excess = secp_send.commit(0, &sender_excess_blind).unwrap();
+
+		// sender generates private nonce and calcualates other values
+		let sender_nonce = SecretKey::new(&secp_send);
+		let sender_pub_nonce = PublicKey::from(&secp_send, &sender_nonce).unwrap();
+		let sender_pubkey_sum = PublicKey::from(&secp_send, &sender_excess_blind).unwrap();
+
+		// SLATE SEND 1
+
+		// now recipient gets slate and adds outputs
+		let blind3 = SecretKey::new(&secp_recv);
+		let output1 = secp_recv.commit(201, &blind3).unwrap();
+		let blind4 = SecretKey::new(&secp_recv);
+		let output2 = secp_recv.commit(199, &blind4).unwrap();
+		let recipient_excess_blind = secp_recv.blind_sum(&[], &[&blind3, &blind4]).unwrap();
+		let recipient_excess = secp_recv.commit(0, &recipient_excess_blind).unwrap();
+
+		// recipient generates private nonce
+		let recipient_nonce = SecretKey::new(&secp_recv);
+		let recipient_pub_nonce = PublicKey::from(&secp_recv, &recipient_nonce).unwrap();
+		let recipient_pubkey_sum = PublicKey::from(&secp_recv, &recipient_excess_blind).unwrap();
+
+		let pub_nonce_sum = recipient_pub_nonce
+			.add(&secp_recv, &sender_pub_nonce)
+			.unwrap();
+		let pubkey_sum = recipient_pubkey_sum
+			.add(&secp_recv, &sender_pubkey_sum)
+			.unwrap();
+
+		let excess = sender_excess.add(&secp_recv, &recipient_excess).unwrap();
+		let msg = secp_recv.hash_kernel(&excess, 0, 0).unwrap();
+
+		let sig_recv = secp_recv
+			.sign_single(
+				&msg,
+				&recipient_excess_blind,
+				&recipient_nonce,
+				&pub_nonce_sum, // Total nonce sum for consistent e
+				&pubkey_sum,
+				&pub_nonce_sum,
+			)
+			.unwrap();
+
+		assert!(secp_recv
+			.verify_single(
+				&sig_recv,
+				&msg,
+				&pub_nonce_sum,
+				&recipient_pubkey_sum,
+				&pubkey_sum,
+				true
+			)
+			.unwrap());
+
+		// SLATE SEND 2
+
+		// no sender gets slate back and verifies things. We know the sig_recv, excess,
+		// fee, features. So we can calc the msg. We have the recipient_pub_nonce and we
+		// can sum it with ours to generate the pub_nonce_sum, we also get the
+		// recipient_pubkey_sum and we can add it to ours to calculate the pubkey_sum
+
+		// next we calculate our partial sig
+		let sig_send = secp_send
+			.sign_single(
+				&msg,
+				&sender_excess_blind,
+				&sender_nonce,
+				&pub_nonce_sum,
+				&pubkey_sum,
+				&pub_nonce_sum,
+			)
+			.unwrap();
+
+		assert!(secp_send
+			.verify_single(
+				&sig_send,
+				&msg,
+				&pub_nonce_sum,
+				&sender_pubkey_sum,
+				&pubkey_sum,
+				true
+			)
+			.unwrap());
+
+		// now sender aggregates signatures, verifies the balance and the signatures and
+		// submits to the network
+		let partial_sigs = &[sig_send, sig_recv];
+		let aggsig = secp_send
+			.aggregate_signatures(partial_sigs, &pub_nonce_sum)
+			.unwrap();
+
+		assert!(secp_send
+			.verify_balance(
+				&[&input],
+				&[
+					&change,
+					&output1,
+					&output2,
+					&recipient_excess,
+					&sender_excess
+				]
+			)
+			.unwrap());
+
+		assert!(secp_send
+			.verify_single(
+				&aggsig,
+				&msg,
+				&pub_nonce_sum,
+				&pubkey_sum,
+				&pubkey_sum,
+				false
+			)
 			.unwrap());
 	}
 }
