@@ -254,7 +254,7 @@ impl Secp {
 
 	pub fn aggregate_signatures(
 		&self,
-		partial_sigs: &[Signature],
+		partial_sigs: &[&Signature],
 		nonce_sum: &PublicKey,
 	) -> Result<Signature, Error> {
 		let nonce_sum = match nonce_sum.decompress(self) {
@@ -1110,7 +1110,7 @@ mod test {
 			.unwrap());
 
 		// Aggregate
-		let partial_sigs = &[sig1, sig2];
+		let partial_sigs = &[&sig1, &sig2];
 		let aggsig = secp.aggregate_signatures(partial_sigs, &nonce_sum).unwrap();
 
 		// Verify aggregated signature (non-zero-sum)
@@ -1215,7 +1215,7 @@ mod test {
 			.verify_single(&sig2, &msg, &nonce_sum, &pub_receiver, &pubkey_sum, true)
 			.unwrap());
 
-		let partial_sigs = &[sig1, sig2];
+		let partial_sigs = &[&sig1, &sig2];
 		let aggsig = secp.aggregate_signatures(partial_sigs, &nonce_sum).unwrap();
 
 		assert!(secp
@@ -1323,7 +1323,7 @@ mod test {
 
 		// now sender aggregates signatures, verifies the balance and the signatures and
 		// submits to the network
-		let partial_sigs = &[sig_send, sig_recv];
+		let partial_sigs = &[&sig_send, &sig_recv];
 		let aggsig = secp_send
 			.aggregate_signatures(partial_sigs, &pub_nonce_sum)
 			.unwrap();
