@@ -1,16 +1,13 @@
 #include <time.h>
 
-int printf(const char *, ...);
 void *malloc(unsigned long);
 void *realloc(void *ptr, unsigned long);
 void free(void *);
 int getentropy(void *buf, unsigned long long length);
 long long __alloc_count = 0;
-void _exit(int);
 
 void *alloc(unsigned long size) {
 	void *ptr = malloc(size);
-	// printf("malloc %p (%lu) (alloc=%lli)\n", ptr, size, __alloc_count);
 #ifdef TEST
 	__atomic_fetch_add(&__alloc_count, 1, __ATOMIC_SEQ_CST);
 #endif	// TEST
@@ -18,7 +15,6 @@ void *alloc(unsigned long size) {
 }
 
 void release(void *ptr) {
-	// printf("free %p,alloc=%lli\n", ptr, __alloc_count);
 #ifdef TEST
 	__atomic_fetch_sub(&__alloc_count, 1, __ATOMIC_SEQ_CST);
 #endif	// TEST
@@ -27,7 +23,6 @@ void release(void *ptr) {
 
 void *resize(void *ptr, unsigned long long len) {
 	void *ret = realloc(ptr, len);
-	// printf("realloc size=%llu [%p -> %p]\n", len, ptr, ret);
 	return ret;
 }
 
