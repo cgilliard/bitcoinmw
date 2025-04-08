@@ -1078,104 +1078,33 @@ mod test {
 			.unwrap());
 	}
 
-	/*
-
 	#[test]
-	fn test_aggregation_simple() {
+	fn test_balance_tx() {
 		let secp = Secp::new().unwrap();
-		let msg = Message([10u8; 32]);
 
-		let seckey1 = SecretKey::new(&secp);
-		let secnonce1 = SecretKey::new(&secp);
-		let pubnonce1 = PublicKey::from(&secp, &secnonce1).unwrap();
-		let pubkey1 = PublicKey::from(&secp, &seckey1).unwrap();
+		let blind1 = SecretKey::new(&secp);
+		let input1 = secp.commit(3000, &blind1).unwrap();
+		let blind2 = SecretKey::new(&secp);
+		let change = secp.commit(1000, &blind2).unwrap();
+		let blind3 = SecretKey::new(&secp);
+		let output1 = secp.commit(2000, &blind3).unwrap();
 
-		let sig1 = secp
-			.sign_single(&msg, &seckey1, &secnonce1, &pubnonce1, &pubkey1, &pubnonce1)
-			.unwrap();
+		let excess_blind = secp.blind_sum(&[&blind1], &[&blind2, &blind3]).unwrap();
+		let excess = secp.commit(0, &excess_blind).unwrap();
 
 		assert!(secp
-			.verify_single(&sig1, &msg, &pubnonce1, &pubkey1, &pubkey1, true)
+			.verify_balance(&[&input1], &[&change, &output1, &excess])
 			.unwrap());
 
-		let seckey2 = SecretKey::new(&secp);
-		let secnonce2 = SecretKey::new(&secp);
-		let pubnonce2 = PublicKey::from(&secp, &secnonce2).unwrap();
-		let pubkey2 = PublicKey::from(&secp, &seckey2).unwrap();
+		let output1 = secp.commit(2001, &blind3).unwrap();
 
-		let sig2 = secp
-			.sign_single(&msg, &seckey2, &secnonce2, &pubnonce2, &pubkey2, &pubnonce2)
-			.unwrap();
-
-		assert!(secp
-			.verify_single(&sig2, &msg, &pubnonce2, &pubkey2, &pubkey2, true)
-			.unwrap());
-
-		let partial_sigs = &[sig1, sig2];
-		let nonce_sum_comp = pubnonce1.add(&secp, &pubnonce2).unwrap();
-		let nonce_sum = nonce_sum_comp.decompress(&secp).unwrap();
-
-		let aggsig = secp.aggregate_signatures(partial_sigs, &nonce_sum).unwrap();
-		let pubkey_sum_comp = pubkey1.add(&secp, &pubkey2).unwrap();
-
-		assert!(secp
-			.verify_single(
-				&aggsig,
-				&msg,
-				&nonce_sum_comp,
-				&pubkey_sum_comp,
-				&pubkey_sum_comp,
-				false
-			)
+		assert!(!secp
+			.verify_balance(&[&input1], &[&change, &output1, &excess])
 			.unwrap());
 	}
-		*/
 
-	/*
 	#[test]
-	fn test_simple_sign() {
-		let secp = Secp::new().unwrap();
-		let seckey = SecretKey::new(&secp);
-		let secnonce = SecretKey::new(&secp);
-		let pubnonce_comp = PublicKey::from(&secp, &secnonce).unwrap();
-		let pubnonce = pubnonce_comp.decompress(&secp).unwrap();
-		let e = SecretKey::new(&secp);
-		let pubkey_for_e_comp = PublicKey::from(&secp, &e).unwrap();
-		let pubkey_for_e = pubkey_for_e_comp.decompress(&secp).unwrap();
-
-		let final_sec_nonce_sum = SecretKey::new(&secp);
-		let final_nonce_sum_comp = PublicKey::from(&secp, &e).unwrap();
-		let final_nonce_sum = final_nonce_sum_comp.decompress(&secp).unwrap();
-
-		let msg = Message([10u8; 32]);
-		let sig = secp
-			.sign_single(
-				&msg,
-				&seckey,
-				Some(&secnonce),
-				None,
-				Some(&pubnonce),
-				Some(&pubkey_for_e),
-				Some(&final_nonce_sum),
-			)
-			.unwrap();
-
-		assert!(secp.verify_single(
-			&sig,
-			&msg,
-			Some(&pubnonce),
-			&pubkey_for_e,
-			Some(&pubkey_for_e),
-			None,
-			true
-		));
-
-	}
-		*/
-
-	/*
-	#[test]
-	fn test_secp_sign_aggregate2() {
+	fn test_mimblewimble_tx() {
 		let secp = Secp::new().unwrap();
 
 		let blind1 = SecretKey::new(&secp);
@@ -1192,123 +1121,55 @@ mod test {
 		let pubkey_sum = PublicKey::from(&secp, &excess_blind).unwrap();
 
 		let nonce1 = SecretKey::new(&secp);
-		let nonce_sender = PublicKey::from(&secp, &nonce1).unwrap();
+		let pubnonce1 = PublicKey::from(&secp, &nonce1).unwrap();
 		let sender_blind = secp.blind_sum(&[&blind1], &[&blind2]).unwrap();
 		let pub_sender = PublicKey::from(&secp, &sender_blind).unwrap();
 
 		let nonce2 = SecretKey::new(&secp);
-		let nonce_receiver = PublicKey::from(&secp, &nonce2).unwrap();
+		let pubnonce2 = PublicKey::from(&secp, &nonce2).unwrap();
 		let receiver_blind = secp.blind_sum(&[], &[&blind3]).unwrap();
 		let pub_receiver = PublicKey::from(&secp, &receiver_blind).unwrap();
 
-		let nonce_sum = nonce_sender.add(&secp, &nonce_receiver).unwrap();
+		let nonce_sum = pubnonce1.add(&secp, &pubnonce2).unwrap();
 
-		let s_sender = secp
-			.sign_partial(
+		let sig1 = secp
+			.sign_single(
 				&msg,
-				&[&blind1],
-				&[&blind2],
+				&sender_blind,
 				&nonce1,
-				&nonce_sum,
+				&nonce_sum, // Total nonce sum for consistent e
 				&pubkey_sum,
+				&nonce_sum,
 			)
-			.unwrap();
-		let s_receiver = secp
-			.sign_partial(&msg, &[], &[&blind3], &nonce2, &nonce_sum, &pubkey_sum)
 			.unwrap();
 
 		assert!(secp
-			.verify_partial(&msg, &s_sender, &pub_sender, &nonce_sender, &pubkey_sum)
-			.is_ok());
-		assert!(secp
-			.verify_partial(
+			.verify_single(&sig1, &msg, &nonce_sum, &pub_sender, &pubkey_sum, true)
+			.unwrap());
+
+		let sig2 = secp
+			.sign_single(
 				&msg,
-				&s_receiver,
-				&pub_receiver,
-				&nonce_receiver,
-				&pubkey_sum
+				&receiver_blind,
+				&nonce2,
+				&nonce_sum, // Total nonce sum for consistent e
+				&pubkey_sum,
+				&nonce_sum,
 			)
-			.is_ok());
-
-		let final_sig = secp
-			.aggregate_signatures(&[s_sender, s_receiver], &nonce_sum)
 			.unwrap();
+
+		assert!(secp
+			.verify_single(&sig2, &msg, &nonce_sum, &pub_receiver, &pubkey_sum, true)
+			.unwrap());
+
+		let partial_sigs = &[sig1, sig2];
+		let aggsig = secp.aggregate_signatures(partial_sigs, &nonce_sum).unwrap();
 
 		assert!(secp
 			.verify_balance(&[&input1], &[&change, &output1, &excess])
 			.unwrap());
-		//assert!(secp.verify_kernel(&msg, &final_sig, &excess).is_ok());
-	}
-
-	*/
-
-	#[test]
-	fn test_secp_sign_aggregate2() {
-		let secp = Secp::new().unwrap();
-
-		let blind1 = SecretKey::new(&secp);
-		let input1 = secp.commit(3000, &blind1).unwrap();
-		let blind2 = SecretKey::new(&secp);
-		let change = secp.commit(1000, &blind2).unwrap();
-		let blind3 = SecretKey::new(&secp);
-		let output1 = secp.commit(2000, &blind3).unwrap();
-
-		let excess_blind = secp.blind_sum(&[&blind1], &[&blind2, &blind3]).unwrap();
-		let excess = secp.commit(0, &excess_blind).unwrap();
-		let msg = secp.hash_kernel(&excess, 0, 0).unwrap(); // Plain kernel: features = 0
-
-		let pubkey_sum = PublicKey::from(&secp, &excess_blind).unwrap();
-
-		// Nonces and sum
-		let nonce1 = SecretKey::new(&secp);
-		let nonce_sender = PublicKey::from(&secp, &nonce1).unwrap();
-		let nonce2 = SecretKey::new(&secp);
-		let nonce_receiver = PublicKey::from(&secp, &nonce2).unwrap();
-		let nonce_sum = nonce_sender.add(&secp, &nonce_receiver).unwrap();
-
-		// Sender
-		let sender_blind = secp.blind_sum(&[&blind1], &[&blind2]).unwrap();
-		let pub_sender = PublicKey::from(&secp, &sender_blind).unwrap();
-		let s_sender = secp
-			.sign_partial(
-				&msg,
-				&[&blind1],
-				&[&blind2],
-				&nonce1,
-				&nonce_sum,
-				&pubkey_sum,
-			)
-			.unwrap();
-
-		// Receiver
-		let receiver_blind = secp.blind_sum(&[], &[&blind3]).unwrap();
-		let pub_receiver = PublicKey::from(&secp, &receiver_blind).unwrap();
-		let s_receiver = secp
-			.sign_partial(&msg, &[], &[&blind3], &nonce2, &nonce_sum, &pubkey_sum)
-			.unwrap();
-
-		/*
 		assert!(secp
-			.verify_partial(&msg, &s_sender, &pub_sender, &nonce_sender, &pubkey_sum)
-			.is_ok());
-		assert!(secp
-			.verify_partial(
-				&msg,
-				&s_receiver,
-				&pub_receiver,
-				&nonce_receiver,
-				&pubkey_sum
-			)
-			.is_ok());
-
-		let final_sig = secp
-			.aggregate_signatures(&[s_sender, s_receiver], &nonce_sum)
-			.unwrap();
-			*/
-
-		assert!(secp
-			.verify_balance(&[&input1], &[&change, &output1, &excess])
+			.verify_single(&aggsig, &msg, &nonce_sum, &pubkey_sum, &pubkey_sum, false)
 			.unwrap());
-		//	assert!(secp.verify_kernel(&msg, &final_sig, &excess).is_ok());
 	}
 }
