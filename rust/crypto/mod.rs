@@ -1,3 +1,4 @@
+pub mod cpsrng;
 pub mod ffi;
 pub mod keys;
 pub mod sha3;

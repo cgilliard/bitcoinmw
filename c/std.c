@@ -46,11 +46,5 @@ int rand_bytes(unsigned char *buf, unsigned long long length) {
 	return getentropy(buf, length);
 }
 
-void ptr_add(void **p, long long v) { *p = (void *)((char *)*p + v); }
-
-int f64_to_str(double d, char *buf, unsigned long long capacity) {
-	return snprintf(buf, capacity, "%.5f", d);
-}
-
 long long getalloccount() { return __alloc_count; }
 
