@@ -1027,14 +1027,21 @@ mod test {
 				&msg,
 				&seckey1,
 				&secnonce1,
-				&pubnonce1,
+				&nonce_sum_comp,
 				&pubkey_sum_comp,
 				&nonce_sum_comp,
 			)
 			.unwrap();
 
 		assert!(secp
-			.verify_single(&sig1, &msg, &pubnonce1, &pubkey1, &pubkey_sum_comp, true)
+			.verify_single(
+				&sig1,
+				&msg,
+				&nonce_sum_comp,
+				&pubkey1,
+				&pubkey_sum_comp,
+				true
+			)
 			.unwrap());
 
 		let sig2 = secp
@@ -1042,14 +1049,21 @@ mod test {
 				&msg,
 				&seckey2,
 				&secnonce2,
-				&pubnonce2,
+				&nonce_sum_comp,
 				&pubkey_sum_comp,
 				&nonce_sum_comp,
 			)
 			.unwrap();
 
 		assert!(secp
-			.verify_single(&sig2, &msg, &pubnonce2, &pubkey2, &pubkey_sum_comp, true)
+			.verify_single(
+				&sig2,
+				&msg,
+				&nonce_sum_comp,
+				&pubkey2,
+				&pubkey_sum_comp,
+				true
+			)
 			.unwrap());
 
 		// Aggregate
@@ -1057,7 +1071,6 @@ mod test {
 		let aggsig = secp.aggregate_signatures(partial_sigs, &nonce_sum).unwrap();
 
 		// Verify aggregated signature (non-zero-sum)
-		/*
 		assert!(secp
 			.verify_single(
 				&aggsig,
@@ -1068,7 +1081,6 @@ mod test {
 				false
 			)
 			.unwrap());
-				*/
 	}
 
 	/*
