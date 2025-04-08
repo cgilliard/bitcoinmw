@@ -1,5 +1,7 @@
 #![allow(dead_code)]
-use crypto::types::{CpsrngContext, Sha3Context};
+use crypto::keys::{PublicKey, PublicKeyUncompressed, SecretKey};
+use crypto::pedersen::{Commitment, CommitmentUncompressed};
+use crypto::types::{CpsrngContext, Secp256k1Context, Sha3Context};
 
 extern "C" {
 	// sha3
@@ -17,4 +19,79 @@ extern "C" {
 
 	// Only in tests
 	pub fn cpsrng_test_seed(ctx: *mut CpsrngContext, iv16: *const u8, key32: *const u8);
+
+	// Secp256k1
+	pub fn secp256k1_context_create(flags: u32) -> *mut Secp256k1Context;
+	pub fn secp256k1_context_destroy(ctx: *mut Secp256k1Context);
+
+	pub fn secp256k1_ec_seckey_verify(cx: *const Secp256k1Context, sk: *const SecretKey) -> i32;
+	pub fn secp256k1_ec_pubkey_create(
+		cx: *const Secp256k1Context,
+		pk: *mut PublicKeyUncompressed,
+		sk: *const SecretKey,
+	) -> i32;
+	pub fn secp256k1_ec_pubkey_parse(
+		cx: *const Secp256k1Context,
+		pk: *mut PublicKeyUncompressed,
+		input: *const PublicKey,
+		intputlen: usize,
+	) -> i32;
+	pub fn secp256k1_ec_pubkey_combine(
+		ctx: *const Secp256k1Context,
+		output: *mut PublicKeyUncompressed,
+		pubkeys: *const *const PublicKeyUncompressed,
+		n_pubkeys: usize,
+	) -> i32;
+	pub fn secp256k1_ec_pubkey_serialize(
+		cx: *const Secp256k1Context,
+		output: *mut PublicKey,
+		outputlen: *const usize,
+		pubkey: *const PublicKeyUncompressed,
+		flags: u32,
+	) -> i32;
+	pub fn secp256k1_pedersen_commitment_serialize(
+		cx: *const Secp256k1Context,
+		output: *mut Commitment,
+		commit: *const CommitmentUncompressed,
+	) -> i32;
+	pub fn secp256k1_pedersen_commitment_parse(
+		cx: *const Secp256k1Context,
+		commit: *mut CommitmentUncompressed,
+		input: *const Commitment,
+	) -> i32;
+	pub fn secp256k1_pedersen_commitment_to_pubkey(
+		cx: *const Secp256k1Context,
+		pk: *mut PublicKeyUncompressed,
+		commit: *const Commitment,
+	) -> i32;
+	pub fn secp256k1_pedersen_commit(
+		cx: *const Secp256k1Context,
+		commit: *mut CommitmentUncompressed,
+		blind: *const SecretKey,
+		value: u64,
+		value_gen: *const PublicKeyUncompressed,
+		blind_gen: *const PublicKeyUncompressed,
+	) -> i32;
+	pub fn secp256k1_aggsig_sign_single(
+		ctx: *const Secp256k1Context,
+		sig: *mut u8,
+		msg32: *const u8,
+		seckey32: *const u8,
+		secnonce32: *const u8,
+		extra32: *const u8,
+		pubnonce_for_e: *const u8,
+		pubnonce_total: *const u8,
+		pubkey_for_e: *const u8,
+		seed32: *const u8,
+	) -> i32;
+	pub fn secp256k1_aggsig_verify_single(
+		ctx: *const Secp256k1Context,
+		sig: *const u8,
+		msg32: *const u8,
+		pubnonce: *const u8,
+		pk: *const u8,
+		pk_total: *const u8,
+		extra_pubkey: *const u8,
+		is_partial: u32,
+	) -> i32;
 }

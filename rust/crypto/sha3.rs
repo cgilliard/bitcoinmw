@@ -51,6 +51,16 @@ impl Sha3 {
 		}
 	}
 
+	pub fn reset(&mut self) {
+		unsafe {
+			match self.byte_size {
+				Sha3ByteSize::Sha3_256 => sha3_Init(self.ctx, 256),
+				Sha3ByteSize::Sha3_384 => sha3_Init(self.ctx, 384),
+				Sha3ByteSize::Sha3_512 => sha3_Init(self.ctx, 512),
+			};
+		}
+	}
+
 	pub fn update(&mut self, b: &[u8]) {
 		unsafe {
 			sha3_Update(self.ctx, b.as_ptr(), b.len());

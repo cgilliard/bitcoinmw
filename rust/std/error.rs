@@ -24,11 +24,12 @@ define_errorkind_with_strings!(
 	IllegalArgument,
 	ArrayIndexOutOfBounds,
 	InvalidPublicKey,
+	InvalidCommitment,
 	InvalidSignature,
+	PubkeyCreate,
 	TooManySignatures,
 	IllegalState,
 	Serialization,
-	InvalidCommitment,
 	IO,
 	Todo
 );
