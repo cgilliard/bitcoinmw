@@ -255,8 +255,12 @@ impl Secp {
 	pub fn aggregate_signatures(
 		&self,
 		partial_sigs: &[Signature],
-		nonce_sum: &PublicKeyUncompressed,
+		nonce_sum: &PublicKey,
 	) -> Result<Signature, Error> {
+		let nonce_sum = match nonce_sum.decompress(self) {
+			Ok(ns) => ns,
+			Err(e) => return Err(e),
+		};
 		let mut sig = [0u8; 64];
 		let num_sigs = partial_sigs.len();
 		if num_sigs > 16 {
@@ -1017,9 +1021,9 @@ mod test {
 		let pubkey2 = PublicKey::from(&secp, &seckey2).unwrap();
 
 		// Sums
-		let nonce_sum_comp = pubnonce1.add(&secp, &pubnonce2).unwrap();
-		let nonce_sum = nonce_sum_comp.decompress(&secp).unwrap();
-		let pubkey_sum_comp = pubkey1.add(&secp, &pubkey2).unwrap();
+		let nonce_sum = pubnonce1.add(&secp, &pubnonce2).unwrap();
+		//let nonce_sum = nonce_sum_comp.decompress(&secp).unwrap();
+		let pubkey_sum = pubkey1.add(&secp, &pubkey2).unwrap();
 
 		// Partial signatures with total sums
 		let sig1 = secp
@@ -1027,21 +1031,14 @@ mod test {
 				&msg,
 				&seckey1,
 				&secnonce1,
-				&nonce_sum_comp,
-				&pubkey_sum_comp,
-				&nonce_sum_comp,
+				&nonce_sum,
+				&pubkey_sum,
+				&nonce_sum,
 			)
 			.unwrap();
 
 		assert!(secp
-			.verify_single(
-				&sig1,
-				&msg,
-				&nonce_sum_comp,
-				&pubkey1,
-				&pubkey_sum_comp,
-				true
-			)
+			.verify_single(&sig1, &msg, &nonce_sum, &pubkey1, &pubkey_sum, true)
 			.unwrap());
 
 		let sig2 = secp
@@ -1049,21 +1046,14 @@ mod test {
 				&msg,
 				&seckey2,
 				&secnonce2,
-				&nonce_sum_comp,
-				&pubkey_sum_comp,
-				&nonce_sum_comp,
+				&nonce_sum,
+				&pubkey_sum,
+				&nonce_sum,
 			)
 			.unwrap();
 
 		assert!(secp
-			.verify_single(
-				&sig2,
-				&msg,
-				&nonce_sum_comp,
-				&pubkey2,
-				&pubkey_sum_comp,
-				true
-			)
+			.verify_single(&sig2, &msg, &nonce_sum, &pubkey2, &pubkey_sum, true)
 			.unwrap());
 
 		// Aggregate
@@ -1072,12 +1062,17 @@ mod test {
 
 		// Verify aggregated signature (non-zero-sum)
 		assert!(secp
+			.verify_single(&aggsig, &msg, &nonce_sum, &pubkey_sum, &pubkey_sum, false)
+			.unwrap());
+
+		let msgbad = Message([99u8; 32]);
+		assert!(!secp
 			.verify_single(
 				&aggsig,
-				&msg,
-				&nonce_sum_comp,
-				&pubkey_sum_comp,
-				&pubkey_sum_comp,
+				&msgbad,
+				&nonce_sum,
+				&pubkey_sum,
+				&pubkey_sum,
 				false
 			)
 			.unwrap());
