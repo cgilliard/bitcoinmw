@@ -11,6 +11,7 @@ pub struct Message(pub(crate) [u8; 32]);
 #[repr(C)]
 pub struct PublicKey(pub(crate) [u8; 33]);
 #[repr(C)]
+#[derive(Clone)]
 pub struct SecretKey(pub(crate) [u8; 32]);
 #[repr(C)]
 pub struct Signature(pub(crate) [u8; 64]);

@@ -229,12 +229,12 @@ impl<T> Vec<T> {
 		self.elements
 	}
 
-	pub fn as_mut_ptr(&mut self) -> *mut u8 {
-		self.value.raw()
+	pub fn as_mut_ptr(&mut self) -> *mut T {
+		self.value.raw() as *mut T
 	}
 
-	pub fn as_ptr(&self) -> *const u8 {
-		self.value.raw()
+	pub fn as_ptr(&self) -> *const T {
+		self.value.raw() as *const T
 	}
 
 	pub fn as_slice(&self) -> &[T] {

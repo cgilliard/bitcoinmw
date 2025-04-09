@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 use crypto::keys::{Message, PublicKey, PublicKeyUncompressed, SecretKey, Signature};
 use crypto::pedersen::{Commitment, CommitmentUncompressed};
-use crypto::types::{CpsrngContext, Secp256k1Context, Sha3Context};
+use crypto::types::{
+	BulletproofGenerators, CpsrngContext, ScratchSpace, Secp256k1Context, Sha3Context,
+};
 
 extern "C" {
 	// sha3
@@ -116,5 +118,51 @@ extern "C" {
 		neg_commits: *const *const CommitmentUncompressed,
 		n_neg_commits: usize,
 	) -> i32;
+	pub fn secp256k1_scratch_space_create(
+		cx: *mut Secp256k1Context,
+		max_size: usize,
+	) -> *mut ScratchSpace;
+	pub fn secp256k1_scratch_space_destroy(sp: *mut ScratchSpace);
+	pub fn secp256k1_bulletproof_rangeproof_prove(
+		ctx: *const Secp256k1Context,
+		scratch: *mut ScratchSpace,
+		gens: *const BulletproofGenerators,
+		proof: *mut u8,
+		plen: *mut usize,
+		tau_x: *mut u8,
+		t_one: *mut PublicKeyUncompressed,
+		t_two: *mut PublicKeyUncompressed,
+		value: *const u64,
+		min_value: *const u64,
+		blind: *const *const u8,
+		commits: *const *const u8,
+		n_commits: usize,
+		value_gen: *const PublicKeyUncompressed,
+		nbits: usize,
+		nonce: *const u8,
+		private_nonce: *const u8,
+		extra_commit: *const u8,
+		extra_commit_len: usize,
+		message: *const u8,
+	) -> i32;
+	pub fn secp256k1_bulletproof_rangeproof_verify(
+		ctx: *const Secp256k1Context,
+		scratch: *mut ScratchSpace,
+		gens: *const BulletproofGenerators,
+		proof: *const u8,
+		plen: usize,
+		min_value: *const u64,
+		commit: *const u8,
+		n_commits: usize,
+		nbits: usize,
+		value_gen: *const PublicKeyUncompressed,
+		extra_commit: *const u8,
+		extra_commit_len: usize,
+	) -> i32;
+	pub fn secp256k1_bulletproof_generators_create(
+		ctx: *const Secp256k1Context,
+		blinding_gen: *const PublicKeyUncompressed,
+		n: usize,
+	) -> *mut BulletproofGenerators;
 
 }

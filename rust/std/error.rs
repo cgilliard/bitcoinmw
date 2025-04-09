@@ -26,6 +26,7 @@ define_errorkind_with_strings!(
 	ArrayIndexOutOfBounds,
 	InvalidPublicKey,
 	InvalidCommitment,
+	InvalidRangeProof,
 	InvalidSignature,
 	Overflow,
 	Underflow,
@@ -49,7 +50,17 @@ impl Error {
 }
 
 impl Debug for Error {
-	fn fmt(&self, _: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
+	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
+		// to support mrustc builds we cannot 'write'. Only used in tests to display debugging
+		// information. In production we should not rely on printout of Errors.
+		#[cfg(test)]
+		write!(
+			_f,
+			"ErrorKind={}: {}:{}",
+			self.kind.as_str(),
+			file!(),
+			line!()
+		)?;
 		Ok(())
 	}
 }

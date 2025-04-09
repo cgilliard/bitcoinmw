@@ -4,5 +4,6 @@ pub mod ctx;
 pub mod ffi;
 pub mod keys;
 pub mod pedersen;
+pub mod range_proof;
 pub mod sha3;
 pub mod types;

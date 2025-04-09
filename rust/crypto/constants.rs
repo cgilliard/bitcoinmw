@@ -1,5 +1,11 @@
 use crypto::keys::PublicKeyUncompressed;
 
+pub const MAX_PROOF_SIZE: usize = 675;
+pub const MAX_GENERATORS: usize = 256;
+
+const MAX_WIDTH: usize = 1 << 20;
+pub const SCRATCH_SPACE_SIZE: usize = 40 * MAX_WIDTH;
+
 pub const ZERO_KEY: [u8; 32] = [0; 32];
 
 const SECP256K1_FLAGS_TYPE_COMPRESSION: u32 = 1 << 1;
