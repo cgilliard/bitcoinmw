@@ -1,3 +1,4 @@
+use core::mem::size_of;
 use core::ptr::{null, null_mut};
 use crypto::constants::{GENERATOR_G, GENERATOR_H, SECP256K1_START_SIGN, SECP256K1_START_VERIFY};
 use crypto::cpsrng::Cpsrng;
@@ -6,6 +7,7 @@ use crypto::keys::{Message, PublicKey, PublicKeyUncompressed, SecretKey, Signatu
 use crypto::pedersen::{Commitment, CommitmentUncompressed};
 use crypto::types::Secp256k1Context;
 use prelude::*;
+use std::ffi::{alloc, release};
 use std::misc::to_le_bytes_u64;
 
 pub struct Ctx {
@@ -230,6 +232,154 @@ impl Ctx {
 		}
 		Ok(sig)
 	}
+
+	pub fn blind_sum(
+		&self,
+		positive: &[&SecretKey],
+		negative: &[&SecretKey],
+	) -> Result<SecretKey, Error> {
+		let mut blind_out = SecretKey([0u8; 32]);
+		let total_len = positive.len() + negative.len();
+
+		// Allocate memory for an array of *const SecretKey pointers
+		let ptr_size = size_of::<*const SecretKey>();
+		let blinds_ptr = unsafe { alloc(total_len * ptr_size) as *mut *const SecretKey };
+
+		if blinds_ptr.is_null() {
+			return Err(Error::new(Alloc));
+		}
+
+		unsafe {
+			// Populate the pointer array with positive keys
+			for (i, key) in positive.iter().enumerate() {
+				*blinds_ptr.add(i) = *key as *const SecretKey;
+			}
+
+			// Append negative keys
+			for (i, key) in negative.iter().enumerate() {
+				*blinds_ptr.add(positive.len() + i) = *key as *const SecretKey;
+			}
+
+			// Call the Pedersen blind sum function
+			let result = secp256k1_pedersen_blind_sum(
+				self.secp,
+				&mut blind_out,
+				blinds_ptr,
+				total_len,
+				positive.len(),
+			);
+
+			// Free the allocated memory
+			release(blinds_ptr as *mut u8);
+
+			// Check result and return
+			if result != 1 {
+				Err(Error::new(InvalidBlindSum))
+			} else {
+				Ok(blind_out)
+			}
+		}
+	}
+
+	pub fn verify_balance(
+		&mut self,
+		positive: &[&Commitment],
+		negative: &[&Commitment],
+		overage: i128,
+	) -> Result<bool, Error> {
+		if overage > 0xFFFF_FFFF_FFFF_FFFF_i128 {
+			return Err(Error::new(Overflow));
+		} else if overage < -0xFFFF_FFFF_FFFF_FFFF_i128 {
+			return Err(Error::new(Underflow));
+		}
+		let mut pos_vec = match Vec::with_capacity(positive.len() + 1) {
+			Ok(p) => p,
+			Err(e) => return Err(e),
+		};
+		let mut neg_vec = match Vec::with_capacity(negative.len() + 1) {
+			Ok(n) => n,
+			Err(e) => return Err(e),
+		};
+		for p in positive {
+			match p.decompress(self) {
+				Ok(p) => match pos_vec.push(p) {
+					Ok(_) => {}
+					Err(e) => return Err(e),
+				},
+				Err(e) => return Err(e),
+			}
+		}
+		for n in negative {
+			match n.decompress(self) {
+				Ok(n) => match neg_vec.push(n) {
+					Ok(_) => {}
+					Err(e) => return Err(e),
+				},
+				Err(e) => return Err(e),
+			}
+		}
+
+		// handle overage
+		if overage != 0 {
+			let rblind = SecretKey::new(self);
+			let p = if overage < 0 {
+				self.commit((overage * -1) as u64, &rblind)?
+			} else {
+				self.commit(0, &rblind)?
+			};
+			let n = if overage > 0 {
+				self.commit(overage as u64, &rblind)?
+			} else {
+				self.commit(0, &rblind)?
+			};
+			pos_vec.push(p.decompress(self)?)?;
+			neg_vec.push(n.decompress(self)?)?;
+		}
+
+		// build the slice in the expected format
+		let pos_ptr_size = pos_vec.len() * size_of::<*const u8>();
+		let neg_ptr_size = neg_vec.len() * size_of::<*const u8>();
+
+		let pos_ptrs = unsafe { alloc(pos_ptr_size) as *mut *const u8 };
+
+		if pos_ptrs.is_null() {
+			return Err(Error::new(Alloc));
+		}
+
+		let neg_ptrs = unsafe { alloc(neg_ptr_size) as *mut *const u8 };
+
+		if neg_ptrs.is_null() {
+			unsafe {
+				release(pos_ptrs as *const u8);
+			}
+			return Err(Error::new(Alloc));
+		}
+
+		unsafe {
+			for i in 0..pos_vec.len() {
+				*pos_ptrs.add(i) = &pos_vec[i].0 as *const u8;
+			}
+			for i in 0..neg_vec.len() {
+				*neg_ptrs.add(i) = &neg_vec[i].0 as *const u8;
+			}
+		}
+
+		// call secp256k1_pedersen_verify_tally to verify balance
+		unsafe {
+			let res = secp256k1_pedersen_verify_tally(
+				self.secp,
+				pos_ptrs as *const *const CommitmentUncompressed,
+				pos_vec.len(),
+				neg_ptrs as *const *const CommitmentUncompressed,
+				neg_vec.len(),
+			);
+
+			release(pos_ptrs as *const u8);
+			release(neg_ptrs as *const u8);
+
+			Ok(res == 1)
+		}
+	}
 }
 
 #[cfg(test)]
@@ -344,6 +494,31 @@ mod test {
 				&pubkey_sum,
 				false
 			)
+			.unwrap());
+	}
+
+	#[test]
+	fn test_balance_tx() {
+		let mut secp = Ctx::new().unwrap();
+
+		let blind1 = SecretKey::new(&mut secp);
+		let input1 = secp.commit(3000, &blind1).unwrap();
+		let blind2 = SecretKey::new(&mut secp);
+		let change = secp.commit(1000, &blind2).unwrap();
+		let blind3 = SecretKey::new(&mut secp);
+		let output1 = secp.commit(2000, &blind3).unwrap();
+
+		let excess_blind = secp.blind_sum(&[&blind1], &[&blind2, &blind3]).unwrap();
+		let excess = secp.commit(0, &excess_blind).unwrap();
+
+		assert!(secp
+			.verify_balance(&[&input1], &[&change, &output1, &excess], 0)
+			.unwrap());
+
+		let output1 = secp.commit(2001, &blind3).unwrap();
+
+		assert!(!secp
+			.verify_balance(&[&input1], &[&change, &output1, &excess], 0)
 			.unwrap());
 	}
 }

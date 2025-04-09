@@ -74,6 +74,7 @@ impl<T> Rc<T> {
 
 #[cfg(test)]
 mod test {
+	#![allow(unknown_lints)]
 	#![allow(static_mut_refs)]
 	use super::*;
 	use std::ffi::getalloccount;

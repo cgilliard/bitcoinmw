@@ -102,4 +102,19 @@ extern "C" {
 		num_sigs: usize,
 		pubnonce_total: *const PublicKeyUncompressed,
 	) -> i32;
+	pub fn secp256k1_pedersen_blind_sum(
+		cx: *const Secp256k1Context,
+		blind_out: *mut SecretKey,
+		blinds: *const *const SecretKey,
+		nblinds: usize,
+		npositive: usize,
+	) -> i32;
+	pub fn secp256k1_pedersen_verify_tally(
+		cx: *const Secp256k1Context,
+		commits: *const *const CommitmentUncompressed,
+		n_commits: usize,
+		neg_commits: *const *const CommitmentUncompressed,
+		n_neg_commits: usize,
+	) -> i32;
+
 }
