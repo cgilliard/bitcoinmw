@@ -14,6 +14,7 @@ pub struct PublicKey(pub(crate) [u8; 33]);
 #[derive(Clone)]
 pub struct SecretKey(pub(crate) [u8; 32]);
 #[repr(C)]
+#[derive(Clone)]
 pub struct Signature(pub(crate) [u8; 64]);
 #[repr(C)]
 pub struct PublicKeyUncompressed(pub(crate) [u8; 64]);

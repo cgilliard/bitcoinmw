@@ -2,6 +2,7 @@ pub mod constants;
 pub mod cpsrng;
 pub mod ctx;
 pub mod ffi;
+pub mod kernel;
 pub mod keys;
 pub mod pedersen;
 pub mod range_proof;

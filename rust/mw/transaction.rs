@@ -1,24 +1,8 @@
 use crypto::ctx::Ctx;
-use crypto::keys::Signature;
+use crypto::kernel::Kernel;
 use crypto::pedersen::Commitment;
 use crypto::range_proof::RangeProof;
 use prelude::*;
-
-pub struct Kernel {
-	excess: Commitment,
-	signature: Signature,
-	fee: u64,
-}
-
-impl Kernel {
-	pub fn new(excess: Commitment, signature: Signature, fee: u64) -> Self {
-		Self {
-			excess,
-			signature,
-			fee,
-		}
-	}
-}
 
 pub struct Transaction {
 	inputs: Vec<Commitment>,
@@ -67,29 +51,19 @@ impl Transaction {
 		for i in 0..self.outputs.len() {
 			output_commits.push(&self.outputs[i].0)?;
 		}
-		output_commits.push(&kernel.excess)?;
+		output_commits.push(kernel.excess())?;
 
 		if !ctx.verify_balance(
 			input_commits.slice(0, input_commits.len()),
 			output_commits.slice(0, output_commits.len()),
-			kernel.fee as i128,
+			kernel.fee() as i128,
 		)? {
 			return Err(Error::new(InvalidTransaction));
 		}
 
 		// Verify signature
-		let msg = ctx.hash_kernel(&kernel.excess, kernel.fee, 0)?;
-		/*
-		let pubkey_sum = PublicKey::from(secp, &secp.blind_sum(&[], &[])?)?; // Placeholder
-		secp.verify_single(
-			&self.kernel.signature,
-			&msg,
-			&PublicKey::default(), // Nonce sum TBD (interactive needs Slate)
-			&pubkey_sum,
-			&pubkey_sum,
-			false,
-		)?;
-				*/
+		let msg = ctx.hash_kernel(kernel.excess(), kernel.fee(), 0)?;
+		kernel.verify(ctx, &msg)?;
 
 		Ok(())
 	}

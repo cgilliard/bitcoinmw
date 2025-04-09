@@ -576,6 +576,7 @@ impl Ctx {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use crypto::kernel::Kernel;
 
 	#[test]
 	fn test_simple_sign() {
@@ -994,6 +995,10 @@ mod test {
 			&pubkey_sum,
 			false
 		)?);
+
+		// validate kernel
+		let _kernel = Kernel::new(excess, aggsig, fee);
+		//assert!(kernel.verify(&mut secp_send, &msg).is_ok());
 
 		// Balance check with fee
 		assert!(secp_send.verify_balance(
