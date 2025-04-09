@@ -28,6 +28,8 @@ define_errorkind_with_strings!(
 	InvalidCommitment,
 	InvalidRangeProof,
 	InvalidSignature,
+	InvalidTransaction,
+	KernelNotFound,
 	Overflow,
 	Underflow,
 	PubkeyCreate,

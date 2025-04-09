@@ -4,6 +4,7 @@ use crypto::keys::{PublicKey, PublicKeyUncompressed};
 use prelude::*;
 
 #[repr(C)]
+#[derive(Clone)]
 pub struct Commitment(pub(crate) [u8; 33]);
 #[repr(C)]
 pub struct CommitmentUncompressed(pub(crate) [u8; 64]);
