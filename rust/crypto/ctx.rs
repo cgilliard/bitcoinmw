@@ -2,13 +2,11 @@ use core::ptr::{null, null_mut};
 use crypto::constants::{GENERATOR_G, GENERATOR_H, SECP256K1_START_SIGN, SECP256K1_START_VERIFY};
 use crypto::cpsrng::Cpsrng;
 use crypto::ffi::*;
-use crypto::keys::{PublicKey, PublicKeyUncompressed, SecretKey, Signature};
+use crypto::keys::{Message, PublicKey, PublicKeyUncompressed, SecretKey, Signature};
 use crypto::pedersen::{Commitment, CommitmentUncompressed};
 use crypto::types::Secp256k1Context;
 use prelude::*;
 use std::misc::to_le_bytes_u64;
-
-pub struct Message([u8; 32]);
 
 pub struct Ctx {
 	pub(crate) secp: *mut Secp256k1Context,
@@ -131,14 +129,14 @@ impl Ctx {
 		let retval = unsafe {
 			secp256k1_aggsig_sign_single(
 				self.secp,
-				retsig.0.as_mut_ptr(),
-				msg.0.as_ptr(),
-				seckey.0.as_ptr(),
-				secnonce.0.as_ptr(),
+				retsig.as_mut_ptr(),
+				msg.as_ptr(),
+				seckey.as_ptr(),
+				secnonce.as_ptr(),
 				null(),
-				pubnonce.0.as_ptr(),
-				final_nonce_sum.0.as_ptr(),
-				pe.0.as_ptr(),
+				pubnonce.as_ptr(),
+				final_nonce_sum.as_ptr(),
+				pe.as_ptr(),
 				seed.as_ptr(),
 			)
 		};
@@ -187,11 +185,11 @@ impl Ctx {
 		let retval = unsafe {
 			secp256k1_aggsig_verify_single(
 				self.secp,
-				sig.0.as_ptr(),
-				msg.0.as_ptr(),
-				pubnonce.0.as_ptr(),
-				pubkey.0.as_ptr(),
-				pe.0.as_ptr(),
+				sig.as_ptr(),
+				msg.as_ptr(),
+				pubnonce.as_ptr(),
+				pubkey.as_ptr(),
+				pe.as_ptr(),
 				null(),
 				is_partial,
 			)
@@ -201,6 +199,36 @@ impl Ctx {
 			1 => true,
 			_ => false,
 		}
+	}
+
+	pub fn aggregate_signatures(
+		&self,
+		partial_sigs: &[&Signature],
+		nonce_sum: &PublicKey,
+	) -> Result<Signature, Error> {
+		let nonce_sum = nonce_sum.decompress(self)?;
+		let mut sig = Signature([0u8; 64]);
+		let num_sigs = partial_sigs.len();
+		if num_sigs > 16 {
+			return Err(Error::new(TooManySignatures));
+		}
+		let mut sig_ptrs = [null(); 16];
+		for i in 0..num_sigs {
+			sig_ptrs[i] = partial_sigs[i].as_ptr();
+		}
+		unsafe {
+			if secp256k1_aggsig_add_signatures_single(
+				self.secp,
+				sig.as_mut_ptr(),
+				sig_ptrs.as_ptr(),
+				num_sigs,
+				nonce_sum.as_ptr(),
+			) != 1
+			{
+				return Err(Error::new(InvalidSignature));
+			}
+		}
+		Ok(sig)
 	}
 }
 
@@ -241,6 +269,80 @@ mod test {
 				&pubkey,   // x * G
 				&pubkey,   // x * G (total for single signer)
 				true       // is_partial = true
+			)
+			.unwrap());
+	}
+
+	#[test]
+	fn test_aggregation_simple() {
+		let mut secp = Ctx::new().unwrap();
+		let msg = Message([10u8; 32]);
+
+		// Signer 1
+		let seckey1 = SecretKey::new(&mut secp);
+		let secnonce1 = SecretKey::new(&mut secp);
+		let pubnonce1 = PublicKey::from(&mut secp, &secnonce1).unwrap();
+		let pubkey1 = PublicKey::from(&mut secp, &seckey1).unwrap();
+
+		// Signer 2
+		let seckey2 = SecretKey::new(&mut secp);
+		let secnonce2 = SecretKey::new(&mut secp);
+		let pubnonce2 = PublicKey::from(&mut secp, &secnonce2).unwrap();
+		let pubkey2 = PublicKey::from(&mut secp, &seckey2).unwrap();
+
+		// Sums
+		let nonce_sum = pubnonce1.add(&secp, &pubnonce2).unwrap();
+		let pubkey_sum = pubkey1.add(&secp, &pubkey2).unwrap();
+
+		// Partial signatures with total sums
+		let sig1 = secp
+			.sign_single(
+				&msg,
+				&seckey1,
+				&secnonce1,
+				&nonce_sum,
+				&pubkey_sum,
+				&nonce_sum,
+			)
+			.unwrap();
+
+		assert!(secp
+			.verify_single(&sig1, &msg, &nonce_sum, &pubkey1, &pubkey_sum, true)
+			.unwrap());
+
+		let sig2 = secp
+			.sign_single(
+				&msg,
+				&seckey2,
+				&secnonce2,
+				&nonce_sum,
+				&pubkey_sum,
+				&nonce_sum,
+			)
+			.unwrap();
+
+		assert!(secp
+			.verify_single(&sig2, &msg, &nonce_sum, &pubkey2, &pubkey_sum, true)
+			.unwrap());
+
+		// Aggregate
+		let partial_sigs = &[&sig1, &sig2];
+		let aggsig = secp.aggregate_signatures(partial_sigs, &nonce_sum).unwrap();
+
+		// Verify aggregated signature (non-zero-sum)
+		assert!(secp
+			.verify_single(&aggsig, &msg, &nonce_sum, &pubkey_sum, &pubkey_sum, false)
+			.unwrap());
+
+		let msgbad = Message([99u8; 32]);
+		assert!(!secp
+			.verify_single(
+				&aggsig,
+				&msgbad,
+				&nonce_sum,
+				&pubkey_sum,
+				&pubkey_sum,
+				false
 			)
 			.unwrap());
 	}

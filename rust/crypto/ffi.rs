@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use crypto::keys::{PublicKey, PublicKeyUncompressed, SecretKey};
+use crypto::keys::{Message, PublicKey, PublicKeyUncompressed, SecretKey, Signature};
 use crypto::pedersen::{Commitment, CommitmentUncompressed};
 use crypto::types::{CpsrngContext, Secp256k1Context, Sha3Context};
 
@@ -74,24 +74,32 @@ extern "C" {
 	) -> i32;
 	pub fn secp256k1_aggsig_sign_single(
 		ctx: *const Secp256k1Context,
-		sig: *mut u8,
-		msg32: *const u8,
-		seckey32: *const u8,
-		secnonce32: *const u8,
+		sig: *mut Signature,
+		msg32: *const Message,
+		seckey32: *const SecretKey,
+		secnonce32: *const SecretKey,
 		extra32: *const u8,
-		pubnonce_for_e: *const u8,
-		pubnonce_total: *const u8,
-		pubkey_for_e: *const u8,
+		pubnonce_for_e: *const PublicKeyUncompressed,
+		pubnonce_total: *const PublicKeyUncompressed,
+		pubkey_for_e: *const PublicKeyUncompressed,
 		seed32: *const u8,
 	) -> i32;
 	pub fn secp256k1_aggsig_verify_single(
 		ctx: *const Secp256k1Context,
-		sig: *const u8,
-		msg32: *const u8,
-		pubnonce: *const u8,
-		pk: *const u8,
-		pk_total: *const u8,
-		extra_pubkey: *const u8,
+		sig: *const Signature,
+		msg32: *const Message,
+		pubnonce: *const PublicKeyUncompressed,
+		pk: *const PublicKeyUncompressed,
+		pk_total: *const PublicKeyUncompressed,
+		extra_pubkey: *const PublicKeyUncompressed,
 		is_partial: u32,
+	) -> i32;
+
+	pub fn secp256k1_aggsig_add_signatures_single(
+		ctx: *const Secp256k1Context,
+		ret_sig: *mut Signature,
+		sigs: *const *const Signature,
+		num_sigs: usize,
+		pubnonce_total: *const PublicKeyUncompressed,
 	) -> i32;
 }

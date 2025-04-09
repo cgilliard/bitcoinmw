@@ -7,12 +7,21 @@ use crypto::ffi::*;
 use prelude::*;
 
 #[repr(C)]
+pub struct Message(pub(crate) [u8; 32]);
+#[repr(C)]
 pub struct PublicKey(pub(crate) [u8; 33]);
 #[repr(C)]
 pub struct SecretKey(pub(crate) [u8; 32]);
+#[repr(C)]
 pub struct Signature(pub(crate) [u8; 64]);
 #[repr(C)]
 pub struct PublicKeyUncompressed(pub(crate) [u8; 64]);
+
+impl Message {
+	pub(crate) fn as_ptr(&self) -> *const Self {
+		self.0.as_ptr() as *const Self
+	}
+}
 
 impl PublicKeyUncompressed {
 	pub(crate) fn as_mut_ptr(&mut self) -> *mut PublicKeyUncompressed {
@@ -56,6 +65,13 @@ impl SecretKey {
 impl Signature {
 	pub fn new() -> Self {
 		Self([0u8; 64])
+	}
+	pub(crate) fn as_mut_ptr(&mut self) -> *mut Self {
+		self.0.as_mut_ptr() as *mut Self
+	}
+
+	pub(crate) fn as_ptr(&self) -> *const Self {
+		self.0.as_ptr() as *const Self
 	}
 }
 
