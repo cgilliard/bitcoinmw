@@ -521,4 +521,301 @@ mod test {
 			.verify_balance(&[&input1], &[&change, &output1, &excess], 0)
 			.unwrap());
 	}
+
+	#[test]
+	fn test_mimblewimble_tx() {
+		let mut secp = Ctx::new().unwrap();
+
+		let blind1 = SecretKey::new(&mut secp);
+		let input1 = secp.commit(3000, &blind1).unwrap();
+		let blind2 = SecretKey::new(&mut secp);
+		let change = secp.commit(1000, &blind2).unwrap();
+		let blind3 = SecretKey::new(&mut secp);
+		let output1 = secp.commit(2000, &blind3).unwrap();
+
+		let excess_blind = secp.blind_sum(&[&blind1], &[&blind2, &blind3]).unwrap();
+		let excess = secp.commit(0, &excess_blind).unwrap();
+		let msg = secp.hash_kernel(&excess, 0, 0).unwrap();
+
+		let pubkey_sum = PublicKey::from(&secp, &excess_blind).unwrap();
+
+		let nonce1 = SecretKey::new(&mut secp);
+		let pubnonce1 = PublicKey::from(&secp, &nonce1).unwrap();
+		let sender_blind = secp.blind_sum(&[&blind1], &[&blind2]).unwrap();
+		let pub_sender = PublicKey::from(&secp, &sender_blind).unwrap();
+
+		let nonce2 = SecretKey::new(&mut secp);
+		let pubnonce2 = PublicKey::from(&secp, &nonce2).unwrap();
+		let receiver_blind = secp.blind_sum(&[], &[&blind3]).unwrap();
+		let pub_receiver = PublicKey::from(&secp, &receiver_blind).unwrap();
+
+		let nonce_sum = pubnonce1.add(&secp, &pubnonce2).unwrap();
+
+		let sig1 = secp
+			.sign_single(
+				&msg,
+				&sender_blind,
+				&nonce1,
+				&nonce_sum, // Total nonce sum for consistent e
+				&pubkey_sum,
+				&nonce_sum,
+			)
+			.unwrap();
+
+		assert!(secp
+			.verify_single(&sig1, &msg, &nonce_sum, &pub_sender, &pubkey_sum, true)
+			.unwrap());
+
+		let sig2 = secp
+			.sign_single(
+				&msg,
+				&receiver_blind,
+				&nonce2,
+				&nonce_sum, // Total nonce sum for consistent e
+				&pubkey_sum,
+				&nonce_sum,
+			)
+			.unwrap();
+		assert!(secp
+			.verify_single(&sig2, &msg, &nonce_sum, &pub_receiver, &pubkey_sum, true)
+			.unwrap());
+
+		let partial_sigs = &[&sig1, &sig2];
+		let aggsig = secp.aggregate_signatures(partial_sigs, &nonce_sum).unwrap();
+
+		assert!(secp
+			.verify_balance(&[&input1], &[&change, &output1, &excess], 0)
+			.unwrap());
+		assert!(secp
+			.verify_single(&aggsig, &msg, &nonce_sum, &pubkey_sum, &pubkey_sum, false)
+			.unwrap());
+	}
+
+	#[test]
+	fn test_mimblewimble_interactive1() {
+		let mut secp_send = Ctx::new().unwrap();
+		let mut secp_recv = Ctx::new().unwrap();
+
+		// start with sender
+		let blind1 = SecretKey::new(&mut secp_send);
+		let input = secp_send.commit(500, &blind1).unwrap();
+		let blind2 = SecretKey::new(&mut secp_send);
+		let change = secp_send.commit(100, &blind2).unwrap();
+		let sender_excess_blind = secp_send.blind_sum(&[&blind1], &[&blind2]).unwrap();
+		let sender_excess = secp_send.commit(0, &sender_excess_blind).unwrap();
+
+		// sender generates private nonce and calcualates other values
+		let sender_nonce = SecretKey::new(&mut secp_send);
+		let sender_pub_nonce = PublicKey::from(&secp_send, &sender_nonce).unwrap();
+		let sender_pubkey_sum = PublicKey::from(&secp_send, &sender_excess_blind).unwrap();
+
+		// SLATE SEND 1
+
+		// now recipient gets slate and adds outputs
+		let blind3 = SecretKey::new(&mut secp_recv);
+		let output1 = secp_recv.commit(201, &blind3).unwrap();
+		let blind4 = SecretKey::new(&mut secp_recv);
+		let output2 = secp_recv.commit(199, &blind4).unwrap();
+		let recipient_excess_blind = secp_recv.blind_sum(&[], &[&blind3, &blind4]).unwrap();
+		let recipient_excess = secp_recv.commit(0, &recipient_excess_blind).unwrap();
+
+		// recipient generates private nonce
+		let recipient_nonce = SecretKey::new(&mut secp_recv);
+		let recipient_pub_nonce = PublicKey::from(&secp_recv, &recipient_nonce).unwrap();
+		let recipient_pubkey_sum = PublicKey::from(&secp_recv, &recipient_excess_blind).unwrap();
+
+		let pub_nonce_sum = recipient_pub_nonce
+			.add(&secp_recv, &sender_pub_nonce)
+			.unwrap();
+		let pubkey_sum = recipient_pubkey_sum
+			.add(&secp_recv, &sender_pubkey_sum)
+			.unwrap();
+
+		let excess = sender_excess.add(&secp_recv, &recipient_excess).unwrap();
+		let msg = secp_recv.hash_kernel(&excess, 0, 0).unwrap();
+
+		let sig_recv = secp_recv
+			.sign_single(
+				&msg,
+				&recipient_excess_blind,
+				&recipient_nonce,
+				&pub_nonce_sum, // Total nonce sum for consistent e
+				&pubkey_sum,
+				&pub_nonce_sum,
+			)
+			.unwrap();
+
+		assert!(secp_recv
+			.verify_single(
+				&sig_recv,
+				&msg,
+				&pub_nonce_sum,
+				&recipient_pubkey_sum,
+				&pubkey_sum,
+				true
+			)
+			.unwrap());
+
+		// SLATE SEND 2
+
+		// no sender gets slate back and verifies things. We know the sig_recv, excess,
+		// fee, features. So we can calc the msg. We have the recipient_pub_nonce and we
+		// can sum it with ours to generate the pub_nonce_sum, we also get the
+		// recipient_pubkey_sum and we can add it to ours to calculate the pubkey_sum
+
+		// next we calculate our partial sig
+		let sig_send = secp_send
+			.sign_single(
+				&msg,
+				&sender_excess_blind,
+				&sender_nonce,
+				&pub_nonce_sum,
+				&pubkey_sum,
+				&pub_nonce_sum,
+			)
+			.unwrap();
+
+		assert!(secp_send
+			.verify_single(
+				&sig_send,
+				&msg,
+				&pub_nonce_sum,
+				&sender_pubkey_sum,
+				&pubkey_sum,
+				true
+			)
+			.unwrap());
+
+		// now sender aggregates signatures, verifies the balance and the signatures and
+		// submits to the network
+		let partial_sigs = &[&sig_send, &sig_recv];
+		let aggsig = secp_send
+			.aggregate_signatures(partial_sigs, &pub_nonce_sum)
+			.unwrap();
+
+		assert!(secp_send
+			.verify_balance(
+				&[&input],
+				&[
+					&change,
+					&output1,
+					&output2,
+					&recipient_excess,
+					&sender_excess
+				],
+				0
+			)
+			.unwrap());
+
+		assert!(secp_send
+			.verify_single(
+				&aggsig,
+				&msg,
+				&pub_nonce_sum,
+				&pubkey_sum,
+				&pubkey_sum,
+				false
+			)
+			.unwrap());
+	}
+
+	#[test]
+	fn test_mimblewimble_interactive_with_fee() -> Result<(), Error> {
+		let mut secp_send = Ctx::new()?;
+		let mut secp_recv = Ctx::new()?;
+
+		let fee = 5u64;
+
+		// Sender
+		let blind1 = SecretKey::new(&mut secp_send);
+		let input = secp_send.commit(500, &blind1)?;
+		let blind2 = SecretKey::new(&mut secp_send);
+		let change = secp_send.commit(100 - fee, &blind2)?; // Fee deducted from change (95)
+		let sender_excess_blind = secp_send.blind_sum(&[&blind1], &[&blind2])?;
+		let sender_excess = secp_send.commit(0, &sender_excess_blind)?; // Excess remains 0*H
+
+		let sender_nonce = SecretKey::new(&mut secp_send);
+		let sender_pub_nonce = PublicKey::from(&secp_send, &sender_nonce)?;
+		let sender_pubkey_sum = PublicKey::from(&secp_send, &sender_excess_blind)?;
+
+		// Recipient
+		let blind3 = SecretKey::new(&mut secp_recv);
+		let output1 = secp_recv.commit(201, &blind3)?;
+		let blind4 = SecretKey::new(&mut secp_recv);
+		let output2 = secp_recv.commit(199, &blind4)?; // Full amount, no fee here
+		let recipient_excess_blind = secp_recv.blind_sum(&[], &[&blind3, &blind4])?;
+		let recipient_excess = secp_recv.commit(0, &recipient_excess_blind)?;
+
+		let recipient_nonce = SecretKey::new(&mut secp_recv);
+		let recipient_pub_nonce = PublicKey::from(&secp_recv, &recipient_nonce)?;
+		let recipient_pubkey_sum = PublicKey::from(&secp_recv, &recipient_excess_blind)?;
+
+		let pub_nonce_sum = recipient_pub_nonce.add(&secp_recv, &sender_pub_nonce)?;
+		let pubkey_sum = recipient_pubkey_sum.add(&secp_recv, &sender_pubkey_sum)?;
+
+		let excess = sender_excess.add(&secp_recv, &recipient_excess)?; // 0*H
+		let msg = secp_recv.hash_kernel(&excess, fee, 0)?;
+
+		// Recipient signs
+		let sig_recv = secp_recv.sign_single(
+			&msg,
+			&recipient_excess_blind,
+			&recipient_nonce,
+			&pub_nonce_sum,
+			&pubkey_sum,
+			&pub_nonce_sum,
+		)?;
+		assert!(secp_recv.verify_single(
+			&sig_recv,
+			&msg,
+			&pub_nonce_sum,
+			&recipient_pubkey_sum,
+			&pubkey_sum,
+			true
+		)?);
+
+		// Sender signs
+		let sig_send = secp_send.sign_single(
+			&msg,
+			&sender_excess_blind,
+			&sender_nonce,
+			&pub_nonce_sum,
+			&pubkey_sum,
+			&pub_nonce_sum,
+		)?;
+		assert!(secp_send.verify_single(
+			&sig_send,
+			&msg,
+			&pub_nonce_sum,
+			&sender_pubkey_sum,
+			&pubkey_sum,
+			true
+		)?);
+
+		// Aggregate and verify
+		let partial_sigs = &[&sig_send, &sig_recv];
+		let aggsig = secp_send.aggregate_signatures(partial_sigs, &pub_nonce_sum)?;
+		assert!(secp_send.verify_single(
+			&aggsig,
+			&msg,
+			&pub_nonce_sum,
+			&pubkey_sum,
+			&pubkey_sum,
+			false
+		)?);
+
+		// Balance check with fee
+		assert!(secp_send.verify_balance(
+			&[&input],
+			&[
+				&change,
+				&output1,
+				&output2,
+				&recipient_excess,
+				&sender_excess
+			],
+			5
+		)?);
+		Ok(())
+	}
 }
