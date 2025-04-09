@@ -54,11 +54,6 @@ else
    BLUE="";
 fi
 
-grcov --version
-grcov --help
-echo "debug: showing coverage.txt";
-cat /tmp/coverage.txt
-
 echo "Code Coverage Report for commit: $GREEN`git log -1 | grep "^commit " | cut -f2 -d ' '`$RESET";
 echo "$BLUE----------------------------------------------------------------------------------------------------$RESET";
 
