@@ -30,7 +30,7 @@ rustc -C debuginfo=2 --test rust/mod.rs \
 	${RUSTFLAGS} ||  exit 1;
 ./bin/test_fam ${FILTER} --test-threads=1 || exit 1;
 git log -1 > /tmp/coverage.txt
-grcov /tmp/file.profraw --branch --binary-path ./bin > /tmp/coverage.txt
+grcov /tmp/file.profraw --branch --binary-path ./bin -t lcov > /tmp/coverage.txt
 
 cur_file='';
 line_count=0;
@@ -54,6 +54,8 @@ else
    BLUE="";
 fi
 
+grcov --version
+grcov --help
 echo "debug: showing coverage.txt";
 cat /tmp/coverage.txt
 

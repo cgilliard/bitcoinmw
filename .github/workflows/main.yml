@@ -47,7 +47,7 @@ jobs:
           ./test
       - name: code coverage
         run: |
-          cargo install grcov
+          cargo install grcov --version 0.8.22
           rustup component add llvm-tools-preview
           git clone https://anything:${{ secrets.BitcoinMWPat }}@github.com/cgilliard/bitcoinmw.git _coverage
           cd _coverage
