@@ -518,6 +518,59 @@ impl Ctx {
 			}
 		}
 	}
+
+	pub fn rewind_range_proof(
+		&mut self,
+		commit: &Commitment,
+		blind: &SecretKey,
+		proof: &RangeProof,
+	) -> Result<u64, Error> {
+		let scratch = unsafe { secp256k1_scratch_space_create(self.secp, SCRATCH_SPACE_SIZE) };
+		if scratch.is_null() {
+			return Err(Error::new(Alloc));
+		}
+
+		let extra_data_len = 0;
+		let extra_data = null();
+
+		let mut blind_out = [0u8; 32];
+		let mut value_out = 0;
+		let mut message_out = [0u8; 20];
+
+		let commit = match commit.decompress(self) {
+			Ok(commit) => commit,
+			Err(e) => {
+				unsafe {
+					secp256k1_scratch_space_destroy(scratch);
+				}
+				return Err(e);
+			}
+		};
+
+		unsafe {
+			let result = secp256k1_bulletproof_rangeproof_rewind(
+				self.secp,
+				&mut value_out,
+				blind_out.as_mut_ptr(),
+				proof.proof.as_ptr(),
+				proof.plen,
+				0,
+				commit.0.as_ptr(),
+				GENERATOR_H.as_ptr(),
+				blind.as_ptr(),
+				extra_data,
+				extra_data_len,
+				message_out.as_mut_ptr(),
+			);
+			secp256k1_scratch_space_destroy(scratch);
+
+			if result == 0 {
+				Err(Error::new(InvalidRangeProof))
+			} else {
+				Ok(value_out)
+			}
+		}
+	}
 }
 
 #[cfg(test)]
@@ -964,8 +1017,14 @@ mod test {
 		let proof = ctx.range_proof(100, &blind)?;
 		let commit = ctx.commit(100, &blind)?;
 		ctx.verify_range_proof(&commit, &proof)?;
+
+		assert_eq!(ctx.rewind_range_proof(&commit, &blind, &proof)?, 100);
+
 		let other_commit = ctx.commit(101, &blind)?;
 		assert!(ctx.verify_range_proof(&other_commit, &proof).is_err());
+		assert!(ctx
+			.rewind_range_proof(&other_commit, &blind, &proof)
+			.is_err());
 
 		Ok(())
 	}

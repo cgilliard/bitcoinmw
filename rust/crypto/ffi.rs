@@ -159,6 +159,20 @@ extern "C" {
 		extra_commit: *const u8,
 		extra_commit_len: usize,
 	) -> i32;
+	pub fn secp256k1_bulletproof_rangeproof_rewind(
+		ctx: *const Secp256k1Context,
+		value: *mut u64,
+		blind: *mut u8,
+		proof: *const u8,
+		plen: usize,
+		min_value: u64,
+		commit: *const u8,
+		value_gen: *const PublicKeyUncompressed,
+		nonce: *const SecretKey,
+		extra_commit: *const u8,
+		extra_commit_len: usize,
+		message: *mut u8,
+	) -> i32;
 	pub fn secp256k1_bulletproof_generators_create(
 		ctx: *const Secp256k1Context,
 		blinding_gen: *const PublicKeyUncompressed,
