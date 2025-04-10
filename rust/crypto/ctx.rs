@@ -415,11 +415,6 @@ impl Ctx {
 	}
 
 	pub fn range_proof(&mut self, value: u64, blind: &SecretKey) -> Result<RangeProof, Error> {
-		let scratch = unsafe { secp256k1_scratch_space_create(self.secp, SCRATCH_SPACE_SIZE) };
-		if scratch.is_null() {
-			return Err(Error::new(Alloc));
-		}
-
 		let mut proof = [0; MAX_PROOF_SIZE];
 		let mut plen = MAX_PROOF_SIZE;
 		let n_bits = 64;
@@ -435,17 +430,13 @@ impl Ctx {
 		let private_nonce = SecretKey::new(self);
 
 		let mut blind_vec = Vec::new();
-		match blind_vec.push(blind.0.as_ptr()) {
-			Ok(_) => {}
-			Err(e) => {
-				unsafe {
-					secp256k1_scratch_space_destroy(scratch);
-				}
-				return Err(e);
-			}
-		}
+		blind_vec.push(blind.0.as_ptr())?;
 
 		unsafe {
+			let scratch = secp256k1_scratch_space_create(self.secp, SCRATCH_SPACE_SIZE);
+			if scratch.is_null() {
+				return Err(Error::new(Alloc));
+			}
 			let res = secp256k1_bulletproof_rangeproof_prove(
 				self.secp,
 				scratch,
@@ -486,26 +477,17 @@ impl Ctx {
 			return Err(Error::new(InvalidRangeProof));
 		}
 
-		let scratch = unsafe { secp256k1_scratch_space_create(self.secp, SCRATCH_SPACE_SIZE) };
-		if scratch.is_null() {
-			return Err(Error::new(Alloc));
-		}
-
 		let n_bits = 64;
 		let extra_data_len = 0;
 		let extra_data = null();
 
-		let commit = match commit.decompress(self) {
-			Ok(commit) => commit,
-			Err(e) => {
-				unsafe {
-					secp256k1_scratch_space_destroy(scratch);
-				}
-				return Err(e);
-			}
-		};
+		let commit = commit.decompress(self)?;
 
 		unsafe {
+			let scratch = secp256k1_scratch_space_create(self.secp, SCRATCH_SPACE_SIZE);
+			if scratch.is_null() {
+				return Err(Error::new(Alloc));
+			}
 			let result = secp256k1_bulletproof_rangeproof_verify(
 				self.secp,
 				scratch,
@@ -537,11 +519,6 @@ impl Ctx {
 		blind: &SecretKey,
 		proof: &RangeProof,
 	) -> Result<u64, Error> {
-		let scratch = unsafe { secp256k1_scratch_space_create(self.secp, SCRATCH_SPACE_SIZE) };
-		if scratch.is_null() {
-			return Err(Error::new(Alloc));
-		}
-
 		let extra_data_len = 0;
 		let extra_data = null();
 
@@ -549,17 +526,13 @@ impl Ctx {
 		let mut value_out = 0;
 		let mut message_out = [0u8; 20];
 
-		let commit = match commit.decompress(self) {
-			Ok(commit) => commit,
-			Err(e) => {
-				unsafe {
-					secp256k1_scratch_space_destroy(scratch);
-				}
-				return Err(e);
-			}
-		};
+		let commit = commit.decompress(self)?;
 
 		unsafe {
+			let scratch = secp256k1_scratch_space_create(self.secp, SCRATCH_SPACE_SIZE);
+			if scratch.is_null() {
+				return Err(Error::new(Alloc));
+			}
 			let result = secp256k1_bulletproof_rangeproof_rewind(
 				self.secp,
 				&mut value_out,

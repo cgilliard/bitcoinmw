@@ -1,9 +1,5 @@
-use crypto::constants::SCRATCH_SPACE_SIZE;
 use crypto::ctx::Ctx;
-use crypto::ffi::{
-	secp256k1_schnorrsig_verify_batch, secp256k1_scratch_space_create,
-	secp256k1_scratch_space_destroy,
-};
+use crypto::ffi::secp256k1_schnorrsig_verify;
 use crypto::keys::{Message, Signature};
 use crypto::pedersen::Commitment;
 use prelude::*;
@@ -38,25 +34,13 @@ impl Kernel {
 	pub fn verify(&self, ctx: &mut Ctx, msg: &Message) -> Result<(), Error> {
 		let excess = self.excess.to_pubkey(ctx)?.decompress(ctx)?;
 
-		let sigs = vec![self.signature.as_ptr()]?;
-		let msgs = vec![msg.as_ptr()]?;
-		let pubkeys = vec![excess.as_ptr()]?;
-
 		unsafe {
-			let scratch = secp256k1_scratch_space_create(ctx.secp, SCRATCH_SPACE_SIZE);
-			if scratch.is_null() {
-				return Err(Error::new(Alloc));
-			}
-			let res = secp256k1_schnorrsig_verify_batch(
+			let res = secp256k1_schnorrsig_verify(
 				ctx.secp,
-				scratch,
-				sigs.as_ptr(),
-				msgs.as_ptr(),
-				pubkeys.as_ptr(),
-				1,
+				self.signature.as_ptr(),
+				msg.as_ptr(),
+				excess.as_ptr(),
 			);
-
-			secp256k1_scratch_space_destroy(scratch);
 
 			if res == 1 {
 				Ok(())
