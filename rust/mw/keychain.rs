@@ -4,7 +4,6 @@ use crypto::ffi::{AES_CTR_xcrypt_buffer, AES_ctx_set_iv, AES_ctx_size, AES_init_
 use crypto::keys::SecretKey;
 use prelude::*;
 use std::ffi::{alloc, release};
-use std::misc::to_le_bytes_u64;
 
 pub struct KeyChain {
 	aes256_ctx: *const u8,
@@ -34,14 +33,22 @@ impl KeyChain {
 		}
 	}
 
-	pub fn derive_key(&self, ctx: &Ctx, path: &[u64; 2]) -> Result<SecretKey, Error> {
-		let mut skey = SecretKey([0u8; 32]);
+	pub fn derive_key(&self, ctx: &Ctx, path: &[u64; 2]) -> SecretKey {
 		unsafe {
 			AES_ctx_set_iv(self.aes256_ctx, path.as_ptr() as *const u8);
-			AES_CTR_xcrypt_buffer(self.aes256_ctx, skey.0.as_mut_ptr(), skey.0.len());
 		}
-		ctx.verify_secret_key(&skey)?;
-		Ok(skey)
+		let mut skey = SecretKey([0u8; 32]);
+		loop {
+			unsafe {
+				AES_CTR_xcrypt_buffer(self.aes256_ctx, skey.0.as_mut_ptr(), skey.0.len());
+			}
+
+			match ctx.verify_secret_key(&skey) {
+				Ok(_) => break,
+				Err(_) => {}
+			}
+		}
+		skey
 	}
 }
 
@@ -53,9 +60,9 @@ mod test {
 	fn test_keychain() -> Result<(), Error> {
 		let ctx = Ctx::new()?;
 		let keychain = KeyChain::from_seed([0u8; 32])?;
-		let sk1 = keychain.derive_key(&ctx, &[0, 0])?;
-		let sk2 = keychain.derive_key(&ctx, &[0, 1])?;
-		let sk3 = keychain.derive_key(&ctx, &[0, 0])?;
+		let sk1 = keychain.derive_key(&ctx, &[0, 0]);
+		let sk2 = keychain.derive_key(&ctx, &[0, 1]);
+		let sk3 = keychain.derive_key(&ctx, &[0, 0]);
 
 		assert_eq!(sk1.0, sk3.0);
 		assert!(sk1.0 != sk2.0);
@@ -86,9 +93,9 @@ mod test {
 		);
 
 		let keychain = KeyChain::from_seed([1u8; 32])?;
-		let sk1 = keychain.derive_key(&ctx, &[0, 0])?;
-		let sk2 = keychain.derive_key(&ctx, &[0, 1])?;
-		let sk3 = keychain.derive_key(&ctx, &[0, 0])?;
+		let sk1 = keychain.derive_key(&ctx, &[0, 0]);
+		let sk2 = keychain.derive_key(&ctx, &[0, 1]);
+		let sk3 = keychain.derive_key(&ctx, &[0, 0]);
 
 		assert_eq!(sk1.0, sk3.0);
 		assert!(sk1.0 != sk2.0);
@@ -119,9 +126,9 @@ mod test {
 		);
 
 		let keychain = KeyChain::from_seed([0u8; 32])?;
-		let sk1 = keychain.derive_key(&ctx, &[0, 0])?;
-		let sk2 = keychain.derive_key(&ctx, &[0, 1])?;
-		let sk3 = keychain.derive_key(&ctx, &[0, 0])?;
+		let sk1 = keychain.derive_key(&ctx, &[0, 0]);
+		let sk2 = keychain.derive_key(&ctx, &[0, 1]);
+		let sk3 = keychain.derive_key(&ctx, &[0, 0]);
 
 		assert_eq!(sk1.0, sk3.0);
 		assert!(sk1.0 != sk2.0);
@@ -152,9 +159,9 @@ mod test {
 		);
 
 		let keychain = KeyChain::from_seed([2u8; 32])?;
-		let sk1 = keychain.derive_key(&ctx, &[1, 0])?;
-		let sk2 = keychain.derive_key(&ctx, &[0, 1])?;
-		let sk3 = keychain.derive_key(&ctx, &[1, 0])?;
+		let sk1 = keychain.derive_key(&ctx, &[1, 0]);
+		let sk2 = keychain.derive_key(&ctx, &[0, 1]);
+		let sk3 = keychain.derive_key(&ctx, &[1, 0]);
 
 		assert_eq!(sk1.0, sk3.0);
 		assert!(sk1.0 != sk2.0);
@@ -185,10 +192,10 @@ mod test {
 		);
 
 		let keychain = KeyChain::from_seed([3u8; 32])?;
-		let sk1 = keychain.derive_key(&ctx, &[81, 80])?;
-		let sk2 = keychain.derive_key(&ctx, &[20, 11])?;
-		let sk3 = keychain.derive_key(&ctx, &[81, 80])?;
-		let sk4 = keychain.derive_key(&ctx, &[20, 11])?;
+		let sk1 = keychain.derive_key(&ctx, &[81, 80]);
+		let sk2 = keychain.derive_key(&ctx, &[20, 11]);
+		let sk3 = keychain.derive_key(&ctx, &[81, 80]);
+		let sk4 = keychain.derive_key(&ctx, &[20, 11]);
 
 		assert_eq!(sk1.0, sk3.0);
 		assert!(sk1.0 != sk2.0);
@@ -216,6 +223,14 @@ mod test {
 			[
 				128, 201, 215, 8, 71, 167, 24, 94, 79, 170, 30, 250, 245, 55, 222, 255, 44, 58,
 				109, 90, 151, 168, 38, 85, 118, 246, 10, 140, 234, 166, 139, 122
+			]
+		);
+
+		assert_eq!(
+			sk4.0,
+			[
+				29, 62, 167, 44, 19, 169, 171, 204, 52, 194, 30, 37, 224, 53, 85, 61, 38, 247, 3,
+				232, 160, 148, 146, 166, 54, 81, 224, 18, 170, 169, 243, 41
 			]
 		);
 
