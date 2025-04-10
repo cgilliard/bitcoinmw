@@ -111,6 +111,14 @@ extern "C" {
 		nblinds: usize,
 		npositive: usize,
 	) -> i32;
+	pub fn secp256k1_pedersen_commit_sum(
+		ctx: *const Secp256k1Context,
+		commit_out: *const CommitmentUncompressed,
+		commits: *const *const CommitmentUncompressed,
+		pcnt: usize,
+		ncommits: *const *const CommitmentUncompressed,
+		ncnt: usize,
+	) -> i32;
 	pub fn secp256k1_pedersen_verify_tally(
 		cx: *const Secp256k1Context,
 		commits: *const *const CommitmentUncompressed,

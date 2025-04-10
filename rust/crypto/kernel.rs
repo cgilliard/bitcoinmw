@@ -36,30 +36,18 @@ impl Kernel {
 	}
 
 	pub fn verify(&self, ctx: &mut Ctx, msg: &Message) -> Result<(), Error> {
-		// HACK: to resolve parity issue, we check both even and odd parity version of the
-		// pubkey.
-		// TODO: we need to find the root cause, why in some cases is the pubkey falsely
-		// flipping parity?
-		let mut excess_other = self.excess.clone();
-		if excess_other.0[0] == 0x2 {
-			excess_other.0[0] = 0x3;
-		} else {
-			excess_other.0[0] = 0x2;
-		}
 		let excess = self.excess.to_pubkey(ctx)?.decompress(ctx)?;
-		let excess2 = excess_other.to_pubkey(ctx)?.decompress(ctx)?;
 
 		let sigs = vec![self.signature.as_ptr()]?;
 		let msgs = vec![msg.as_ptr()]?;
 		let pubkeys = vec![excess.as_ptr()]?;
-		let pubkeys2 = vec![excess2.as_ptr()]?;
 
 		unsafe {
 			let scratch = secp256k1_scratch_space_create(ctx.secp, SCRATCH_SPACE_SIZE);
 			if scratch.is_null() {
 				return Err(Error::new(Alloc));
 			}
-			let mut res = secp256k1_schnorrsig_verify_batch(
+			let res = secp256k1_schnorrsig_verify_batch(
 				ctx.secp,
 				scratch,
 				sigs.as_ptr(),
@@ -67,17 +55,6 @@ impl Kernel {
 				pubkeys.as_ptr(),
 				1,
 			);
-
-			if res == 0 {
-				res = secp256k1_schnorrsig_verify_batch(
-					ctx.secp,
-					scratch,
-					sigs.as_ptr(),
-					msgs.as_ptr(),
-					pubkeys2.as_ptr(),
-					1,
-				);
-			}
 
 			secp256k1_scratch_space_destroy(scratch);
 

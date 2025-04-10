@@ -838,7 +838,9 @@ mod test {
 			.add(&secp_recv, &sender_pubkey_sum)
 			.unwrap();
 
-		let excess = sender_excess.add(&secp_recv, &recipient_excess).unwrap();
+		let excess = sender_excess
+			.add(&mut secp_recv, &recipient_excess)
+			.unwrap();
 		let msg = secp_recv.hash_kernel(&excess, 0, 0).unwrap();
 
 		let sig_recv = secp_recv
@@ -928,13 +930,6 @@ mod test {
 
 	#[test]
 	fn test_mimblewimble_interactive_with_fee() -> Result<(), Error> {
-		/*
-		let seed = [0u8; 32];
-		let r1 = Cpsrng::new_s(seed.clone())?;
-		let r2 = Cpsrng::new_s(seed)?;
-		let mut secp_send = Ctx::new_r(r1)?;
-		let mut secp_recv = Ctx::new_r(r2)?;
-			*/
 		let mut secp_send = Ctx::new()?;
 		let mut secp_recv = Ctx::new()?;
 
@@ -964,9 +959,9 @@ mod test {
 		let recipient_pub_nonce = PublicKey::from(&secp_recv, &recipient_nonce)?;
 		let recipient_pubkey_sum = PublicKey::from(&secp_recv, &recipient_excess_blind)?;
 
-		let pub_nonce_sum = recipient_pub_nonce.add(&secp_recv, &sender_pub_nonce)?;
+		let pub_nonce_sum = recipient_pub_nonce.add(&mut secp_recv, &sender_pub_nonce)?;
 		let pubkey_sum = recipient_pubkey_sum.add(&secp_recv, &sender_pubkey_sum)?;
-		let excess = sender_excess.add(&secp_recv, &recipient_excess)?; // 0*H
+		let excess = sender_excess.add(&mut secp_recv, &recipient_excess)?; // 0*H
 		let msg = secp_recv.hash_kernel(&excess, fee, 0)?;
 
 		// Recipient signs
@@ -1020,6 +1015,8 @@ mod test {
 		// validate kernel
 		let kernel = Kernel::new(excess, aggsig, fee);
 		assert!(kernel.verify(&mut secp_send, &msg).is_ok());
+		let msg = Message([0u8; 32]);
+		assert!(kernel.verify(&mut secp_send, &msg).is_err());
 
 		// Balance check with fee
 		assert!(secp_send.verify_balance(

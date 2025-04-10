@@ -1,3 +1,4 @@
+use core::ptr::null;
 use crypto::ctx::Ctx;
 use crypto::ffi::*;
 use crypto::keys::{PublicKey, PublicKeyUncompressed};
@@ -59,19 +60,25 @@ impl Commitment {
 		}
 	}
 
-	pub fn add(&self, ctx: &Ctx, other: &Commitment) -> Result<Commitment, Error> {
-		let pk1 = match self.to_pubkey(ctx) {
-			Ok(pk1) => pk1,
-			Err(e) => return Err(e),
-		};
-		let pk2 = match other.to_pubkey(ctx) {
-			Ok(pk2) => pk2,
-			Err(e) => return Err(e),
-		};
-		match pk1.add(ctx, &pk2) {
-			Ok(sum_pk) => Ok(Commitment(sum_pk.0)),
-			Err(e) => return Err(e),
+	pub fn add(&self, ctx: &mut Ctx, other: &Commitment) -> Result<Commitment, Error> {
+		let mut commit_out = CommitmentUncompressed([0u8; 64]);
+		let mut pcommits = Vec::new();
+		pcommits.push(self.decompress(ctx)?.as_ptr())?;
+		pcommits.push(other.decompress(ctx)?.as_ptr())?;
+		unsafe {
+			if secp256k1_pedersen_commit_sum(
+				ctx.secp,
+				commit_out.as_mut_ptr(),
+				pcommits.as_ptr(),
+				2,
+				null(),
+				0,
+			) == 0
+			{
+				return Err(Error::new(InvalidCommitment));
+			}
 		}
+		Self::compress(ctx, commit_out)
 	}
 
 	pub(crate) fn as_mut_ptr(&mut self) -> *mut Commitment {
