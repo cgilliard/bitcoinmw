@@ -6,49 +6,69 @@ export MRUSTC="${MRUSTC:-mrustc}"
 
 CCFLAGS=-O3
 
-if [ "clean" = "$1" ]; then
-	echo "Cleaning"
-        cd secp256k1-zkp
-        make mostlyclean-compile
-        cd ..
-        rm -rf .obj/* libtest.a bin/* 
-elif [ "mrustc" = "$1" ]; then
-	echo "Building BitcoinMW with mrustc"
-        ./scripts/secp256k1zkp.sh || exit 1;
-        cd c
-        for file in *.c
-        do
-                if [ ! -e ../.obj/${file%.c}.o ] || [ ${file} -nt ../.obj/${file%.c}.o ]; then
-                        echo "${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file}";
-                        ${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file} || exit 1;
-                fi
-        done
-        cd ..
-	${MRUSTC} -C panic=abort \
-		-O \
-		--crate-type=lib \
-		-L${OUTPUT} \
-		--cfg mrustc \
-		-o .obj/rust \
-		rust/mod.rs || exit 1;
-	${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj -lgmp -lsecp256k1 || exit 1;
+# Detect OS and set linker flags
+if [ "$(uname)" = "Darwin" ]; then
+    # macOS
+    if ! command -v brew >/dev/null 2>&1; then
+        echo "Error: Homebrew is required on macOS to locate GMP" >&2
+        exit 1
+    fi
+    GMP_PATH="$(brew --prefix gmp)/lib/libgmp.a"
+    if [ ! -f "$GMP_PATH" ]; then
+        echo "Error: libgmp.a not found at $GMP_PATH. Install with 'brew install gmp'" >&2
+        exit 1
+    fi
+    LINK_GMP="$GMP_PATH"
+    LINK_SECP256K1="-lsecp256k1"  # Dynamic by default; adjust if static needed
 else
-	echo "Building BitcoinMW with rustc"
-	./scripts/secp256k1zkp.sh || exit 1;
-	cd c
-        for file in *.c
-        do
-                if [ ! -e ../.obj/${file%.c}.o ] || [ ${file} -nt ../.obj/${file%.c}.o ]; then
-                        echo "${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file}";
-                        ${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file} || exit 1;
-                fi
-        done
-	cd ..
-	rustc -C panic=abort \
-		-C opt-level=3 \
-		--emit=obj \
-		--crate-type=lib \
-		-o .obj/rust.o \
-		rust/mod.rs || exit 1;
-	${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj -lgmp -lsecp256k1 || exit 1;
+    # Linux (or other UNIX-like with GNU linker)
+    LINK_GMP="-Wl,-Bstatic -lgmp -Wl,-Bdynamic"
+    LINK_SECP256K1="-lsecp256k1"
+fi
+
+if [ "clean" = "$1" ]; then
+    echo "Cleaning"
+    cd secp256k1-zkp
+    make mostlyclean-compile
+    cd ..
+    rm -rf .obj/* libtest.a bin/*
+elif [ "mrustc" = "$1" ]; then
+    echo "Building BitcoinMW with mrustc"
+    ./scripts/secp256k1zkp.sh || exit 1
+    cd c
+    for file in *.c
+    do
+        if [ ! -e ../.obj/${file%.c}.o ] || [ ${file} -nt ../.obj/${file%.c}.o ]; then
+            echo "${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file}"
+            ${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file} || exit 1
+        fi
+    done
+    cd ..
+    ${MRUSTC} -C panic=abort \
+        -O \
+        --crate-type=lib \
+        -L${OUTPUT} \
+        --cfg mrustc \
+        -o .obj/rust \
+        rust/mod.rs || exit 1
+    ${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1} || exit 1
+else
+    echo "Building BitcoinMW with rustc"
+    ./scripts/secp256k1zkp.sh || exit 1
+    cd c
+    for file in *.c
+    do
+        if [ ! -e ../.obj/${file%.c}.o ] || [ ${file} -nt ../.obj/${file%.c}.o ]; then
+            echo "${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file}"
+            ${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file} || exit 1
+        fi
+    done
+    cd ..
+    rustc -C panic=abort \
+        -C opt-level=3 \
+        --emit=obj \
+        --crate-type=lib \
+        -o .obj/rust.o \
+        rust/mod.rs || exit 1
+    ${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1} || exit 1
 fi
