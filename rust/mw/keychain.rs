@@ -188,10 +188,12 @@ mod test {
 		let sk1 = keychain.derive_key(&ctx, &[81, 80])?;
 		let sk2 = keychain.derive_key(&ctx, &[20, 11])?;
 		let sk3 = keychain.derive_key(&ctx, &[81, 80])?;
+		let sk4 = keychain.derive_key(&ctx, &[20, 11])?;
 
 		assert_eq!(sk1.0, sk3.0);
 		assert!(sk1.0 != sk2.0);
 		assert!(sk2.0 != sk3.0);
+		assert_eq!(sk2.0, sk4.0);
 
 		assert_eq!(
 			sk1.0,
