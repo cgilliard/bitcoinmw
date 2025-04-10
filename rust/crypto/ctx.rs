@@ -118,6 +118,16 @@ impl Ctx {
 		Ok(Message(hash))
 	}
 
+	pub fn verify_secret_key(&self, skey: &SecretKey) -> Result<(), Error> {
+		unsafe {
+			if secp256k1_ec_seckey_verify(self.secp, skey.as_ptr()) != 1 {
+				Err(Error::new(InvalidSecretKey))
+			} else {
+				Ok(())
+			}
+		}
+	}
+
 	pub fn commit(&self, v: u64, blind: &SecretKey) -> Result<Commitment, Error> {
 		let mut uncomp = CommitmentUncompressed([0u8; 64]);
 		let res = unsafe {

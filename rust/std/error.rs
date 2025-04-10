@@ -29,6 +29,7 @@ define_errorkind_with_strings!(
 	InvalidRangeProof,
 	InvalidSignature,
 	InvalidTransaction,
+	InvalidSecretKey,
 	KernelNotFound,
 	Overflow,
 	Underflow,

@@ -13,6 +13,12 @@ extern "C" {
 	pub fn sha3_Update(ctx: *const Sha3Context, buf_in: *const u8, len: usize);
 	pub fn sha3_Finalize(ctx: *const Sha3Context) -> *const u8;
 
+	// AES
+	pub fn AES_ctx_size() -> usize;
+	pub fn AES_init_ctx_iv(ctx: *const u8, key: *const u8, iv: *const u8);
+	pub fn AES_ctx_set_iv(ctx: *const u8, iv: *const u8);
+	pub fn AES_CTR_xcrypt_buffer(ctx: *const u8, buf: *mut u8, len: usize);
+
 	// cpsrng
 	pub fn cpsrng_reseed();
 	pub fn cpsrng_context_create() -> *mut CpsrngContext;
