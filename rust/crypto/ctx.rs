@@ -14,27 +14,11 @@ use prelude::*;
 use std::ffi::{alloc, release};
 use std::misc::to_le_bytes_u64;
 
-static mut SHARED_BULLETGENERATORS: Option<*mut BulletproofGenerators> = None;
-
-pub unsafe fn shared_generators(ctx: *mut Secp256k1Context) -> *mut BulletproofGenerators {
-	match SHARED_BULLETGENERATORS {
-		Some(gens) => gens,
-		None => {
-			let gens = secp256k1_bulletproof_generators_create(
-				ctx,
-				&GENERATOR_G as *const PublicKeyUncompressed,
-				MAX_GENERATORS,
-			);
-			SHARED_BULLETGENERATORS = Some(gens);
-			gens
-		}
-	}
-}
-
 pub struct Ctx {
 	pub(crate) secp: *mut Secp256k1Context,
 	pub(crate) rand: Cpsrng,
 	sha3: Sha3,
+	gens: *mut BulletproofGenerators,
 }
 
 impl Drop for Ctx {
@@ -43,6 +27,10 @@ impl Drop for Ctx {
 			if !self.secp.is_null() {
 				secp256k1_context_destroy(self.secp);
 				self.secp = null_mut();
+			}
+			if !self.gens.is_null() {
+				secp256k1_bulletproof_generators_destroy(self.secp, self.gens);
+				self.gens = null_mut();
 			}
 		}
 	}
@@ -57,7 +45,26 @@ impl Ctx {
 		if secp == null_mut() {
 			Err(Error::new(Alloc))
 		} else {
-			Ok(Self { secp, rand, sha3 })
+			let gens = unsafe {
+				secp256k1_bulletproof_generators_create(
+					secp,
+					&GENERATOR_G as *const PublicKeyUncompressed,
+					MAX_GENERATORS,
+				)
+			};
+			if gens.is_null() {
+				unsafe {
+					secp256k1_context_destroy(secp);
+				}
+				return Err(Error::new(Alloc));
+			}
+
+			Ok(Self {
+				secp,
+				rand,
+				sha3,
+				gens,
+			})
 		}
 	}
 
@@ -69,7 +76,25 @@ impl Ctx {
 		if secp == null_mut() {
 			Err(Error::new(Alloc))
 		} else {
-			Ok(Self { secp, rand, sha3 })
+			let gens = unsafe {
+				secp256k1_bulletproof_generators_create(
+					secp,
+					&GENERATOR_G as *const PublicKeyUncompressed,
+					MAX_GENERATORS,
+				)
+			};
+			if gens.is_null() {
+				unsafe {
+					secp256k1_context_destroy(secp);
+				}
+				return Err(Error::new(Alloc));
+			}
+			Ok(Self {
+				secp,
+				rand,
+				sha3,
+				gens,
+			})
 		}
 	}
 
@@ -440,7 +465,7 @@ impl Ctx {
 			let res = secp256k1_bulletproof_rangeproof_prove(
 				self.secp,
 				scratch,
-				shared_generators(self.secp),
+				self.gens,
 				proof.as_mut_ptr(),
 				&mut plen,
 				tau_x,
@@ -491,7 +516,7 @@ impl Ctx {
 			let result = secp256k1_bulletproof_rangeproof_verify(
 				self.secp,
 				scratch,
-				shared_generators(self.secp),
+				self.gens,
 				proof.proof.as_ptr(),
 				proof.plen,
 				null(), // min_values: NULL for all-zeroes

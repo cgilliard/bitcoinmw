@@ -192,5 +192,9 @@ extern "C" {
 		blinding_gen: *const PublicKeyUncompressed,
 		n: usize,
 	) -> *mut BulletproofGenerators;
+	pub fn secp256k1_bulletproof_generators_destroy(
+		ctx: *const Secp256k1Context,
+		gen: *mut BulletproofGenerators,
+	);
 
 }
