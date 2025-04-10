@@ -4,6 +4,7 @@ use crypto::keys::{Message, Signature};
 use crypto::pedersen::Commitment;
 use prelude::*;
 
+#[derive(Clone)]
 pub struct Kernel {
 	excess: Commitment,
 	signature: Signature,

@@ -100,15 +100,24 @@ mod test {
 		let pubkey = PublicKey::from(&ctx, &excess_blind)?;
 
 		let sig = ctx.sign_single(&msg, &excess_blind, &nonce, &pubnonce, &pubkey, &pubnonce)?;
-		let kernel = Kernel::new(excess, sig, fee);
+		let kernel = Kernel::new(excess.clone(), sig.clone(), fee);
 
 		let mut tx = Transaction::new();
+		tx.add_input(input.clone())?;
+		tx.add_output(output1.clone(), rp1.clone())?;
+		tx.add_output(output2.clone(), rp2.clone())?;
+		tx.add_output(output3.clone(), rp3.clone())?;
+		tx.add_kernel(kernel);
+		assert!(tx.verify(&mut ctx).is_ok());
+
+		let mut tx = Transaction::new();
+		let kernel = Kernel::new(excess, sig, fee + 1);
 		tx.add_input(input)?;
 		tx.add_output(output1, rp1)?;
 		tx.add_output(output2, rp2)?;
 		tx.add_output(output3, rp3)?;
 		tx.add_kernel(kernel);
-		tx.verify(&mut ctx)?;
+		assert!(tx.verify(&mut ctx).is_err());
 
 		Ok(())
 	}
