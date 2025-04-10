@@ -118,12 +118,23 @@ extern "C" {
 		neg_commits: *const *const CommitmentUncompressed,
 		n_neg_commits: usize,
 	) -> i32;
+	/*
 	pub fn secp256k1_schnorrsig_verify(
 		ctx: *const Secp256k1Context,
 		sig: *const Signature,
 		msg32: *const Message,
 		pubkey: *const PublicKeyUncompressed,
 	) -> i32;
+		*/
+	pub fn secp256k1_schnorrsig_verify_batch(
+		cx: *const Secp256k1Context,
+		scratch: *mut ScratchSpace,
+		sig: *const *const Signature,
+		msg32: *const *const Message,
+		pk: *const *const PublicKeyUncompressed,
+		n_sigs: usize,
+	) -> i32;
+
 	pub fn secp256k1_scratch_space_create(
 		cx: *mut Secp256k1Context,
 		max_size: usize,

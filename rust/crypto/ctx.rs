@@ -61,6 +61,18 @@ impl Ctx {
 		}
 	}
 
+	#[cfg(test)]
+	fn new_r(rand: Cpsrng) -> Result<Self, Error> {
+		let sha3 = Sha3::new(Sha3_256)?;
+		let secp =
+			unsafe { secp256k1_context_create(SECP256K1_START_SIGN | SECP256K1_START_VERIFY) };
+		if secp == null_mut() {
+			Err(Error::new(Alloc))
+		} else {
+			Ok(Self { secp, rand, sha3 })
+		}
+	}
+
 	pub fn hash_kernel(
 		&mut self,
 		excess: &Commitment,
@@ -785,8 +797,11 @@ mod test {
 
 	#[test]
 	fn test_mimblewimble_interactive1() {
-		let mut secp_send = Ctx::new().unwrap();
-		let mut secp_recv = Ctx::new().unwrap();
+		let seed = [0u8; 32];
+		let r1 = Cpsrng::new_s(seed.clone()).unwrap();
+		let r2 = Cpsrng::new_s(seed).unwrap();
+		let mut secp_send = Ctx::new_r(r1).unwrap();
+		let mut secp_recv = Ctx::new_r(r2).unwrap();
 
 		// start with sender
 		let blind1 = SecretKey::new(&mut secp_send);
@@ -913,6 +928,13 @@ mod test {
 
 	#[test]
 	fn test_mimblewimble_interactive_with_fee() -> Result<(), Error> {
+		/*
+		let seed = [0u8; 32];
+		let r1 = Cpsrng::new_s(seed.clone())?;
+		let r2 = Cpsrng::new_s(seed)?;
+		let mut secp_send = Ctx::new_r(r1)?;
+		let mut secp_recv = Ctx::new_r(r2)?;
+			*/
 		let mut secp_send = Ctx::new()?;
 		let mut secp_recv = Ctx::new()?;
 
@@ -944,7 +966,6 @@ mod test {
 
 		let pub_nonce_sum = recipient_pub_nonce.add(&secp_recv, &sender_pub_nonce)?;
 		let pubkey_sum = recipient_pubkey_sum.add(&secp_recv, &sender_pubkey_sum)?;
-
 		let excess = sender_excess.add(&secp_recv, &recipient_excess)?; // 0*H
 		let msg = secp_recv.hash_kernel(&excess, fee, 0)?;
 
@@ -997,8 +1018,8 @@ mod test {
 		)?);
 
 		// validate kernel
-		let _kernel = Kernel::new(excess, aggsig, fee);
-		//assert!(kernel.verify(&mut secp_send, &msg).is_ok());
+		let kernel = Kernel::new(excess, aggsig, fee);
+		assert!(kernel.verify(&mut secp_send, &msg).is_ok());
 
 		// Balance check with fee
 		assert!(secp_send.verify_balance(

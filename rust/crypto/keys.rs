@@ -50,6 +50,8 @@ impl SecretKey {
 		loop {
 			unsafe {
 				ctx.rand.gen(&mut v);
+				v[31] &= 0xFE; // Force even parity (LSB = 0)
+				   //v[31] |= 0x01;
 				let valid = secp256k1_ec_seckey_verify(ctx.secp, v.as_ptr() as *const SecretKey);
 				if valid == 1 {
 					break;
