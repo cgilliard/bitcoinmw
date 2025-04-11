@@ -105,6 +105,9 @@ impl Slate {
 	}
 
 	pub fn finalize(&mut self, ctx: &mut Ctx) -> Result<Transaction, Error> {
+		if self.pdata.len() == 0 {
+			return Err(Error::new(IllegalState));
+		}
 		let excess_commit = self.excess_commit_sum(ctx)?;
 		let pub_nonce_sum = self.pub_nonce_sum(ctx)?;
 
