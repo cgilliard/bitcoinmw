@@ -6,7 +6,7 @@ use prelude::*;
 
 #[derive(Clone)]
 pub struct Kernel {
-	excess: Commitment,
+	pub(crate) excess: Commitment,
 	signature: Signature,
 	fee: u64,
 	features: u8,

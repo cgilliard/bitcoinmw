@@ -54,8 +54,10 @@ impl Slate {
 			outputs.push((commit, proof))?;
 			output_keys_only.push(output_key.0)?;
 		}
+		if self.pdata.len() == 0 {
+			output_keys_only.push(&self.offset)?;
+		}
 		let pub_nonce = PublicKey::from(ctx, sec_nonce)?;
-
 		let blind_excess = ctx.blind_sum(
 			input_keys_only.slice(0, input_keys_only.len()),
 			output_keys_only.slice(0, output_keys_only.len()),
@@ -84,7 +86,15 @@ impl Slate {
 		output_keys: &[&SecretKey],
 		sec_nonce: &SecretKey,
 	) -> Result<(), Error> {
-		let excess_blind = ctx.blind_sum(input_keys, output_keys)?;
+		let mut output_keys_vec = Vec::new();
+		for i in 0..output_keys.len() {
+			output_keys_vec.push(output_keys[i])?;
+		}
+		if participant_id == 0 {
+			output_keys_vec.push(&self.offset)?;
+		}
+		let excess_blind =
+			ctx.blind_sum(input_keys, output_keys_vec.slice(0, output_keys_vec.len()))?;
 		let pub_nonce_sum = self.pub_nonce_sum(ctx)?;
 		let pub_blind_sum = self.pub_blind_sum(ctx)?;
 		let excess_commit = self.excess_commit_sum(ctx)?;
@@ -127,7 +137,11 @@ impl Slate {
 		let aggsig =
 			ctx.aggregate_signatures(partial_sigs.slice(0, partial_sigs.len()), &pub_nonce_sum)?;
 		let kernel = Kernel::new(excess_commit, aggsig, self.fee, 0);
-		let mut tx = Transaction::new();
+		// test succeeds with this line uncommented
+		//let mut tx = Transaction::new();
+		// test fails with this line because of added offset. Need to adjust rest
+		// of Slate for the offset
+		let mut tx = Transaction::new_with_offset(self.offset.clone());
 		tx.add_kernel(kernel)?;
 		for i in 0..self.pdata.len() {
 			for j in 0..self.pdata[i].inputs.len() {
@@ -175,6 +189,7 @@ impl Slate {
 	}
 
 	fn excess_commit_sum(&self, ctx: &mut Ctx) -> Result<Commitment, Error> {
+		// do we need to adjust commit sum for offset?
 		if self.pdata.len() == 0 {
 			return Err(Error::new(IllegalState));
 		}
@@ -197,6 +212,7 @@ impl Slate {
 	}
 
 	fn pub_blind_sum(&self, ctx: &mut Ctx) -> Result<PublicKey, Error> {
+		// do we need to adjust pub_blind_sum for offset?
 		if self.pdata.len() == 0 {
 			return Err(Error::new(IllegalState));
 		}
