@@ -202,5 +202,5 @@ extern "C" {
 		ctx: *const Secp256k1Context,
 		gen: *mut BulletproofGenerators,
 	);
-
+	pub fn secp256k1_ec_privkey_negate(ctx: *const Secp256k1Context, key: *mut SecretKey) -> i32;
 }

@@ -60,6 +60,20 @@ impl SecretKey {
 		Self(v)
 	}
 
+	pub fn negate(&mut self, ctx: &mut Ctx) -> Result<(), Error> {
+		unsafe {
+			if secp256k1_ec_privkey_negate(ctx.secp, self.as_mut_ptr()) == 0 {
+				Err(Error::new(InvalidSecretKey))
+			} else {
+				Ok(())
+			}
+		}
+	}
+
+	pub(crate) fn as_mut_ptr(&mut self) -> *mut SecretKey {
+		self.0.as_mut_ptr() as *mut SecretKey
+	}
+
 	pub(crate) fn as_ptr(&self) -> *const SecretKey {
 		self.0.as_ptr() as *const SecretKey
 	}
@@ -193,5 +207,23 @@ impl PublicKey {
 
 	fn as_ptr(&self) -> *const PublicKey {
 		self.0.as_ptr() as *const PublicKey
+	}
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	#[test]
+	fn test_negate() -> Result<(), Error> {
+		let mut ctx = Ctx::new()?;
+		let sk1 = SecretKey::new(&mut ctx);
+		let mut sk2 = sk1.clone();
+		assert!(sk1.0 == sk2.0);
+		sk2.negate(&mut ctx)?;
+		assert!(sk1.0 != sk2.0);
+		sk2.negate(&mut ctx)?;
+		assert!(sk1.0 == sk2.0);
+		Ok(())
 	}
 }
