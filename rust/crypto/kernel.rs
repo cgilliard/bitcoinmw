@@ -9,14 +9,16 @@ pub struct Kernel {
 	excess: Commitment,
 	signature: Signature,
 	fee: u64,
+	features: u8,
 }
 
 impl Kernel {
-	pub fn new(excess: Commitment, signature: Signature, fee: u64) -> Self {
+	pub fn new(excess: Commitment, signature: Signature, fee: u64, features: u8) -> Self {
 		Self {
 			excess,
 			signature,
 			fee,
+			features,
 		}
 	}
 
@@ -37,6 +39,10 @@ impl Kernel {
 
 	pub fn excess(&self) -> &Commitment {
 		&self.excess
+	}
+
+	pub fn features(&self) -> u8 {
+		self.features
 	}
 
 	pub fn verify(&self, ctx: &mut Ctx, msg: &Message) -> Result<(), Error> {

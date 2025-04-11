@@ -110,7 +110,6 @@ impl Ctx {
 		let mut fee_bytes = [0u8; 8];
 		to_le_bytes_u64(fee, &mut fee_bytes);
 		self.sha3.update(&fee_bytes); // 8 bytes
-
 		self.sha3.update(&[features]);
 
 		let mut hash = [0u8; 32];
@@ -1021,7 +1020,7 @@ mod test {
 		)?);
 
 		// validate kernel
-		let kernel = Kernel::new(excess, aggsig, fee);
+		let kernel = Kernel::new(excess, aggsig, fee, 0);
 		assert!(kernel.verify(&mut secp_send, &msg).is_ok());
 		let msg = Message([0u8; 32]);
 		assert!(kernel.verify(&mut secp_send, &msg).is_err());

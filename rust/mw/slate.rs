@@ -3,6 +3,7 @@ use crypto::kernel::Kernel;
 use crypto::keys::{Message, PublicKey, SecretKey, Signature};
 use crypto::pedersen::Commitment;
 use crypto::range_proof::RangeProof;
+use mw::constants::KERNEL_FEATURE_PLAIN;
 use mw::transaction::Transaction;
 use prelude::*;
 
@@ -85,7 +86,7 @@ impl Slate {
 		let pub_nonce_sum = self.pub_nonce_sum(ctx)?;
 		let pub_blind_sum = self.pub_blind_sum(ctx)?;
 		let excess_commit = self.excess_commit_sum(ctx)?;
-		let msg = ctx.hash_kernel(&excess_commit, self.fee, 0)?;
+		let msg = ctx.hash_kernel(&excess_commit, self.fee, KERNEL_FEATURE_PLAIN)?;
 
 		self.verify_part_sigs(ctx, participant_id, &msg, &pub_nonce_sum, &pub_blind_sum)?;
 
@@ -120,7 +121,7 @@ impl Slate {
 		}
 		let aggsig =
 			ctx.aggregate_signatures(partial_sigs.slice(0, partial_sigs.len()), &pub_nonce_sum)?;
-		let kernel = Kernel::new(excess_commit, aggsig, self.fee);
+		let kernel = Kernel::new(excess_commit, aggsig, self.fee, 0);
 		let mut tx = Transaction::new();
 		tx.add_kernel(kernel)?;
 		for i in 0..self.pdata.len() {
@@ -242,7 +243,7 @@ mod test {
 			&user1_sec_nonce,
 		)?;
 		let tx = slate.finalize(&mut ctx)?;
-		tx.verify(&mut ctx)?;
+		tx.verify(&mut ctx, 1000)?;
 
 		Ok(())
 	}
@@ -291,7 +292,7 @@ mod test {
 		// finalize the slate
 		let tx = slate.finalize(&mut ctx)?;
 		// confirm the transaction is valid
-		assert!(tx.verify(&mut ctx).is_ok());
+		assert!(tx.verify(&mut ctx, 1000).is_ok());
 
 		Ok(())
 	}

@@ -31,6 +31,7 @@ define_errorkind_with_strings!(
 	InvalidTransaction,
 	InvalidSecretKey,
 	KernelNotFound,
+	MultipleCoinbase,
 	Overflow,
 	Underflow,
 	PubkeyCreate,

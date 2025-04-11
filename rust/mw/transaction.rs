@@ -2,6 +2,7 @@ use crypto::ctx::Ctx;
 use crypto::kernel::Kernel;
 use crypto::pedersen::Commitment;
 use crypto::range_proof::RangeProof;
+use mw::constants::KERNEL_FEATURE_COINBASE;
 use prelude::*;
 
 pub struct Transaction {
@@ -59,16 +60,18 @@ impl Transaction {
 		self.kernels.push(kernel)
 	}
 
-	pub fn verify(&self, ctx: &mut Ctx) -> Result<(), Error> {
+	pub fn verify(&self, ctx: &mut Ctx, block_reward: u64) -> Result<(), Error> {
 		if self.kernels.len() == 0 {
 			return Err(Error::new(KernelNotFound));
+		}
+		if self.outputs.len() == 0 {
+			return Err(Error::new(InvalidTransaction));
 		}
 
 		for i in 0..self.outputs.len() {
 			let output = &self.outputs[i];
 			ctx.verify_range_proof(&output.0, &output.1)?;
 		}
-
 		let mut input_commits: Vec<&Commitment> = Vec::new();
 		for i in 0..self.inputs.len() {
 			input_commits.push(&self.inputs[i])?;
@@ -78,19 +81,35 @@ impl Transaction {
 		for i in 0..self.outputs.len() {
 			output_commits.push(&self.outputs[i].0)?;
 		}
-
 		let mut fee = 0;
+		let mut block_reward_overage: i128 = 0;
 		for i in 0..self.kernels.len() {
 			output_commits.push(self.kernels[i].excess())?;
-			let msg = ctx.hash_kernel(self.kernels[i].excess(), self.kernels[i].fee(), 0)?;
+			let msg = ctx.hash_kernel(
+				self.kernels[i].excess(),
+				self.kernels[i].fee(),
+				self.kernels[i].features(),
+			)?;
+			if self.kernels[i].features() == KERNEL_FEATURE_COINBASE {
+				if block_reward_overage != 0 {
+					return Err(Error::new(MultipleCoinbase));
+				}
+				block_reward_overage -= block_reward as i128;
+			}
 			self.kernels[i].verify(ctx, &msg)?;
 			fee += self.kernels[i].fee();
 		}
 
+		let inp = if input_commits.len() == 0 {
+			&[]
+		} else {
+			input_commits.slice(0, input_commits.len())
+		};
+
 		if !ctx.verify_balance(
-			input_commits.slice(0, input_commits.len()),
+			inp,
 			output_commits.slice(0, output_commits.len()),
-			fee as i128,
+			fee as i128 + block_reward_overage,
 		)? {
 			return Err(Error::new(InvalidTransaction));
 		}
@@ -104,6 +123,7 @@ mod test {
 	use super::*;
 	use crypto::ctx::Ctx;
 	use crypto::keys::{PublicKey, SecretKey};
+	use mw::constants::KERNEL_FEATURE_PLAIN;
 	use mw::keychain::KeyChain;
 	use mw::slate::Slate;
 
@@ -125,14 +145,14 @@ mod test {
 
 		let excess_blind = ctx.blind_sum(&[&blind1], &[&blind2, &blind3, &blind4])?;
 		let excess = ctx.commit(0, &excess_blind)?;
-		let msg = ctx.hash_kernel(&excess, fee, 0)?;
+		let msg = ctx.hash_kernel(&excess, fee, KERNEL_FEATURE_PLAIN)?;
 
 		let nonce = SecretKey::new(&mut ctx);
 		let pubnonce = PublicKey::from(&ctx, &nonce)?;
 		let pubkey = PublicKey::from(&ctx, &excess_blind)?;
 
 		let sig = ctx.sign_single(&msg, &excess_blind, &nonce, &pubnonce, &pubkey, &pubnonce)?;
-		let kernel = Kernel::new(excess.clone(), sig.clone(), fee);
+		let kernel = Kernel::new(excess.clone(), sig.clone(), fee, KERNEL_FEATURE_PLAIN);
 
 		let mut tx = Transaction::new();
 		tx.add_input(input.clone())?;
@@ -140,16 +160,109 @@ mod test {
 		tx.add_output(output2.clone(), rp2.clone())?;
 		tx.add_output(output3.clone(), rp3.clone())?;
 		tx.add_kernel(kernel)?;
-		assert!(tx.verify(&mut ctx).is_ok());
+		assert!(tx.verify(&mut ctx, 1000).is_ok());
 
 		let mut tx = Transaction::new();
-		let kernel = Kernel::new(excess, sig, fee + 1);
+		let kernel = Kernel::new(excess, sig, fee + 1, 0);
 		tx.add_input(input)?;
 		tx.add_output(output1, rp1)?;
 		tx.add_output(output2, rp2)?;
 		tx.add_output(output3, rp3)?;
 		tx.add_kernel(kernel)?;
-		assert!(tx.verify(&mut ctx).is_err());
+		assert!(tx.verify(&mut ctx, 1000).is_err());
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_coinbase() -> Result<(), Error> {
+		let mut ctx = Ctx::new()?;
+		let blank_blind = SecretKey::new(&mut ctx);
+		let input = ctx.commit(1, &blank_blind)?;
+		let blind = SecretKey::new(&mut ctx);
+		let cb_output = ctx.commit(501, &blind)?;
+		let cb_rp = ctx.range_proof(501, &blind)?;
+		let fee = 0;
+		let excess_blind = ctx.blind_sum(&[&blank_blind], &[&blind])?;
+		let excess = ctx.commit(0, &excess_blind)?;
+		let msg = ctx.hash_kernel(&excess, fee, KERNEL_FEATURE_COINBASE)?;
+		let nonce = SecretKey::new(&mut ctx);
+		let pubnonce = PublicKey::from(&ctx, &nonce)?;
+		let pubkey = PublicKey::from(&ctx, &excess_blind)?;
+		let sig = ctx.sign_single(&msg, &excess_blind, &nonce, &pubnonce, &pubkey, &pubnonce)?;
+		let kernel = Kernel::new(excess.clone(), sig.clone(), fee, KERNEL_FEATURE_COINBASE);
+		let mut tx = Transaction::new();
+		tx.add_output(cb_output.clone(), cb_rp.clone())?;
+		tx.add_input(input.clone())?;
+		tx.add_kernel(kernel)?;
+		assert!(tx.verify(&mut ctx, 500).is_ok());
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_coinbase_no_inputs() -> Result<(), Error> {
+		let mut ctx = Ctx::new()?;
+		let blind = SecretKey::new(&mut ctx);
+		let cb_output = ctx.commit(500, &blind)?;
+		let cb_rp = ctx.range_proof(500, &blind)?;
+		let fee = 0;
+		let excess_blind = ctx.blind_sum(&[], &[&blind])?;
+		let excess = ctx.commit(0, &excess_blind)?;
+		let msg = ctx.hash_kernel(&excess, fee, KERNEL_FEATURE_COINBASE)?;
+		let nonce = SecretKey::new(&mut ctx);
+		let pubnonce = PublicKey::from(&ctx, &nonce)?;
+		let pubkey = PublicKey::from(&ctx, &excess_blind)?;
+		let sig = ctx.sign_single(&msg, &excess_blind, &nonce, &pubnonce, &pubkey, &pubnonce)?;
+		let kernel = Kernel::new(excess.clone(), sig.clone(), fee, KERNEL_FEATURE_COINBASE);
+		let mut tx = Transaction::new();
+		tx.add_output(cb_output.clone(), cb_rp.clone())?;
+		tx.add_kernel(kernel)?;
+		assert!(tx.verify(&mut ctx, 500).is_ok());
+
+		let mut ctx = Ctx::new()?;
+		let blind = SecretKey::new(&mut ctx);
+		let input = ctx.commit(0, &blind)?;
+		let fee = 0;
+		let excess_blind = ctx.blind_sum(&[&blind], &[])?;
+		let excess = ctx.commit(0, &excess_blind)?;
+		let msg = ctx.hash_kernel(&excess, fee, KERNEL_FEATURE_PLAIN)?;
+		let nonce = SecretKey::new(&mut ctx);
+		let pubnonce = PublicKey::from(&ctx, &nonce)?;
+		let pubkey = PublicKey::from(&ctx, &excess_blind)?;
+		let sig = ctx.sign_single(&msg, &excess_blind, &nonce, &pubnonce, &pubkey, &pubnonce)?;
+		let kernel = Kernel::new(excess.clone(), sig.clone(), fee, KERNEL_FEATURE_PLAIN);
+		let mut tx = Transaction::new();
+		tx.add_input(input.clone())?;
+		tx.add_kernel(kernel)?;
+		// all transactions must have an output
+		assert_eq!(
+			tx.verify(&mut ctx, 500).unwrap_err(),
+			Error::new(InvalidTransaction)
+		);
+
+		// two outputs ok
+		let mut ctx = Ctx::new()?;
+		let blind = SecretKey::new(&mut ctx);
+		let cb_output = ctx.commit(500, &blind)?;
+		let cb_rp = ctx.range_proof(500, &blind)?;
+		let blind2 = SecretKey::new(&mut ctx);
+		let output2 = ctx.commit(500, &blind2)?;
+		let rp2 = ctx.range_proof(500, &blind2)?;
+		let fee = 0;
+		let excess_blind = ctx.blind_sum(&[], &[&blind, &blind2])?;
+		let excess = ctx.commit(0, &excess_blind)?;
+		let msg = ctx.hash_kernel(&excess, fee, KERNEL_FEATURE_COINBASE)?;
+		let nonce = SecretKey::new(&mut ctx);
+		let pubnonce = PublicKey::from(&ctx, &nonce)?;
+		let pubkey = PublicKey::from(&ctx, &excess_blind)?;
+		let sig = ctx.sign_single(&msg, &excess_blind, &nonce, &pubnonce, &pubkey, &pubnonce)?;
+		let kernel = Kernel::new(excess.clone(), sig.clone(), fee, KERNEL_FEATURE_COINBASE);
+		let mut tx = Transaction::new();
+		tx.add_output(cb_output.clone(), cb_rp.clone())?;
+		tx.add_output(output2.clone(), rp2.clone())?;
+		tx.add_kernel(kernel)?;
+		assert!(tx.verify(&mut ctx, 1000).is_ok());
 
 		Ok(())
 	}
@@ -198,7 +311,7 @@ mod test {
 		// finalize the slate
 		let mut tx = slate.finalize(&mut ctx)?;
 		// confirm the transaction is valid
-		assert!(tx.verify(&mut ctx).is_ok());
+		assert!(tx.verify(&mut ctx, 1000).is_ok());
 
 		let mut slate = Slate::new(20);
 
@@ -229,7 +342,7 @@ mod test {
 		)?;
 
 		let tx2 = slate.finalize(&mut ctx)?;
-		assert!(tx2.verify(&mut ctx).is_ok());
+		assert!(tx2.verify(&mut ctx, 1000).is_ok());
 
 		assert_eq!(tx.outputs.len(), 2);
 		assert_eq!(tx.inputs.len(), 1);
@@ -240,7 +353,7 @@ mod test {
 		assert_eq!(tx2.kernels.len(), 1);
 
 		tx.merge(tx2)?;
-		assert!(tx.verify(&mut ctx).is_ok());
+		assert!(tx.verify(&mut ctx, 100).is_ok());
 
 		assert_eq!(tx.outputs.len(), 4);
 		assert_eq!(tx.inputs.len(), 2);
