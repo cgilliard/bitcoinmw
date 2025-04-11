@@ -7,7 +7,7 @@ use prelude::*;
 pub struct Transaction {
 	inputs: Vec<Commitment>,
 	outputs: Vec<(Commitment, RangeProof)>,
-	kernel: Vec<Kernel>,
+	kernels: Vec<Kernel>,
 }
 
 impl TryClone for Transaction {
@@ -18,7 +18,7 @@ impl TryClone for Transaction {
 		Ok(Self {
 			inputs: self.inputs.try_clone()?,
 			outputs: self.outputs.try_clone()?,
-			kernel: self.kernel.try_clone()?,
+			kernels: self.kernels.try_clone()?,
 		})
 	}
 }
@@ -28,20 +28,20 @@ impl Transaction {
 		Self {
 			inputs: Vec::new(),
 			outputs: Vec::new(),
-			kernel: Vec::new(),
+			kernels: Vec::new(),
 		}
 	}
 
 	pub fn merge(&mut self, t: Transaction) -> Result<(), Error> {
-		let mut kernel = self.kernel.try_clone()?;
+		let mut kernels = self.kernels.try_clone()?;
 		let mut inputs = self.inputs.try_clone()?;
 		let mut outputs = self.outputs.try_clone()?;
 
-		kernel.append(&t.kernel)?;
+		kernels.append(&t.kernels)?;
 		inputs.append(&t.inputs)?;
 		outputs.append(&t.outputs)?;
 
-		self.kernel = kernel;
+		self.kernels = kernels;
 		self.inputs = inputs;
 		self.outputs = outputs;
 		Ok(())
@@ -56,11 +56,11 @@ impl Transaction {
 	}
 
 	pub fn add_kernel(&mut self, kernel: Kernel) -> Result<(), Error> {
-		self.kernel.push(kernel)
+		self.kernels.push(kernel)
 	}
 
 	pub fn verify(&self, ctx: &mut Ctx) -> Result<(), Error> {
-		if self.kernel.len() == 0 {
+		if self.kernels.len() == 0 {
 			return Err(Error::new(KernelNotFound));
 		}
 
@@ -80,11 +80,11 @@ impl Transaction {
 		}
 
 		let mut fee = 0;
-		for i in 0..self.kernel.len() {
-			output_commits.push(self.kernel[i].excess())?;
-			let msg = ctx.hash_kernel(self.kernel[i].excess(), self.kernel[i].fee(), 0)?;
-			self.kernel[i].verify(ctx, &msg)?;
-			fee += self.kernel[i].fee();
+		for i in 0..self.kernels.len() {
+			output_commits.push(self.kernels[i].excess())?;
+			let msg = ctx.hash_kernel(self.kernels[i].excess(), self.kernels[i].fee(), 0)?;
+			self.kernels[i].verify(ctx, &msg)?;
+			fee += self.kernels[i].fee();
 		}
 
 		if !ctx.verify_balance(
@@ -233,18 +233,18 @@ mod test {
 
 		assert_eq!(tx.outputs.len(), 2);
 		assert_eq!(tx.inputs.len(), 1);
-		assert_eq!(tx.kernel.len(), 1);
+		assert_eq!(tx.kernels.len(), 1);
 
 		assert_eq!(tx2.outputs.len(), 2);
 		assert_eq!(tx2.inputs.len(), 1);
-		assert_eq!(tx2.kernel.len(), 1);
+		assert_eq!(tx2.kernels.len(), 1);
 
 		tx.merge(tx2)?;
 		assert!(tx.verify(&mut ctx).is_ok());
 
 		assert_eq!(tx.outputs.len(), 4);
 		assert_eq!(tx.inputs.len(), 2);
-		assert_eq!(tx.kernel.len(), 2);
+		assert_eq!(tx.kernels.len(), 2);
 
 		Ok(())
 	}
