@@ -55,10 +55,23 @@ impl Transaction {
 		inputs.append(&t.inputs)?;
 		outputs.append(&t.outputs)?;
 
+		match &self.offset {
+			Some(self_offset) => match &t.offset {
+				Some(t_offset) => {
+					let offset = ctx.blind_sum(&[&self_offset, &t_offset], &[])?;
+					self.offset = Some(offset);
+				}
+				None => {}
+			},
+			None => match &t.offset {
+				Some(t_offset) => self.offset = Some(t_offset.clone()),
+				None => {}
+			},
+		}
 		self.kernels = kernels;
 		self.inputs = inputs;
 		self.outputs = outputs;
-		self.offset = None;
+
 		Ok(())
 	}
 
@@ -424,7 +437,7 @@ mod test {
 		assert_eq!(tx2.kernels.len(), 1);
 
 		tx.merge(&mut ctx, tx2)?;
-		//assert!(tx.verify(&mut ctx, 100).is_ok());
+		assert!(tx.verify(&mut ctx, 100).is_ok());
 
 		assert_eq!(tx.outputs.len(), 4);
 		assert_eq!(tx.inputs.len(), 2);
