@@ -157,6 +157,33 @@ impl<T> IntoIterator for Vec<T> {
 	}
 }
 
+pub struct VecRefMutIterator<'a, T> {
+	vec: &'a mut Vec<T>,
+	index: usize,
+}
+
+impl<'a, T> Iterator for VecRefMutIterator<'a, T> {
+	type Item = &'a mut T;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.index < self.vec.elements {
+			// Safety:
+			// - self.vec.value points to valid memory for `elements` initialized T values.
+			// - index < elements ensures we access initialized memory.
+			// - We have a mutable reference to Vec, ensuring exclusive access.
+			// - Pointer arithmetic is valid for contiguous elements.
+			unsafe {
+				let ptr = self.vec.value.raw() as *mut T;
+				let item_ptr = ptr.add(self.index);
+				self.index += 1;
+				Some(&mut *item_ptr)
+			}
+		} else {
+			None
+		}
+	}
+}
+
 pub struct VecRefIterator<'a, T> {
 	vec: &'a Vec<T>,
 	index: usize,
@@ -187,17 +214,6 @@ impl<'a, T> IntoIterator for &'a Vec<T> {
 		}
 	}
 }
-
-/*
-impl<'a, T> IntoIterator for &'a mut Vec<T> {
-	type Item = &'a T;
-	type IntoIter = VecRefIterator<'a, T>;
-
-	fn into_iter(self) -> Self::IntoIter {
-		self.data.iter_mut()
-	}
-}
-*/
 
 impl<T> Vec<T> {
 	pub fn new() -> Self {
@@ -247,6 +263,13 @@ impl<T> Vec<T> {
 		self.elements += 1;
 
 		Ok(())
+	}
+
+	pub fn iter_mut(&mut self) -> VecRefMutIterator<'_, T> {
+		VecRefMutIterator {
+			vec: self,
+			index: 0,
+		}
 	}
 
 	pub fn clear(&mut self) {
@@ -576,10 +599,14 @@ mod test {
 			i += 1;
 		}
 
-		/*
 		for x in v.iter_mut() {
-			x += 1;
+			*x += 1;
 		}
-				*/
+
+		i = 2;
+		for x in v {
+			assert_eq!(x, i);
+			i += 1;
+		}
 	}
 }
