@@ -1,5 +1,6 @@
 use crypto::ctx::Ctx;
 use crypto::kernel::Kernel;
+use crypto::keys::SecretKey;
 use crypto::pedersen::Commitment;
 use crypto::range_proof::RangeProof;
 use mw::constants::KERNEL_FEATURE_COINBASE;
@@ -9,6 +10,7 @@ pub struct Transaction {
 	inputs: Vec<Commitment>,
 	outputs: Vec<(Commitment, RangeProof)>,
 	kernels: Vec<Kernel>,
+	offset: Option<SecretKey>,
 }
 
 impl TryClone for Transaction {
@@ -20,6 +22,7 @@ impl TryClone for Transaction {
 			inputs: self.inputs.try_clone()?,
 			outputs: self.outputs.try_clone()?,
 			kernels: self.kernels.try_clone()?,
+			offset: self.offset.clone(),
 		})
 	}
 }
@@ -30,6 +33,16 @@ impl Transaction {
 			inputs: Vec::new(),
 			outputs: Vec::new(),
 			kernels: Vec::new(),
+			offset: None,
+		}
+	}
+
+	pub fn new_with_offset(skey: SecretKey) -> Self {
+		Self {
+			inputs: Vec::new(),
+			outputs: Vec::new(),
+			kernels: Vec::new(),
+			offset: Some(skey),
 		}
 	}
 
@@ -61,57 +74,72 @@ impl Transaction {
 	}
 
 	pub fn verify(&self, ctx: &mut Ctx, block_reward: u64) -> Result<(), Error> {
-		if self.kernels.len() == 0 {
-			return Err(Error::new(KernelNotFound));
-		}
-		if self.outputs.len() == 0 {
-			return Err(Error::new(InvalidTransaction));
-		}
-
-		for i in 0..self.outputs.len() {
-			let output = &self.outputs[i];
-			ctx.verify_range_proof(&output.0, &output.1)?;
-		}
-		let mut input_commits: Vec<&Commitment> = Vec::new();
-		for i in 0..self.inputs.len() {
-			input_commits.push(&self.inputs[i])?;
-		}
-
-		let mut output_commits: Vec<&Commitment> = Vec::new();
-		for i in 0..self.outputs.len() {
-			output_commits.push(&self.outputs[i].0)?;
-		}
-		let mut fee = 0;
-		let mut block_reward_overage: i128 = 0;
-		for i in 0..self.kernels.len() {
-			output_commits.push(self.kernels[i].excess())?;
-			let msg = ctx.hash_kernel(
-				self.kernels[i].excess(),
-				self.kernels[i].fee(),
-				self.kernels[i].features(),
-			)?;
-			if self.kernels[i].features() == KERNEL_FEATURE_COINBASE {
-				if block_reward_overage != 0 {
-					return Err(Error::new(MultipleCoinbase));
-				}
-				block_reward_overage -= block_reward as i128;
+		let offset_commit;
+		{
+			if self.kernels.len() == 0 {
+				return Err(Error::new(KernelNotFound));
 			}
-			self.kernels[i].verify(ctx, &msg)?;
-			fee += self.kernels[i].fee();
-		}
+			if self.outputs.len() == 0 {
+				return Err(Error::new(InvalidTransaction));
+			}
 
-		let inp = if input_commits.len() == 0 {
-			&[]
-		} else {
-			input_commits.slice(0, input_commits.len())
-		};
+			for i in 0..self.outputs.len() {
+				let output = &self.outputs[i];
+				ctx.verify_range_proof(&output.0, &output.1)?;
+			}
+			let mut input_commits: Vec<&Commitment> = Vec::new();
+			for i in 0..self.inputs.len() {
+				input_commits.push(&self.inputs[i])?;
+			}
 
-		if !ctx.verify_balance(
-			inp,
-			output_commits.slice(0, output_commits.len()),
-			fee as i128 + block_reward_overage,
-		)? {
-			return Err(Error::new(InvalidTransaction));
+			let mut output_commits: Vec<&Commitment> = Vec::new();
+			for i in 0..self.outputs.len() {
+				output_commits.push(&self.outputs[i].0)?;
+			}
+			let mut has_commit = false;
+			offset_commit = match &self.offset {
+				Some(offset) => {
+					let offset_commit = ctx.commit(0, offset)?;
+					has_commit = true;
+					offset_commit
+				}
+				None => Commitment([0u8; 33]),
+			};
+			if has_commit {
+				output_commits.push(&offset_commit)?;
+			}
+			let mut fee = 0;
+			let mut block_reward_overage: i128 = 0;
+			for i in 0..self.kernels.len() {
+				output_commits.push(self.kernels[i].excess())?;
+				let msg = ctx.hash_kernel(
+					self.kernels[i].excess(),
+					self.kernels[i].fee(),
+					self.kernels[i].features(),
+				)?;
+				if self.kernels[i].features() == KERNEL_FEATURE_COINBASE {
+					if block_reward_overage != 0 {
+						return Err(Error::new(MultipleCoinbase));
+					}
+					block_reward_overage -= block_reward as i128;
+				}
+				self.kernels[i].verify(ctx, &msg)?;
+				fee += self.kernels[i].fee();
+			}
+
+			let inp = if input_commits.len() == 0 {
+				&[]
+			} else {
+				input_commits.slice(0, input_commits.len())
+			};
+
+			if !ctx.verify_balance(
+				inp,
+				output_commits.slice(0, output_commits.len()),
+				fee as i128 + block_reward_overage,
+			)? {
+				return Err(Error::new(InvalidTransaction));
+			}
 		}
 
 		Ok(())
@@ -170,6 +198,56 @@ mod test {
 		tx.add_output(output3, rp3)?;
 		tx.add_kernel(kernel)?;
 		assert!(tx.verify(&mut ctx, 1000).is_err());
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_transaction_with_offset() -> Result<(), Error> {
+		let mut ctx = Ctx::new()?;
+		let offset = SecretKey::new(&mut ctx);
+		let blind1 = SecretKey::new(&mut ctx);
+		let input = ctx.commit(500, &blind1)?;
+		let blind2 = SecretKey::new(&mut ctx);
+		let blind3 = SecretKey::new(&mut ctx);
+		let blind4 = SecretKey::new(&mut ctx);
+		let output1 = ctx.commit(100, &blind2)?;
+		let output2 = ctx.commit(100, &blind3)?;
+		let output3 = ctx.commit(250, &blind4)?;
+		let rp1 = ctx.range_proof(100, &blind2)?;
+		let rp2 = ctx.range_proof(100, &blind3)?;
+		let rp3 = ctx.range_proof(250, &blind4)?;
+		let fee = 50;
+
+		let excess_blind = ctx.blind_sum(&[&blind1], &[&blind2, &blind3, &blind4, &offset])?;
+		let excess = ctx.commit(0, &excess_blind)?;
+		let msg = ctx.hash_kernel(&excess, fee, KERNEL_FEATURE_PLAIN)?;
+
+		let nonce = SecretKey::new(&mut ctx);
+		let pubnonce = PublicKey::from(&ctx, &nonce)?;
+		let pubkey = PublicKey::from(&ctx, &excess_blind)?;
+
+		let sig = ctx.sign_single(&msg, &excess_blind, &nonce, &pubnonce, &pubkey, &pubnonce)?;
+		let kernel = Kernel::new(excess.clone(), sig.clone(), fee, KERNEL_FEATURE_PLAIN);
+
+		let mut tx = Transaction::new_with_offset(offset);
+		tx.add_input(input.clone())?;
+		tx.add_output(output1.clone(), rp1.clone())?;
+		tx.add_output(output2.clone(), rp2.clone())?;
+		tx.add_output(output3.clone(), rp3.clone())?;
+		tx.add_kernel(kernel)?;
+		assert!(tx.verify(&mut ctx, 1000).is_ok());
+
+		/*
+		let mut tx = Transaction::new();
+		let kernel = Kernel::new(excess, sig, fee + 1, 0);
+		tx.add_input(input)?;
+		tx.add_output(output1, rp1)?;
+		tx.add_output(output2, rp2)?;
+		tx.add_output(output3, rp3)?;
+		tx.add_kernel(kernel)?;
+		assert!(tx.verify(&mut ctx, 1000).is_err());
+		*/
 
 		Ok(())
 	}
