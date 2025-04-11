@@ -15,6 +15,26 @@ pub struct Vec<T> {
 	_marker: PhantomData<T>,
 }
 
+impl<T: Clone> TryClone for Vec<T> {
+	fn try_clone(&self) -> Result<Self, Error>
+	where
+		Self: Sized,
+	{
+		match Vec::with_capacity(self.capacity) {
+			Ok(mut v) => {
+				v.elements = self.elements;
+				v.min = self.min;
+				for i in 0..v.elements {
+					v[i] = self[i].clone();
+				}
+
+				Ok(v)
+			}
+			Err(e) => Err(e),
+		}
+	}
+}
+
 impl<T: PartialEq> PartialEq for Vec<T> {
 	fn eq(&self, other: &Vec<T>) -> bool {
 		if self.len() != other.len() {

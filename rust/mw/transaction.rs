@@ -7,7 +7,20 @@ use prelude::*;
 pub struct Transaction {
 	inputs: Vec<Commitment>,
 	outputs: Vec<(Commitment, RangeProof)>,
-	kernel: Option<Kernel>,
+	kernel: Vec<Kernel>,
+}
+
+impl TryClone for Transaction {
+	fn try_clone(&self) -> Result<Self, Error>
+	where
+		Self: Sized,
+	{
+		Ok(Self {
+			inputs: self.inputs.try_clone()?,
+			outputs: self.outputs.try_clone()?,
+			kernel: self.kernel.try_clone()?,
+		})
+	}
 }
 
 impl Transaction {
@@ -15,8 +28,23 @@ impl Transaction {
 		Self {
 			inputs: Vec::new(),
 			outputs: Vec::new(),
-			kernel: None,
+			kernel: Vec::new(),
 		}
+	}
+
+	pub fn merge(&mut self, t: Transaction) -> Result<(), Error> {
+		let mut kernel = self.kernel.try_clone()?;
+		let mut inputs = self.inputs.try_clone()?;
+		let mut outputs = self.outputs.try_clone()?;
+
+		kernel.append(&t.kernel)?;
+		inputs.append(&t.inputs)?;
+		outputs.append(&t.outputs)?;
+
+		self.kernel = kernel;
+		self.inputs = inputs;
+		self.outputs = outputs;
+		Ok(())
 	}
 
 	pub fn add_input(&mut self, input: Commitment) -> Result<(), Error> {
@@ -27,15 +55,14 @@ impl Transaction {
 		self.outputs.push((output, proof))
 	}
 
-	pub fn add_kernel(&mut self, kernel: Kernel) {
-		self.kernel = Some(kernel);
+	pub fn add_kernel(&mut self, kernel: Kernel) -> Result<(), Error> {
+		self.kernel.push(kernel)
 	}
 
 	pub fn verify(&self, ctx: &mut Ctx) -> Result<(), Error> {
-		let kernel = match &self.kernel {
-			Some(k) => k,
-			None => return Err(Error::new(KernelNotFound)),
-		};
+		if self.kernel.len() == 0 {
+			return Err(Error::new(KernelNotFound));
+		}
 
 		for i in 0..self.outputs.len() {
 			let output = &self.outputs[i];
@@ -51,19 +78,22 @@ impl Transaction {
 		for i in 0..self.outputs.len() {
 			output_commits.push(&self.outputs[i].0)?;
 		}
-		output_commits.push(kernel.excess())?;
+
+		let mut fee = 0;
+		for i in 0..self.kernel.len() {
+			output_commits.push(self.kernel[i].excess())?;
+			let msg = ctx.hash_kernel(self.kernel[i].excess(), self.kernel[i].fee(), 0)?;
+			self.kernel[i].verify(ctx, &msg)?;
+			fee += self.kernel[i].fee();
+		}
 
 		if !ctx.verify_balance(
 			input_commits.slice(0, input_commits.len()),
 			output_commits.slice(0, output_commits.len()),
-			kernel.fee() as i128,
+			fee as i128,
 		)? {
 			return Err(Error::new(InvalidTransaction));
 		}
-
-		// Verify signature
-		let msg = ctx.hash_kernel(kernel.excess(), kernel.fee(), 0)?;
-		kernel.verify(ctx, &msg)?;
 
 		Ok(())
 	}
@@ -74,6 +104,8 @@ mod test {
 	use super::*;
 	use crypto::ctx::Ctx;
 	use crypto::keys::{PublicKey, SecretKey};
+	use mw::keychain::KeyChain;
+	use mw::slate::Slate;
 
 	#[test]
 	fn test_transaction() -> Result<(), Error> {
@@ -107,7 +139,7 @@ mod test {
 		tx.add_output(output1.clone(), rp1.clone())?;
 		tx.add_output(output2.clone(), rp2.clone())?;
 		tx.add_output(output3.clone(), rp3.clone())?;
-		tx.add_kernel(kernel);
+		tx.add_kernel(kernel)?;
 		assert!(tx.verify(&mut ctx).is_ok());
 
 		let mut tx = Transaction::new();
@@ -116,8 +148,103 @@ mod test {
 		tx.add_output(output1, rp1)?;
 		tx.add_output(output2, rp2)?;
 		tx.add_output(output3, rp3)?;
-		tx.add_kernel(kernel);
+		tx.add_kernel(kernel)?;
 		assert!(tx.verify(&mut ctx).is_err());
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_tx_merge() -> Result<(), Error> {
+		// create our crypto context
+		let mut ctx = Ctx::new()?;
+
+		// create a slate with a fee of 10 coins
+		let mut slate = Slate::new(10);
+
+		// user1 initiates request by offering to pay 100 coins with change of 10
+		let kc1 = KeyChain::from_seed([0u8; 32])?;
+		let user1_sec_nonce = SecretKey::new(&mut ctx); // random nonce
+		let input = kc1.derive_key(&ctx, &[0, 0]); // choose a key for our input
+		let change_output = kc1.derive_key(&ctx, &[0, 1]); // choose a key for the change
+
+		// commit to the slate
+		let user1_id = slate.commit(
+			&mut ctx,
+			&[(&input, 100)],
+			&[(&change_output, 10)],
+			&user1_sec_nonce,
+		)?;
+
+		// now it's user2's turn
+		let kc2 = KeyChain::from_seed([1u8; 32])?;
+		let user2_sec_nonce = SecretKey::new(&mut ctx); // random nonce
+		let output = kc2.derive_key(&ctx, &[0, 0]); // choose an output
+
+		// commit here we receive 80 coins (10 coin fee, 100 coin input and 10 coin change)
+		let user2_id = slate.commit(&mut ctx, &[], &[(&output, 80)], &user2_sec_nonce)?;
+
+		// now user2 signs the transaction
+		slate.sign(&mut ctx, user2_id, &[], &[&output], &user2_sec_nonce)?;
+
+		// now it's user1's turn to sign and finalize
+		slate.sign(
+			&mut ctx,
+			user1_id,
+			&[&input],
+			&[&change_output],
+			&user1_sec_nonce,
+		)?;
+		// finalize the slate
+		let mut tx = slate.finalize(&mut ctx)?;
+		// confirm the transaction is valid
+		assert!(tx.verify(&mut ctx).is_ok());
+
+		let mut slate = Slate::new(20);
+
+		let user1_sec_nonce = SecretKey::new(&mut ctx); // random nonce
+		let input = kc1.derive_key(&ctx, &[1, 0]);
+		let change_output = kc1.derive_key(&ctx, &[1, 1]);
+
+		let user1_id = slate.commit(
+			&mut ctx,
+			&[(&input, 200)],
+			&[(&change_output, 29)],
+			&user1_sec_nonce,
+		)?;
+
+		// now it's user2's turn
+		let user2_sec_nonce = SecretKey::new(&mut ctx);
+		let output = kc2.derive_key(&ctx, &[1, 0]);
+
+		let user2_id = slate.commit(&mut ctx, &[], &[(&output, 151)], &user2_sec_nonce)?;
+		slate.sign(&mut ctx, user2_id, &[], &[&output], &user2_sec_nonce)?;
+
+		slate.sign(
+			&mut ctx,
+			user1_id,
+			&[&input],
+			&[&change_output],
+			&user1_sec_nonce,
+		)?;
+
+		let tx2 = slate.finalize(&mut ctx)?;
+		assert!(tx2.verify(&mut ctx).is_ok());
+
+		assert_eq!(tx.outputs.len(), 2);
+		assert_eq!(tx.inputs.len(), 1);
+		assert_eq!(tx.kernel.len(), 1);
+
+		assert_eq!(tx2.outputs.len(), 2);
+		assert_eq!(tx2.inputs.len(), 1);
+		assert_eq!(tx2.kernel.len(), 1);
+
+		tx.merge(tx2)?;
+		assert!(tx.verify(&mut ctx).is_ok());
+
+		assert_eq!(tx.outputs.len(), 4);
+		assert_eq!(tx.inputs.len(), 2);
+		assert_eq!(tx.kernel.len(), 2);
 
 		Ok(())
 	}

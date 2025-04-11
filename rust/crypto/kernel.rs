@@ -20,6 +20,13 @@ impl Kernel {
 		}
 	}
 
+	pub fn merge(&mut self, ctx: &mut Ctx, k: Kernel) -> Result<(), Error> {
+		let commit = self.excess.clone();
+		commit.add(ctx, &k.excess)?;
+		self.excess = commit;
+		Ok(())
+	}
+
 	pub fn fee(&self) -> u64 {
 		self.fee
 	}

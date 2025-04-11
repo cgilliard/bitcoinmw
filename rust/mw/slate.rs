@@ -122,7 +122,7 @@ impl Slate {
 			ctx.aggregate_signatures(partial_sigs.slice(0, partial_sigs.len()), &pub_nonce_sum)?;
 		let kernel = Kernel::new(excess_commit, aggsig, self.fee);
 		let mut tx = Transaction::new();
-		tx.add_kernel(kernel);
+		tx.add_kernel(kernel)?;
 		for i in 0..self.pdata.len() {
 			for j in 0..self.pdata[i].inputs.len() {
 				tx.add_input(self.pdata[i].inputs[j].clone())?;
