@@ -176,6 +176,29 @@ impl<'a, T> Iterator for VecRefIterator<'a, T> {
 	}
 }
 
+impl<'a, T> IntoIterator for &'a Vec<T> {
+	type Item = &'a T;
+	type IntoIter = VecRefIterator<'a, T>;
+
+	fn into_iter(self) -> Self::IntoIter {
+		VecRefIterator {
+			vec: &self,
+			index: 0,
+		}
+	}
+}
+
+/*
+impl<'a, T> IntoIterator for &'a mut Vec<T> {
+	type Item = &'a T;
+	type IntoIter = VecRefIterator<'a, T>;
+
+	fn into_iter(self) -> Self::IntoIter {
+		self.data.iter_mut()
+	}
+}
+*/
+
 impl<T> Vec<T> {
 	pub fn new() -> Self {
 		let value = Ptr::null();
@@ -542,5 +565,21 @@ mod test {
 		r[0] = 9;
 		assert_eq!(r[0], 9);
 		assert_eq!(r[1], 3);
+	}
+
+	#[test]
+	fn iter_ret() {
+		let mut v = vec![1, 2, 3, 4].unwrap();
+		let mut i = 1;
+		for x in &v {
+			assert_eq!(x, &i);
+			i += 1;
+		}
+
+		/*
+		for x in v.iter_mut() {
+			x += 1;
+		}
+				*/
 	}
 }

@@ -1,2 +1,0 @@
-pub const KERNEL_FEATURE_PLAIN: u8 = 0;
-pub const KERNEL_FEATURE_COINBASE: u8 = 1;

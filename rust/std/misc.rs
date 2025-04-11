@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use core::slice::from_raw_parts;
 use prelude::*;
 
