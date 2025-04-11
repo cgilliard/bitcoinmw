@@ -224,7 +224,7 @@ mod test {
 		let sig = ctx.sign_single(&msg, &excess_blind, &nonce, &pubnonce, &pubkey, &pubnonce)?;
 		let kernel = Kernel::new(excess.clone(), sig.clone(), fee, KERNEL_FEATURE_PLAIN);
 
-		let mut tx = Transaction::new_with_offset(offset);
+		let mut tx = Transaction::new_with_offset(offset.clone());
 		tx.add_input(input.clone())?;
 		tx.add_output(output1.clone(), rp1.clone())?;
 		tx.add_output(output2.clone(), rp2.clone())?;
@@ -232,8 +232,7 @@ mod test {
 		tx.add_kernel(kernel)?;
 		assert!(tx.verify(&mut ctx, 1000).is_ok());
 
-		/*
-		let mut tx = Transaction::new();
+		let mut tx = Transaction::new_with_offset(offset);
 		let kernel = Kernel::new(excess, sig, fee + 1, 0);
 		tx.add_input(input)?;
 		tx.add_output(output1, rp1)?;
@@ -241,7 +240,6 @@ mod test {
 		tx.add_output(output3, rp3)?;
 		tx.add_kernel(kernel)?;
 		assert!(tx.verify(&mut ctx, 1000).is_err());
-		*/
 
 		Ok(())
 	}
@@ -345,7 +343,7 @@ mod test {
 		let mut ctx = Ctx::new()?;
 
 		// create a slate with a fee of 10 coins
-		let mut slate = Slate::new(10);
+		let mut slate = Slate::new(10, SecretKey::new(&mut ctx));
 
 		// user1 initiates request by offering to pay 100 coins with change of 10
 		let kc1 = KeyChain::from_seed([0u8; 32])?;
@@ -385,7 +383,7 @@ mod test {
 		// confirm the transaction is valid
 		assert!(tx.verify(&mut ctx, 1000).is_ok());
 
-		let mut slate = Slate::new(20);
+		let mut slate = Slate::new(20, SecretKey::new(&mut ctx));
 
 		let user1_sec_nonce = SecretKey::new(&mut ctx); // random nonce
 		let input = kc1.derive_key(&ctx, &[1, 0]);

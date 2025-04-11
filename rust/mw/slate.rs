@@ -19,13 +19,15 @@ struct ParticipantData {
 pub struct Slate {
 	pdata: Vec<ParticipantData>,
 	fee: u64,
+	offset: SecretKey,
 }
 
 impl Slate {
-	pub fn new(fee: u64) -> Self {
+	pub fn new(fee: u64, offset: SecretKey) -> Self {
 		Self {
 			pdata: Vec::new(),
 			fee,
+			offset,
 		}
 	}
 
@@ -214,7 +216,7 @@ mod test {
 	#[test]
 	fn test_slate1() -> Result<(), Error> {
 		let mut ctx = Ctx::new()?;
-		let mut slate = Slate::new(10);
+		let mut slate = Slate::new(10, SecretKey::new(&mut ctx));
 
 		let user1_input_key = SecretKey::new(&mut ctx);
 		let user1_change_key = SecretKey::new(&mut ctx);
@@ -257,7 +259,7 @@ mod test {
 		let mut ctx = Ctx::new()?;
 
 		// create a slate with a fee of 10 coins
-		let mut slate = Slate::new(10);
+		let mut slate = Slate::new(10, SecretKey::new(&mut ctx));
 
 		// user1 initiates request by offering to pay 100 coins with change of 10
 		let kc1 = KeyChain::from_seed([0u8; 32])?;
