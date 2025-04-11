@@ -96,18 +96,12 @@ impl Transaction {
 			for i in 0..self.outputs.len() {
 				output_commits.push(&self.outputs[i].0)?;
 			}
-			let mut has_commit = false;
-			offset_commit = match &self.offset {
-				Some(offset) => {
-					let offset_commit = ctx.commit(0, offset)?;
-					has_commit = true;
-					offset_commit
-				}
-				None => Commitment([0u8; 33]),
-			};
-			if has_commit {
+
+			if let Some(offset) = &self.offset {
+				offset_commit = ctx.commit(0, offset)?;
 				output_commits.push(&offset_commit)?;
 			}
+
 			let mut fee = 0;
 			let mut block_reward_overage: i128 = 0;
 			for i in 0..self.kernels.len() {
