@@ -50,26 +50,38 @@ impl Transaction {
 	}
 
 	pub fn merge(&mut self, ctx: &Ctx, t: Transaction) -> Result<(), Error> {
-		// TODO: why does this version cause data loss?
-		/*
-		self.kernels.append(&t.kernels.try_clone()?)?;
-		self.inputs.append(&t.inputs.try_clone()?)?;
-		self.outputs.append(&t.outputs.try_clone()?)?;
-			*/
-		for x in t.kernels {
-			self.kernels.push(x)?;
+		let klen = t.kernels.len();
+		let olen = t.outputs.len();
+		let ilen = t.inputs.len();
+		self.kernels.append(&t.kernels)?;
+		match self.inputs.append(&t.inputs) {
+			Ok(_) => {}
+			Err(e) => {
+				self.kernels.truncate(self.kernels.len() - klen)?;
+				return Err(e);
+			}
 		}
-		for x in t.outputs {
-			self.outputs.push(x)?;
-		}
-		for x in t.inputs {
-			self.inputs.push(x)?;
+		match self.outputs.append(&t.outputs) {
+			Ok(_) => {}
+			Err(e) => {
+				self.kernels.truncate(self.kernels.len() - klen)?;
+				self.inputs.truncate(self.inputs.len() - ilen)?;
+				return Err(e);
+			}
 		}
 
 		match &self.offset {
 			Some(self_offset) => match &t.offset {
 				Some(t_offset) => {
-					let offset = ctx.blind_sum(&[&self_offset, &t_offset], &[])?;
+					let offset = match ctx.blind_sum(&[&self_offset, &t_offset], &[]) {
+						Ok(o) => o,
+						Err(e) => {
+							self.kernels.truncate(self.kernels.len() - klen)?;
+							self.inputs.truncate(self.inputs.len() - ilen)?;
+							self.outputs.truncate(self.outputs.len() - olen)?;
+							return Err(e);
+						}
+					};
 					self.offset = Some(offset);
 				}
 				None => {}

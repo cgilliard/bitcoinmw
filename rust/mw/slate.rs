@@ -132,10 +132,6 @@ impl Slate {
 		let aggsig =
 			ctx.aggregate_signatures(partial_sigs.slice(0, partial_sigs.len()), &pub_nonce_sum)?;
 		let kernel = Kernel::new(excess_commit, aggsig, self.fee, 0);
-		// test succeeds with this line uncommented
-		//let mut tx = Transaction::new();
-		// test fails with this line because of added offset. Need to adjust rest
-		// of Slate for the offset
 		let mut tx = Transaction::new(self.offset.clone());
 		tx.add_kernel(kernel)?;
 		for i in 0..self.pdata.len() {
@@ -414,8 +410,7 @@ mod test {
 
 		// add coinbase
 		let mut noffset = tx2.offset().unwrap().clone();
-		noffset.negate(&mut ctx)?; // negate current offset
-							 //let noffset = SecretKey::gen(&ctx);
+		noffset.negate(&mut ctx)?; // negate current offset to balance the block
 		let mut coinbase = Transaction::new(noffset.clone());
 		let kccb = KeyChain::from_seed([4u8; 32])?;
 		let output_blind = kccb.derive_key(&ctx, &[0, 11]);

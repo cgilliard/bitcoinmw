@@ -52,21 +52,16 @@ impl<T: PartialEq> PartialEq for Vec<T> {
 
 impl<T> Drop for Vec<T> {
 	fn drop(&mut self) {
-		if self.value.get_bit() {
-			return;
-		}
-		if needs_drop::<T>() {
-			for i in 0..self.elements {
-				unsafe {
-					let ptr = (self.value.raw() as *const u8).add(i * size_of::<T>()) as *mut T;
-					if !self.value.raw().is_null() {
+		let raw = self.value.raw();
+		if !raw.is_null() {
+			if needs_drop::<T>() {
+				for i in 0..self.elements {
+					unsafe {
+						let ptr = (raw as *const u8).add(i * size_of::<T>()) as *mut T;
 						drop_in_place(ptr);
 					}
 				}
 			}
-		}
-		let raw = self.value.raw();
-		if !raw.is_null() {
 			unsafe {
 				release(raw);
 			}
@@ -129,15 +124,17 @@ impl<T> Iterator for VecIterator<T> {
 
 impl<T> Drop for VecIterator<T> {
 	fn drop(&mut self) {
-		let size = size_of::<T>();
-		// Drop any remaining elements that weren't moved out
-		while self.index < self.vec.elements {
-			let ptr = self.vec.value.raw() as *const u8;
-			let ptr = unsafe { ptr.add(self.index * size) as *mut T };
-			unsafe { ptr::drop_in_place(ptr) };
-			self.index += 1;
+		if self.vec.value.raw().is_null() {
+			return;
 		}
-		// Tell Vec that all elements are gone to prevent its Drop from running on them
+		if needs_drop::<T>() {
+			let size = size_of::<T>();
+			while self.index < self.vec.elements {
+				let ptr = unsafe { self.vec.value.raw().add(self.index * size) as *mut T };
+				unsafe { ptr::drop_in_place(ptr) };
+				self.index += 1;
+			}
+		}
 		self.vec.elements = 0;
 	}
 }
@@ -166,12 +163,7 @@ impl<'a, T> Iterator for VecRefMutIterator<'a, T> {
 	type Item = &'a mut T;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		if self.index < self.vec.elements {
-			// Safety:
-			// - self.vec.value points to valid memory for `elements` initialized T values.
-			// - index < elements ensures we access initialized memory.
-			// - We have a mutable reference to Vec, ensuring exclusive access.
-			// - Pointer arithmetic is valid for contiguous elements.
+		if self.index < self.vec.elements && !self.vec.value.raw().is_null() {
 			unsafe {
 				let ptr = self.vec.value.raw() as *mut T;
 				let item_ptr = ptr.add(self.index);
@@ -193,10 +185,13 @@ impl<'a, T> Iterator for VecRefIterator<'a, T> {
 	type Item = &'a T;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		if self.index < self.vec.len() {
-			let item = &self.vec[self.index];
-			self.index += 1;
-			Some(item)
+		if self.index < self.vec.elements && !self.vec.value.raw().is_null() {
+			unsafe {
+				let ptr = self.vec.value.raw() as *const T;
+				let item_ptr = ptr.add(self.index);
+				self.index += 1;
+				Some(&*item_ptr)
+			}
 		} else {
 			None
 		}
@@ -272,10 +267,34 @@ impl<T> Vec<T> {
 		}
 	}
 
-	pub fn clear(&mut self) {
-		self.resize_impl(self.min);
-		self.elements = 0;
-		self.capacity = self.min;
+	pub fn clear(&mut self) -> Result<(), Error> {
+		self.truncate(0)?;
+
+		if !self.resize_impl(self.min) {
+			Err(Error::new(Alloc))
+		} else {
+			self.capacity = self.min;
+			Ok(())
+		}
+	}
+
+	pub fn truncate(&mut self, n: usize) -> Result<(), Error> {
+		if n > self.elements {
+			return Err(Error::new(IllegalArgument));
+		}
+
+		// Drop elements from n to self.elements
+		if needs_drop::<T>() {
+			for i in n..self.elements {
+				unsafe {
+					let ptr = self.value.raw().add(i * size_of::<T>()) as *mut T;
+					ptr::drop_in_place(ptr);
+				}
+			}
+		}
+
+		self.elements = n;
+		Ok(())
 	}
 
 	pub fn resize(&mut self, n: usize) -> Result<(), Error> {
@@ -312,19 +331,20 @@ impl<T> Vec<T> {
 	}
 
 	pub fn append(&mut self, v: &Vec<T>) -> Result<(), Error> {
-		let size = size_of::<T>();
 		let len = v.len();
-		let needed = size * (self.elements + len);
-		if needed > self.capacity {
-			if !self.resize_impl(needed) {
+		if self.elements + len > self.capacity {
+			if !self.resize_impl(self.elements + len) {
 				return Err(Error::new(Alloc));
 			}
 		}
 
+		let size = size_of::<T>();
 		let dest_ptr = self.value.raw() as *mut u8;
+		let dest_ptr = unsafe { dest_ptr.add(size * self.elements) };
+		let src_ptr = v.value.raw() as *const u8;
+
 		unsafe {
-			let dest_ptr = dest_ptr.add(size * len) as *mut u8;
-			copy_nonoverlapping(v.value.raw() as *mut u8, dest_ptr, size * len);
+			copy_nonoverlapping(src_ptr, dest_ptr, size * len);
 		}
 
 		self.elements += len;
@@ -578,7 +598,7 @@ mod test {
 		let slice = &mut v.slice(1, 1);
 		assert_eq!(slice, &mut []);
 
-		v.clear();
+		v.clear().unwrap();
 		assert_eq!(v.len(), 0);
 
 		let mut v = vec![1, 2, 3, 4, 5, 6, 7].unwrap();
