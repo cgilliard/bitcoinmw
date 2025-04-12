@@ -441,8 +441,7 @@ mod test {
 		assert_eq!(tx2.kernels().len(), 3);
 
 		tx2.set_offset_zero();
-		// TODO: This should be 1000 fees go to miner. Might need to specify coinbase
-		assert!(tx2.verify(&mut ctx, 1030).is_ok());
+		assert!(tx2.verify(&mut ctx, 1000).is_ok());
 
 		Ok(())
 	}

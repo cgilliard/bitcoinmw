@@ -143,10 +143,17 @@ impl Transaction {
 				input_commits.slice(0, input_commits.len())
 			};
 
+			// if there's no overage (not coinbase), we just add fee
+			// otherwise, we negate the overage
+			let adjustment: i128 = if overage == 0 {
+				fee as i128
+			} else {
+				-1i128 * (overage as i128)
+			};
 			ctx.verify_balance(
 				inp,
 				output_commits.slice(0, output_commits.len()),
-				fee as i128 - overage as i128,
+				adjustment,
 			)?;
 		}
 
