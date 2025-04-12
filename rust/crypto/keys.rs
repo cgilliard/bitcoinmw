@@ -88,6 +88,10 @@ impl SecretKey {
 	pub fn as_ptr(&self) -> *const SecretKey {
 		self.0.as_ptr() as *const SecretKey
 	}
+
+	pub fn as_ref(&self) -> &[u8; 32] {
+		&self.0
+	}
 }
 
 impl Signature {

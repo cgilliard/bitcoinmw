@@ -176,20 +176,11 @@ impl Ctx {
 		secnonce: &SecretKey,
 		pubnonce: &PublicKey,
 		pe: &PublicKey,
-		final_nonce_sum: &PublicKey,
 	) -> Result<Signature, Error> {
 		let pubnonce_uncomp = pubnonce.decompress(self)?;
 		let pe_uncomp = pe.decompress(self)?;
-		let final_nonce_sum_uncomp = final_nonce_sum.decompress(self)?;
 
-		self.sign_single_impl(
-			msg,
-			seckey,
-			secnonce,
-			&pubnonce_uncomp,
-			&pe_uncomp,
-			&final_nonce_sum_uncomp,
-		)
+		self.sign_single_impl(msg, seckey, secnonce, &pubnonce_uncomp, &pe_uncomp)
 	}
 
 	fn sign_single_impl(
@@ -199,7 +190,6 @@ impl Ctx {
 		secnonce: &SecretKey,
 		pubnonce: &PublicKeyUncompressed,
 		pe: &PublicKeyUncompressed,
-		final_nonce_sum: &PublicKeyUncompressed,
 	) -> Result<Signature, Error> {
 		let mut retsig = Signature::new();
 		let mut seed = [0u8; 32];
@@ -214,7 +204,7 @@ impl Ctx {
 				secnonce.as_ptr(),
 				null(),
 				pubnonce.as_ptr(),
-				final_nonce_sum.as_ptr(),
+				pubnonce.as_ptr(),
 				pe.as_ptr(),
 				seed.as_ptr(),
 			)
@@ -619,7 +609,6 @@ mod test {
 			.sign_single(
 				&msg, &seckey, &secnonce, &pubnonce, // k * G
 				&pubkey,   // x * G
-				&pubnonce, // k * G (single signer)
 			)
 			.unwrap();
 
@@ -666,14 +655,7 @@ mod test {
 
 		// Partial signatures with total sums
 		let sig1 = secp
-			.sign_single(
-				&msg,
-				&seckey1,
-				&secnonce1,
-				&nonce_sum,
-				&pubkey_sum,
-				&nonce_sum,
-			)
+			.sign_single(&msg, &seckey1, &secnonce1, &nonce_sum, &pubkey_sum)
 			.unwrap();
 
 		assert!(secp
@@ -681,14 +663,7 @@ mod test {
 			.unwrap());
 
 		let sig2 = secp
-			.sign_single(
-				&msg,
-				&seckey2,
-				&secnonce2,
-				&nonce_sum,
-				&pubkey_sum,
-				&nonce_sum,
-			)
+			.sign_single(&msg, &seckey2, &secnonce2, &nonce_sum, &pubkey_sum)
 			.unwrap();
 
 		assert!(secp
@@ -777,7 +752,6 @@ mod test {
 				&nonce1,
 				&nonce_sum, // Total nonce sum for consistent e
 				&pubkey_sum,
-				&nonce_sum,
 			)
 			.unwrap();
 
@@ -792,7 +766,6 @@ mod test {
 				&nonce2,
 				&nonce_sum, // Total nonce sum for consistent e
 				&pubkey_sum,
-				&nonce_sum,
 			)
 			.unwrap();
 		assert!(secp
@@ -863,7 +836,6 @@ mod test {
 				&recipient_nonce,
 				&pub_nonce_sum, // Total nonce sum for consistent e
 				&pubkey_sum,
-				&pub_nonce_sum,
 			)
 			.unwrap();
 
@@ -893,7 +865,6 @@ mod test {
 				&sender_nonce,
 				&pub_nonce_sum,
 				&pubkey_sum,
-				&pub_nonce_sum,
 			)
 			.unwrap();
 
@@ -984,7 +955,6 @@ mod test {
 			&recipient_nonce,
 			&pub_nonce_sum,
 			&pubkey_sum,
-			&pub_nonce_sum,
 		)?;
 		assert!(secp_recv.verify_single(
 			&sig_recv,
@@ -1002,7 +972,6 @@ mod test {
 			&sender_nonce,
 			&pub_nonce_sum,
 			&pubkey_sum,
-			&pub_nonce_sum,
 		)?;
 		assert!(secp_send.verify_single(
 			&sig_send,
