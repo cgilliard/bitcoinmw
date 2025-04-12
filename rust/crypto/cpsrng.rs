@@ -4,6 +4,7 @@ use crypto::ffi::*;
 use crypto::types::CpsrngContext;
 use prelude::*;
 
+#[derive(Clone)]
 pub struct Cpsrng {
 	ctx: *mut CpsrngContext,
 }

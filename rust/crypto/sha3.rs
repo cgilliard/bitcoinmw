@@ -4,11 +4,14 @@ use crypto::types::Sha3Context;
 use prelude::*;
 use std::ffi::{alloc, release};
 
+#[derive(Clone)]
 pub enum Sha3ByteSize {
 	Sha3_256,
 	Sha3_384,
 	Sha3_512,
 }
+
+#[derive(Clone)]
 pub struct Sha3 {
 	ctx: *const Sha3Context,
 	byte_size: Sha3ByteSize,
