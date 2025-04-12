@@ -33,14 +33,38 @@ impl Transaction {
 		}
 	}
 
-	pub fn merge(&mut self, ctx: &Ctx, t: Transaction) -> Result<(), Error> {
-		let mut kernels = self.kernels.try_clone()?;
-		let mut inputs = self.inputs.try_clone()?;
-		let mut outputs = self.outputs.try_clone()?;
+	pub fn outputs(&self) -> &Vec<(Commitment, RangeProof)> {
+		&self.outputs
+	}
 
-		kernels.append(&t.kernels)?;
-		inputs.append(&t.inputs)?;
-		outputs.append(&t.outputs)?;
+	pub fn inputs(&self) -> &Vec<Commitment> {
+		&self.inputs
+	}
+
+	pub fn kernels(&self) -> &Vec<Kernel> {
+		&self.kernels
+	}
+
+	pub fn offset(&self) -> Option<&SecretKey> {
+		self.offset.as_ref()
+	}
+
+	pub fn merge(&mut self, ctx: &Ctx, t: Transaction) -> Result<(), Error> {
+		// TODO: why does this version cause data loss?
+		/*
+		self.kernels.append(&t.kernels.try_clone()?)?;
+		self.inputs.append(&t.inputs.try_clone()?)?;
+		self.outputs.append(&t.outputs.try_clone()?)?;
+			*/
+		for x in t.kernels {
+			self.kernels.push(x)?;
+		}
+		for x in t.outputs {
+			self.outputs.push(x)?;
+		}
+		for x in t.inputs {
+			self.inputs.push(x)?;
+		}
 
 		match &self.offset {
 			Some(self_offset) => match &t.offset {
@@ -55,11 +79,12 @@ impl Transaction {
 				None => {}
 			},
 		}
-		self.kernels = kernels;
-		self.inputs = inputs;
-		self.outputs = outputs;
 
 		Ok(())
+	}
+
+	pub fn set_offset_zero(&mut self) {
+		self.offset = None;
 	}
 
 	pub fn add_input(&mut self, input: Commitment) -> Result<(), Error> {
@@ -83,7 +108,6 @@ impl Transaction {
 			if self.outputs.len() == 0 {
 				return Err(Error::new(InvalidTransaction));
 			}
-
 			for i in 0..self.outputs.len() {
 				let output = &self.outputs[i];
 				ctx.verify_range_proof(&output.0, &output.1)?;
@@ -92,7 +116,6 @@ impl Transaction {
 			for i in 0..self.inputs.len() {
 				input_commits.push(&self.inputs[i])?;
 			}
-
 			let mut output_commits: Vec<&Commitment> = Vec::new();
 			for i in 0..self.outputs.len() {
 				output_commits.push(&self.outputs[i].0)?;
@@ -102,7 +125,6 @@ impl Transaction {
 				offset_commit = ctx.commit(0, offset)?;
 				output_commits.push(&offset_commit)?;
 			}
-
 			let mut fee = 0;
 			for i in 0..self.kernels.len() {
 				output_commits.push(self.kernels[i].excess())?;

@@ -312,4 +312,138 @@ mod test {
 
 		Ok(())
 	}
+
+	#[test]
+	fn test_merge() -> Result<(), Error> {
+		// create our crypto context
+		let mut ctx = Ctx::new()?;
+
+		// create a slate with a fee of 10 coins
+		let mut slate = Slate::new(10, SecretKey::gen(&ctx));
+
+		// user1 initiates request by offering to pay 100 coins with change of 10
+		let kc1 = KeyChain::from_seed([0u8; 32])?;
+		let user1_sec_nonce = SecretKey::gen(&ctx); // random nonce
+		let input = kc1.derive_key(&ctx, &[0, 0]); // choose a key for our input
+		let change_output = kc1.derive_key(&ctx, &[0, 1]); // choose a key for the change
+
+		// commit to the slate
+		let user1_id = slate.commit(
+			&mut ctx,
+			&[(&input, 100)],
+			&[(&change_output, 10)],
+			&user1_sec_nonce,
+		)?;
+
+		// now it's user2's turn
+		let kc2 = KeyChain::from_seed([1u8; 32])?;
+		let user2_sec_nonce = SecretKey::gen(&ctx); // random nonce
+		let output = kc2.derive_key(&ctx, &[0, 0]); // choose an output
+
+		// commit here we receive 80 coins (10 coin fee, 100 coin input and 10 coin change)
+		let user2_id = slate.commit(&mut ctx, &[], &[(&output, 80)], &user2_sec_nonce)?;
+
+		// now user2 signs the transaction
+		slate.sign(&mut ctx, user2_id, &[], &[&output], &user2_sec_nonce)?;
+
+		// now it's user1's turn to sign and finalize
+		slate.sign(
+			&mut ctx,
+			user1_id,
+			&[&input],
+			&[&change_output],
+			&user1_sec_nonce,
+		)?;
+		// finalize the slate
+		let tx = slate.finalize(&mut ctx)?;
+		// confirm the transaction is valid
+		assert!(tx.verify(&mut ctx, 0).is_ok());
+
+		let mut slate = Slate::new(20, SecretKey::gen(&ctx));
+
+		// user1 initiates request by offering to pay 100 coins with change of 10
+		let kc1 = KeyChain::from_seed([2u8; 32])?;
+		let user1_sec_nonce = SecretKey::gen(&ctx); // random nonce
+		let input = kc1.derive_key(&ctx, &[0, 0]); // choose a key for our input
+		let change_output = kc1.derive_key(&ctx, &[0, 1]); // choose a key for the change
+
+		// commit to the slate
+		let user1_id = slate.commit(
+			&mut ctx,
+			&[(&input, 200)],
+			&[(&change_output, 30)],
+			&user1_sec_nonce,
+		)?;
+
+		// now it's user2's turn
+		let kc2 = KeyChain::from_seed([3u8; 32])?;
+		let user2_sec_nonce = SecretKey::gen(&ctx); // random nonce
+		let output = kc2.derive_key(&ctx, &[0, 0]); // choose an output
+
+		// commit here we receive 80 coins (10 coin fee, 100 coin input and 10 coin change)
+		let user2_id = slate.commit(&mut ctx, &[], &[(&output, 150)], &user2_sec_nonce)?;
+
+		// now user2 signs the transaction
+		slate.sign(&mut ctx, user2_id, &[], &[&output], &user2_sec_nonce)?;
+
+		// now it's user1's turn to sign and finalize
+		slate.sign(
+			&mut ctx,
+			user1_id,
+			&[&input],
+			&[&change_output],
+			&user1_sec_nonce,
+		)?;
+		// finalize the slate
+		let mut tx2 = slate.finalize(&mut ctx)?;
+		// confirm the transaction is valid
+		assert!(tx2.verify(&mut ctx, 0).is_ok());
+
+		assert_eq!(tx.outputs().len(), 2);
+		assert_eq!(tx2.outputs().len(), 2);
+		assert_eq!(tx.inputs().len(), 1);
+		assert_eq!(tx2.inputs().len(), 1);
+		assert_eq!(tx.kernels().len(), 1);
+		assert_eq!(tx2.kernels().len(), 1);
+
+		tx2.merge(&ctx, tx)?;
+		assert!(tx2.verify(&mut ctx, 0).is_ok());
+		assert_eq!(tx2.outputs().len(), 4);
+		assert_eq!(tx2.inputs().len(), 2);
+		assert_eq!(tx2.kernels().len(), 2);
+
+		// add coinbase
+		let mut noffset = tx2.offset().unwrap().clone();
+		noffset.negate(&mut ctx)?; // negate current offset
+							 //let noffset = SecretKey::gen(&ctx);
+		let mut coinbase = Transaction::new(noffset.clone());
+		let kccb = KeyChain::from_seed([4u8; 32])?;
+		let output_blind = kccb.derive_key(&ctx, &[0, 11]);
+
+		// commit to 1000 + 30 in fees
+		let cb_output = ctx.commit(1030, &output_blind)?;
+		let cb_range_proof = ctx.range_proof(1030, &output_blind)?;
+		let excess_blind = ctx.blind_sum(&[], &[&output_blind, &noffset])?;
+		let excess = ctx.commit(0, &excess_blind)?;
+		let msg = ctx.hash_kernel(&excess, 0, 0)?;
+		let nonce = SecretKey::gen(&mut ctx);
+		let pubnonce = PublicKey::from(&ctx, &nonce)?;
+		let pubkey = PublicKey::from(&ctx, &excess_blind)?;
+		let sig = ctx.sign_single(&msg, &excess_blind, &nonce, &pubnonce, &pubkey)?;
+		let kernel = Kernel::new(excess.clone(), sig.clone(), 0, 0);
+		coinbase.add_kernel(kernel)?;
+		coinbase.add_output(cb_output.clone(), cb_range_proof)?;
+		assert!(coinbase.verify(&mut ctx, 1030).is_ok());
+
+		tx2.merge(&ctx, coinbase.try_clone()?)?;
+		assert_eq!(tx2.outputs().len(), 5);
+		assert_eq!(tx2.inputs().len(), 2);
+		assert_eq!(tx2.kernels().len(), 3);
+
+		tx2.set_offset_zero();
+		// TODO: This should be 1000 fees go to miner. Might need to specify coinbase
+		assert!(tx2.verify(&mut ctx, 1030).is_ok());
+
+		Ok(())
+	}
 }
