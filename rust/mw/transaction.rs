@@ -171,6 +171,7 @@ impl Transaction {
 			} else {
 				-1i128 * (overage as i128)
 			};
+
 			ctx.verify_balance(
 				inp,
 				output_commits.slice(0, output_commits.len()),
@@ -298,6 +299,30 @@ mod test {
 
 		assert!(tx.verify(&mut ctx_user2, 0).is_ok());
 
+		Ok(())
+	}
+
+	#[test]
+	fn test_empty() -> Result<(), Error> {
+		let mut ctx = Ctx::new()?;
+		let mut tx = Transaction::empty();
+
+		let blind_output = SecretKey::gen(&ctx);
+		let output = ctx.commit(2000, &blind_output)?;
+		let range_proof = ctx.range_proof(2000, &blind_output)?;
+		let nonce = SecretKey::gen(&ctx);
+		let pubnonce = PublicKey::from(&ctx, &nonce)?;
+		let excess_blind = ctx.blind_sum(&[], &[&blind_output])?;
+		let pub_blind = PublicKey::from(&ctx, &excess_blind)?;
+		let excess = ctx.commit(0, &excess_blind)?;
+		let msg = ctx.hash_kernel(&excess, 0, 0)?;
+		let sig = ctx.sign_single(&msg, &excess_blind, &nonce, &pubnonce, &pub_blind)?;
+		let kernel = Kernel::new(excess, sig, 0, 0);
+		tx.add_kernel(kernel)?;
+		tx.add_output(output, range_proof)?;
+
+		assert!(tx.verify(&mut ctx, 2000).is_ok());
+		assert!(tx.verify(&mut ctx, 2001).is_err());
 		Ok(())
 	}
 }

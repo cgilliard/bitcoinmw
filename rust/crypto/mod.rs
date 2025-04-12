@@ -8,6 +8,7 @@ mod range_proof;
 mod sha3;
 mod types;
 
+pub use crypto::constants::ZERO_KEY;
 pub use crypto::cpsrng::Cpsrng;
 pub use crypto::ctx::Ctx;
 pub use crypto::keys::{Message, PublicKey, SecretKey, Signature};

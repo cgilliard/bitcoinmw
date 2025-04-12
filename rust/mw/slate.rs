@@ -1,4 +1,4 @@
-use crypto::{Commitment, Ctx, Message, PublicKey, RangeProof, SecretKey, Signature};
+use crypto::{Commitment, Ctx, Message, PublicKey, RangeProof, SecretKey, Signature, ZERO_KEY};
 use mw::kernel::Kernel;
 use mw::transaction::Transaction;
 use prelude::*;
@@ -10,8 +10,6 @@ struct ParticipantData {
 	excess_commit: Commitment,
 	pub_nonce: PublicKey,
 	part_sig: Option<Signature>,
-	// note: do not serialize the secnonce when transmitting
-	// only needed for local user
 	sec_nonce: SecretKey,
 }
 
@@ -111,6 +109,9 @@ impl Slate {
 		)?;
 
 		self.pdata[participant_id].part_sig = Some(part_sig);
+
+		// after signing we zero the sec_nonce to avoid exposing it later.
+		self.pdata[participant_id].sec_nonce = SecretKey::new(ZERO_KEY);
 
 		Ok(())
 	}
@@ -333,7 +334,6 @@ mod test {
 
 		// now it's user2's turn
 		let kc2 = KeyChain::from_seed([3u8; 32])?;
-		let user2_sec_nonce = SecretKey::gen(&ctx); // random nonce
 		let output = kc2.derive_key(&ctx, &[0, 0]); // choose an output
 
 		// commit here we receive 80 coins (10 coin fee, 100 coin input and 10 coin change)
