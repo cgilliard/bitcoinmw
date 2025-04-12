@@ -28,6 +28,11 @@ impl Commitment {
 	pub fn new(v: [u8; 33]) -> Self {
 		Self(v)
 	}
+
+	pub fn sha3(&self, sha3: &mut Sha3) {
+		sha3.update(&self.0);
+	}
+
 	pub fn decompress(&self, ctx: &Ctx) -> Result<CommitmentUncompressed, Error> {
 		let mut out = CommitmentUncompressed([0u8; 64]);
 		unsafe {

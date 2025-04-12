@@ -1,41 +1,92 @@
 use crypto::{Ctx, PublicKey, SecretKey};
+use mw::constants::BLOCK_HEADER_VERSION;
 use mw::kernel::Kernel;
 use mw::transaction::Transaction;
 use prelude::*;
 use std::ffi::getmicros;
+use std::misc::{to_le_bytes_u32, to_le_bytes_u64, u256_less_than_or_equal};
 
 #[derive(Clone)]
 pub struct BlockHeader {
+	// Header Version. Currently = 0
+	header_version: u8,
+	// hash of the current block
 	hash: [u8; 32],
+	// hash of prev block
 	prev_hash: [u8; 32],
+	// height of block
+	height: u32,
+	// timestamp in microseconds since epoch (ISO 8601) 00:00:00 Jan 1, 1970
 	timestamp: u64,
+	// maximum value allowed for the block hash
+	max_hash_value: [u8; 32],
+	// nonce (for calculating pow)
+	nonce: u64,
 }
+
 pub struct Block {
+	// The block's header
 	header: BlockHeader,
+	// The block's transaction
 	tx: Transaction,
 }
 
 impl BlockHeader {
-	fn new(prev_hash: [u8; 32]) -> Self {
+	fn new(prev_hash: [u8; 32], height: u32, max_hash_value: [u8; 32]) -> Self {
+		let header_version = BLOCK_HEADER_VERSION;
 		let timestamp = unsafe { getmicros() };
 		let hash = [0u8; 32];
+		let nonce = 0;
 		Self {
+			header_version,
 			hash,
 			prev_hash,
+			height,
 			timestamp,
+			max_hash_value,
+			nonce,
 		}
 	}
 }
 
 impl Block {
-	pub fn new(prev_hash: [u8; 32]) -> Self {
-		let header = BlockHeader::new(prev_hash);
+	pub fn new(prev_hash: [u8; 32], height: u32, max_hash_value: [u8; 32]) -> Self {
+		let header = BlockHeader::new(prev_hash, height, max_hash_value);
 		let tx = Transaction::empty();
 		Self { header, tx }
 	}
 
 	pub fn add_tx(&mut self, ctx: &Ctx, tx: Transaction) -> Result<(), Error> {
 		self.tx.merge(ctx, tx)
+	}
+
+	#[inline]
+	pub fn mine_block(&mut self, ctx: &mut Ctx, nonce: u64, iterations: u64) -> Result<(), Error> {
+		self.header.nonce = nonce;
+		for _i in 0..iterations {
+			let hash = self.calculate_hash(ctx)?;
+
+			if u256_less_than_or_equal(&self.header.max_hash_value, &hash) {
+				// difficulty met - block found
+				self.header.hash = hash;
+				return Ok(());
+			}
+			self.header.nonce = self.header.nonce.wrapping_add(1);
+		}
+		Err(Error::new(BlockNotFound))
+	}
+
+	pub fn validate_hash(&self, ctx: &mut Ctx) -> Result<(), Error> {
+		if !u256_less_than_or_equal(&self.header.max_hash_value, &self.header.hash) {
+			Err(Error::new(InsufficientBlockHash))
+		} else {
+			let hash = self.calculate_hash(ctx)?;
+			if hash != self.header.hash {
+				Err(Error::new(InvalidBlockHash))
+			} else {
+				Ok(())
+			}
+		}
 	}
 
 	pub fn with_coinbase(
@@ -84,16 +135,67 @@ impl Block {
 		}
 		fees
 	}
+
+	#[inline]
+	fn calculate_hash(&self, ctx: &mut Ctx) -> Result<[u8; 32], Error> {
+		let sha3 = ctx.sha3();
+		sha3.reset();
+		let mut buf32 = [0u8; 4];
+		let mut buf64 = [0u8; 8];
+
+		// header_version
+		sha3.update(&[self.header.header_version]);
+
+		// prev_hash
+		sha3.update(&self.header.prev_hash);
+
+		// height
+		to_le_bytes_u32(self.header.height, &mut buf32);
+		sha3.update(&buf32[..]);
+
+		// timestamp
+		to_le_bytes_u64(self.header.timestamp, &mut buf64);
+		sha3.update(&buf64[..]);
+
+		// max_hash_value
+		sha3.update(&self.header.max_hash_value);
+
+		// nonce
+		to_le_bytes_u64(self.header.nonce, &mut buf64);
+		sha3.update(&buf64);
+
+		// TODO: need to sort these
+
+		// Block transaction
+		for kernel in self.tx.kernels() {
+			kernel.sha3(sha3);
+		}
+		for output_pair in self.tx.outputs() {
+			let output = &output_pair.0;
+			let range_proof = &output_pair.1;
+			output.sha3(sha3);
+			range_proof.sha3(sha3);
+		}
+		for input in self.tx.inputs() {
+			input.sha3(sha3);
+		}
+
+		let mut ret = [0u8; 32];
+		sha3.finalize(&mut ret)?;
+		Ok(ret)
+	}
 }
 
 #[cfg(test)]
 mod test {
 	use super::*;
+	use mw::constants::{DIFFICULTY_8BIT_LEADING, DIFFICULTY_HARD, INITIAL_DIFFICULTY};
+
 	#[test]
 	fn test_block1() -> Result<(), Error> {
 		// create a block (specify prev_hash)
 		let prev_hash = [0u8; 32];
-		let mut block = Block::new(prev_hash);
+		let mut block = Block::new(prev_hash, 1, INITIAL_DIFFICULTY);
 		// create a crypto ctx
 		let mut ctx = Ctx::new()?;
 
@@ -194,7 +296,7 @@ mod test {
 	fn mine_empty_block() -> Result<(), Error> {
 		// create a block (specify prev_hash)
 		let prev_hash = [0u8; 32];
-		let block = Block::new(prev_hash);
+		let block = Block::new(prev_hash, 1, INITIAL_DIFFICULTY);
 		// create a crypto ctx
 		let mut ctx = Ctx::new()?;
 
@@ -216,6 +318,45 @@ mod test {
 		assert_eq!(complete.tx.kernels().len(), 1);
 		assert_eq!(complete.tx.inputs().len(), 0);
 		assert!(complete.tx.verify(&mut ctx, overage).is_ok());
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_mining() -> Result<(), Error> {
+		let mut ctx = Ctx::new()?;
+		let prev_hash = [0u8; 32];
+		let block = Block::new(prev_hash, 1, DIFFICULTY_8BIT_LEADING);
+
+		// mine an empty block (only coinbase)
+		let miner_keychain = KeyChain::from_seed([4u8; 32])?;
+		// set overage for this block height. We use 1000.
+		let overage = 1000;
+		// generate a blind from our keychain
+		let coinbase_blind = miner_keychain.derive_key(&ctx, &[0, 0]);
+		// complete the block with the coinbase added
+		let mut complete = block.with_coinbase(&mut ctx, &coinbase_blind, overage)?;
+
+		assert!(complete.header.hash == [0u8; 32]);
+		assert!(complete.mine_block(&mut ctx, 0, 1024 * 1024).is_ok());
+		assert!(complete.validate_hash(&mut ctx).is_ok());
+		assert!(complete.header.hash != [0u8; 32]);
+		assert!(complete.header.hash[0] == 0);
+
+		// try something too difficult
+		let block = Block::new(prev_hash, 1, DIFFICULTY_HARD);
+
+		let mut complete = block.with_coinbase(&mut ctx, &coinbase_blind, overage)?;
+		// verify coinbase
+		assert_eq!(complete.tx.outputs().len(), 1);
+		assert_eq!(complete.tx.kernels().len(), 1);
+		assert_eq!(complete.tx.inputs().len(), 0);
+		assert!(complete.tx.verify(&mut ctx, overage).is_ok());
+
+		assert!(complete.header.hash == [0u8; 32]);
+		// we'll error out after 1024 iterations
+		assert!(complete.mine_block(&mut ctx, 0, 1024).is_err());
+		assert!(complete.validate_hash(&mut ctx).is_err());
 
 		Ok(())
 	}

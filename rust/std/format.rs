@@ -136,6 +136,55 @@ impl Display for &str {
 	}
 }
 
+macro_rules! impl_display_array {
+    ($($n:expr),*) => {
+        $(
+            impl<T: Display> Display for [T; $n] {
+        fn format(&self, f: &mut Formatter) -> Result<(), Error> {
+                let len = self.len();
+                writeb!(f, "[")?;
+                if len > 0 {
+                        for i in 0..len {
+                                if i != len - 1 {
+                                        writeb!(f, "{}, ", self[i])?;
+                                } else {
+                                        writeb!(f, "{}", self[i])?;
+                                }
+                        }
+                }
+                writeb!(f, "]")?;
+                Ok(())
+        }
+}
+        )*
+    };
+}
+
+impl_display_array!(
+	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+	27, 28, 29, 30, 31, 32, 40, 48, 56, 64, 96, 128, 256
+);
+
+/*
+impl<T: Display> Display for [T; 32] {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
+		let len = self.len();
+		writeb!(f, "[")?;
+		if len > 0 {
+			for i in 0..len {
+				if i != len - 1 {
+					writeb!(f, "{}, ", self[i])?;
+				} else {
+					writeb!(f, "{}", self[i])?;
+				}
+			}
+		}
+		writeb!(f, "]")?;
+		Ok(())
+	}
+}
+*/
+
 #[cfg(test)]
 mod test {
 	use super::*;
@@ -214,7 +263,7 @@ mod test {
 		{
 			let mut f = Formatter::new();
 			assert!(writeb!(
-				f,
+				&mut f,
 				"test {} {} {} {} {} {} {} end",
 				1,
 				-2,

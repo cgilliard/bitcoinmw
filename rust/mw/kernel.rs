@@ -1,6 +1,7 @@
 use crypto::ffi::secp256k1_schnorrsig_verify;
 use crypto::{Commitment, Ctx, Message, Signature};
 use prelude::*;
+use std::misc::to_le_bytes_u64;
 
 #[derive(Clone)]
 pub struct Kernel {
@@ -18,6 +19,22 @@ impl Kernel {
 			fee,
 			features,
 		}
+	}
+
+	pub fn sha3(&self, sha3: &mut Sha3) {
+		// excess
+		self.excess.sha3(sha3);
+
+		// signature
+		sha3.update(self.signature.as_ref());
+
+		// fee
+		let mut buf64 = [0u8; 8];
+		to_le_bytes_u64(self.fee as u64, &mut buf64);
+		sha3.update(&buf64);
+
+		// features
+		sha3.update(&[self.features]);
 	}
 
 	pub fn merge(&mut self, ctx: &Ctx, k: Kernel) -> Result<(), Error> {

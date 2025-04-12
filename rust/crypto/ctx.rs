@@ -70,6 +70,10 @@ impl Ctx {
 		}
 	}
 
+	pub fn sha3(&mut self) -> &mut Sha3 {
+		&mut self.sha3
+	}
+
 	pub fn rand(&self) -> &Cpsrng {
 		&self.rand
 	}

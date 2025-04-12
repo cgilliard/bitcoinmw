@@ -105,6 +105,10 @@ impl Signature {
 	pub fn as_ptr(&self) -> *const Self {
 		self.0.as_ptr() as *const Self
 	}
+
+	pub fn as_ref(&self) -> &[u8; 64] {
+		&self.0
+	}
 }
 
 impl PublicKey {

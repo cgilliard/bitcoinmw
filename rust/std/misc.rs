@@ -231,3 +231,20 @@ pub fn strcmp(a: &str, b: &str) -> i32 {
 		0
 	}
 }
+
+#[inline]
+pub fn u256_less_than_or_equal(max_value: &[u8; 32], value: &[u8; 32]) -> bool {
+	let mut i = 0;
+	while i < 32 {
+		let m = max_value[i];
+		let v = value[i];
+		if v < m {
+			return true;
+		}
+		if v > m {
+			return false;
+		}
+		i += 1;
+	}
+	true
+}

@@ -189,7 +189,7 @@ macro_rules! writeb {
                             None => {
                             },
                         }
-                        match $t.format(&mut $f) {
+                        match $t.format($f) {
                             Ok(_) => {},
                             Err(e) => err = e,
                         }
@@ -225,7 +225,7 @@ macro_rules! format {
         }};
         ($fmt:expr, $($t:expr),*) => {{
                 let mut formatter = Formatter::new();
-                match writeb!(formatter, $fmt, $($t),*) {
+                match writeb!(&mut formatter, $fmt, $($t),*) {
                     Ok(_) => String::new(formatter.as_str()),
                     Err(e) => Err(e)
                 }

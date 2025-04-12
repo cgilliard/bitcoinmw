@@ -5,6 +5,6 @@
 mod std;
 
 mod crypto;
-mod mw;
+pub mod mw;
 pub mod prelude;
 mod real_main;
