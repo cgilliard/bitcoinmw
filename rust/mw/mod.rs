@@ -1,3 +1,4 @@
+mod block;
 mod kernel;
 mod keychain;
 mod slate;

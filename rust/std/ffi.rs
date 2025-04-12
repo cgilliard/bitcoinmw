@@ -11,6 +11,7 @@ extern "C" {
 	pub fn ptr_add(p: *mut u8, v: i64);
 	pub fn exit(code: i32);
 	pub fn f64_to_str(d: f64, buf: *mut u8, capacity: u64) -> i32;
+	pub fn getmicros() -> u64;
 
 	// get number of allocations
 	pub fn getalloccount() -> usize;

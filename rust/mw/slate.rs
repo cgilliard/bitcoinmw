@@ -436,6 +436,8 @@ mod test {
 		assert_eq!(tx2.kernels().len(), 3);
 
 		tx2.set_offset_zero();
+		// verify with overage == 1000 (the block reward) Coinbase included 30 in fees from
+		// merged transactions.
 		assert!(tx2.verify(&mut ctx, 1000).is_ok());
 
 		Ok(())

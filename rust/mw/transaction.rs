@@ -33,6 +33,15 @@ impl Transaction {
 		}
 	}
 
+	pub fn empty() -> Self {
+		Self {
+			inputs: Vec::new(),
+			outputs: Vec::new(),
+			kernels: Vec::new(),
+			offset: None,
+		}
+	}
+
 	pub fn outputs(&self) -> &Vec<(Commitment, RangeProof)> {
 		&self.outputs
 	}
