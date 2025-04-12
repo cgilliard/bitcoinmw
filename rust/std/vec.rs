@@ -598,6 +598,7 @@ mod test {
 			assert_eq!(x, &i);
 			i += 1;
 		}
+		assert_eq!(i, 5);
 
 		for x in v.iter_mut() {
 			*x += 1;
@@ -608,5 +609,6 @@ mod test {
 			assert_eq!(x, i);
 			i += 1;
 		}
+		assert_eq!(i, 6);
 	}
 }
