@@ -56,37 +56,24 @@ mod test {
 		let mut slate = Slate::new(10, SecretKey::gen(&ctx));
 
 		let kc1 = KeyChain::from_seed([0u8; 32])?;
-		let user1_sec_nonce = SecretKey::gen(&ctx);
 		let input = kc1.derive_key(&ctx, &[0, 0]);
 		let change_output = kc1.derive_key(&ctx, &[0, 1]);
 
 		// commit to the slate
-		let user1_id = slate.commit(
-			&mut ctx,
-			&[(&input, 100)],
-			&[(&change_output, 10)],
-			&user1_sec_nonce,
-		)?;
+		let user1_id = slate.commit(&mut ctx, &[(&input, 100)], &[(&change_output, 10)])?;
 
 		// now it's user2's turn
 		let kc2 = KeyChain::from_seed([1u8; 32])?;
-		let user2_sec_nonce = SecretKey::gen(&ctx); // random nonce
 		let output = kc2.derive_key(&ctx, &[0, 0]); // choose an output
 
 		// commit here we receive 80 coins (10 coin fee, 100 coin input and 10 coin change)
-		let user2_id = slate.commit(&mut ctx, &[], &[(&output, 80)], &user2_sec_nonce)?;
+		let user2_id = slate.commit(&mut ctx, &[], &[(&output, 80)])?;
 
 		// now user2 signs the transaction
-		slate.sign(&mut ctx, user2_id, &[], &[&output], &user2_sec_nonce)?;
+		slate.sign(&mut ctx, user2_id, &[], &[&output])?;
 
 		// now it's user1's turn to sign and finalize
-		slate.sign(
-			&mut ctx,
-			user1_id,
-			&[&input],
-			&[&change_output],
-			&user1_sec_nonce,
-		)?;
+		slate.sign(&mut ctx, user1_id, &[&input], &[&change_output])?;
 		// finalize the slate
 		let tx = slate.finalize(&mut ctx)?;
 

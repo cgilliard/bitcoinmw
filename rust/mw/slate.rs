@@ -10,6 +10,9 @@ struct ParticipantData {
 	excess_commit: Commitment,
 	pub_nonce: PublicKey,
 	part_sig: Option<Signature>,
+	// note: do not serialize the secnonce when transmitting
+	// only needed for local user
+	sec_nonce: SecretKey,
 }
 
 pub struct Slate {
@@ -32,12 +35,12 @@ impl Slate {
 		ctx: &mut Ctx,
 		input_keys: &[(&SecretKey, u64)],
 		output_keys: &[(&SecretKey, u64)],
-		sec_nonce: &SecretKey,
 	) -> Result<usize, Error> {
 		let mut inputs = Vec::with_capacity(input_keys.len())?;
 		let mut outputs = Vec::with_capacity(output_keys.len())?;
 		let mut input_keys_only = Vec::with_capacity(input_keys.len())?;
 		let mut output_keys_only = Vec::with_capacity(output_keys.len())?;
+		let sec_nonce = SecretKey::gen(&ctx);
 
 		for input_key in input_keys {
 			let commit = ctx.commit(input_key.1, input_key.0)?;
@@ -53,7 +56,7 @@ impl Slate {
 		if self.pdata.len() == 0 {
 			output_keys_only.push(&self.offset)?;
 		}
-		let pub_nonce = PublicKey::from(ctx, sec_nonce)?;
+		let pub_nonce = PublicKey::from(ctx, &sec_nonce)?;
 		let blind_excess = ctx.blind_sum(
 			input_keys_only.slice(0, input_keys_only.len()),
 			output_keys_only.slice(0, output_keys_only.len()),
@@ -68,6 +71,7 @@ impl Slate {
 			pub_blind_excess,
 			excess_commit,
 			part_sig: None,
+			sec_nonce,
 		};
 
 		self.pdata.push(pd)?;
@@ -80,7 +84,6 @@ impl Slate {
 		participant_id: usize,
 		input_keys: &[&SecretKey],
 		output_keys: &[&SecretKey],
-		sec_nonce: &SecretKey,
 	) -> Result<(), Error> {
 		let mut output_keys_vec = Vec::new();
 		for i in 0..output_keys.len() {
@@ -97,6 +100,7 @@ impl Slate {
 		let msg = ctx.hash_kernel(&excess_commit, self.fee, 0)?;
 
 		self.verify_part_sigs(ctx, participant_id, &msg, &pub_nonce_sum, &pub_blind_sum)?;
+		let sec_nonce = &self.pdata[participant_id].sec_nonce;
 
 		let part_sig = ctx.sign_single(
 			&msg,
@@ -227,33 +231,21 @@ mod test {
 
 		let user1_input_key = SecretKey::gen(&ctx);
 		let user1_change_key = SecretKey::gen(&ctx);
-		let user1_sec_nonce = SecretKey::gen(&ctx);
 		assert_eq!(
 			slate.commit(
 				&mut ctx,
 				&[(&user1_input_key, 100)],
 				&[(&user1_change_key, 10)],
-				&user1_sec_nonce,
 			)?,
 			0
 		);
 
 		let user2_output_key = SecretKey::gen(&ctx);
-		let user2_sec_nonce = SecretKey::gen(&ctx);
 
-		assert_eq!(
-			slate.commit(&mut ctx, &[], &[(&user2_output_key, 80)], &user2_sec_nonce)?,
-			1
-		);
+		assert_eq!(slate.commit(&mut ctx, &[], &[(&user2_output_key, 80)])?, 1);
 
-		slate.sign(&mut ctx, 1, &[], &[&user2_output_key], &user2_sec_nonce)?;
-		slate.sign(
-			&mut ctx,
-			0,
-			&[&user1_input_key],
-			&[&user1_change_key],
-			&user1_sec_nonce,
-		)?;
+		slate.sign(&mut ctx, 1, &[], &[&user2_output_key])?;
+		slate.sign(&mut ctx, 0, &[&user1_input_key], &[&user1_change_key])?;
 		let tx = slate.finalize(&mut ctx)?;
 		tx.verify(&mut ctx, 0)?;
 
@@ -270,37 +262,24 @@ mod test {
 
 		// user1 initiates request by offering to pay 100 coins with change of 10
 		let kc1 = KeyChain::from_seed([0u8; 32])?;
-		let user1_sec_nonce = SecretKey::gen(&ctx); // random nonce
 		let input = kc1.derive_key(&ctx, &[0, 0]); // choose a key for our input
 		let change_output = kc1.derive_key(&ctx, &[0, 1]); // choose a key for the change
 
 		// commit to the slate
-		let user1_id = slate.commit(
-			&mut ctx,
-			&[(&input, 100)],
-			&[(&change_output, 10)],
-			&user1_sec_nonce,
-		)?;
+		let user1_id = slate.commit(&mut ctx, &[(&input, 100)], &[(&change_output, 10)])?;
 
 		// now it's user2's turn
 		let kc2 = KeyChain::from_seed([1u8; 32])?;
-		let user2_sec_nonce = SecretKey::gen(&ctx); // random nonce
 		let output = kc2.derive_key(&ctx, &[0, 0]); // choose an output
 
 		// commit here we receive 80 coins (10 coin fee, 100 coin input and 10 coin change)
-		let user2_id = slate.commit(&mut ctx, &[], &[(&output, 80)], &user2_sec_nonce)?;
+		let user2_id = slate.commit(&mut ctx, &[], &[(&output, 80)])?;
 
 		// now user2 signs the transaction
-		slate.sign(&mut ctx, user2_id, &[], &[&output], &user2_sec_nonce)?;
+		slate.sign(&mut ctx, user2_id, &[], &[&output])?;
 
 		// now it's user1's turn to sign and finalize
-		slate.sign(
-			&mut ctx,
-			user1_id,
-			&[&input],
-			&[&change_output],
-			&user1_sec_nonce,
-		)?;
+		slate.sign(&mut ctx, user1_id, &[&input], &[&change_output])?;
 		// finalize the slate
 		let tx = slate.finalize(&mut ctx)?;
 		// confirm the transaction is valid
@@ -319,37 +298,24 @@ mod test {
 
 		// user1 initiates request by offering to pay 100 coins with change of 10
 		let kc1 = KeyChain::from_seed([0u8; 32])?;
-		let user1_sec_nonce = SecretKey::gen(&ctx); // random nonce
 		let input = kc1.derive_key(&ctx, &[0, 0]); // choose a key for our input
 		let change_output = kc1.derive_key(&ctx, &[0, 1]); // choose a key for the change
 
 		// commit to the slate
-		let user1_id = slate.commit(
-			&mut ctx,
-			&[(&input, 100)],
-			&[(&change_output, 10)],
-			&user1_sec_nonce,
-		)?;
+		let user1_id = slate.commit(&mut ctx, &[(&input, 100)], &[(&change_output, 10)])?;
 
 		// now it's user2's turn
 		let kc2 = KeyChain::from_seed([1u8; 32])?;
-		let user2_sec_nonce = SecretKey::gen(&ctx); // random nonce
 		let output = kc2.derive_key(&ctx, &[0, 0]); // choose an output
 
 		// commit here we receive 80 coins (10 coin fee, 100 coin input and 10 coin change)
-		let user2_id = slate.commit(&mut ctx, &[], &[(&output, 80)], &user2_sec_nonce)?;
+		let user2_id = slate.commit(&mut ctx, &[], &[(&output, 80)])?;
 
 		// now user2 signs the transaction
-		slate.sign(&mut ctx, user2_id, &[], &[&output], &user2_sec_nonce)?;
+		slate.sign(&mut ctx, user2_id, &[], &[&output])?;
 
 		// now it's user1's turn to sign and finalize
-		slate.sign(
-			&mut ctx,
-			user1_id,
-			&[&input],
-			&[&change_output],
-			&user1_sec_nonce,
-		)?;
+		slate.sign(&mut ctx, user1_id, &[&input], &[&change_output])?;
 		// finalize the slate
 		let tx = slate.finalize(&mut ctx)?;
 		// confirm the transaction is valid
@@ -359,17 +325,11 @@ mod test {
 
 		// user1 initiates request by offering to pay 100 coins with change of 10
 		let kc1 = KeyChain::from_seed([2u8; 32])?;
-		let user1_sec_nonce = SecretKey::gen(&ctx); // random nonce
 		let input = kc1.derive_key(&ctx, &[0, 0]); // choose a key for our input
 		let change_output = kc1.derive_key(&ctx, &[0, 1]); // choose a key for the change
 
 		// commit to the slate
-		let user1_id = slate.commit(
-			&mut ctx,
-			&[(&input, 200)],
-			&[(&change_output, 30)],
-			&user1_sec_nonce,
-		)?;
+		let user1_id = slate.commit(&mut ctx, &[(&input, 200)], &[(&change_output, 30)])?;
 
 		// now it's user2's turn
 		let kc2 = KeyChain::from_seed([3u8; 32])?;
@@ -377,19 +337,13 @@ mod test {
 		let output = kc2.derive_key(&ctx, &[0, 0]); // choose an output
 
 		// commit here we receive 80 coins (10 coin fee, 100 coin input and 10 coin change)
-		let user2_id = slate.commit(&mut ctx, &[], &[(&output, 150)], &user2_sec_nonce)?;
+		let user2_id = slate.commit(&mut ctx, &[], &[(&output, 150)])?;
 
 		// now user2 signs the transaction
-		slate.sign(&mut ctx, user2_id, &[], &[&output], &user2_sec_nonce)?;
+		slate.sign(&mut ctx, user2_id, &[], &[&output])?;
 
 		// now it's user1's turn to sign and finalize
-		slate.sign(
-			&mut ctx,
-			user1_id,
-			&[&input],
-			&[&change_output],
-			&user1_sec_nonce,
-		)?;
+		slate.sign(&mut ctx, user1_id, &[&input], &[&change_output])?;
 		// finalize the slate
 		let mut tx2 = slate.finalize(&mut ctx)?;
 		// confirm the transaction is valid
