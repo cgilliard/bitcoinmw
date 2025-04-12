@@ -4,5 +4,6 @@
 #[macro_use]
 mod std;
 
+mod crypto;
 pub mod prelude;
 mod real_main;
