@@ -3,6 +3,7 @@ pub mod macros;
 
 pub mod boxed;
 pub mod clone;
+pub mod cstring;
 pub mod display;
 pub mod error;
 pub mod ffi;

@@ -4,7 +4,7 @@ use lmdb::ffi::*;
 use lmdb::txn::LmdbTxn;
 use lmdb::types::{MDB_dbi, MDB_env, MDB_txn};
 use prelude::*;
-use std::misc::CStr;
+use std::cstring::CStr;
 
 pub struct Lmdb {
 	env: *mut MDB_env,

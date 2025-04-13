@@ -8,7 +8,7 @@ use lmdb::constants::{MDB_GET_CURRENT, MDB_NEXT, MDB_NOTFOUND, MDB_SET_RANGE, MD
 use lmdb::ffi::*;
 use lmdb::types::{MDB_cursor, MDB_dbi, MDB_txn, MDB_val};
 use prelude::*;
-use std::misc::CStr;
+use std::cstring::CStr;
 
 pub struct LmdbTxn {
 	txn: *mut MDB_txn,
@@ -220,7 +220,6 @@ pub mod test {
 	use super::*;
 	use lmdb::db::Lmdb;
 	use std::ffi::{mkdir, rmdir, unlink};
-	use std::misc::CStr;
 
 	pub fn make_lmdb_test_dir(s: &str) -> Result<(), Error> {
 		remove_lmdb_test_dir(s)?;

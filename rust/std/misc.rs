@@ -1,10 +1,7 @@
 #![allow(dead_code)]
 
-use core::ops::{Index, IndexMut};
-use core::ptr::{copy_nonoverlapping, null};
 use core::slice::from_raw_parts;
 use prelude::*;
-use std::ffi::{alloc, release};
 
 pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
 	if len + off > n.len() {
@@ -252,6 +249,8 @@ pub fn u256_less_than_or_equal(max_value: &[u8; 32], value: &[u8; 32]) -> bool {
 	true
 }
 
+/*
+
 pub struct CStr {
 	ptr: *const u8,
 	leak: bool,
@@ -389,3 +388,4 @@ mod test {
 		Ok(())
 	}
 }
+*/
