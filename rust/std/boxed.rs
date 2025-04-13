@@ -1,12 +1,20 @@
+use core::convert::AsRef;
 use core::marker::Sized;
 use core::mem::size_of;
 use core::ops::{Deref, DerefMut, Index, IndexMut};
 use core::ptr::{drop_in_place, null_mut, write};
+use core::slice::from_raw_parts;
 use prelude::*;
 use std::ffi::{alloc, release};
 
 pub struct Box<T: ?Sized> {
 	ptr: Ptr<T>,
+}
+
+impl<T: Copy> AsRef<[u8]> for Box<T> {
+	fn as_ref(&self) -> &[u8] {
+		unsafe { from_raw_parts(self.as_ptr().raw() as *const u8, size_of::<T>()) }
+	}
 }
 
 impl<T: ?Sized> Drop for Box<T> {

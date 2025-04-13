@@ -1,3 +1,4 @@
+use core::convert::AsRef;
 use core::mem::forget;
 use core::ptr::null_mut;
 use core::slice::from_raw_parts;
@@ -17,10 +18,10 @@ impl LmdbTxn {
 		Self { txn, dbi, write }
 	}
 
-	pub fn get(&self, key: &[u8]) -> Result<Option<&[u8]>, Error> {
+	pub fn get<K: AsRef<[u8]>>(&self, key: &K) -> Result<Option<&[u8]>, Error> {
 		let mut key_val = MDB_val {
-			mv_size: key.len(),
-			mv_data: key.as_ptr() as *mut u8,
+			mv_size: key.as_ref().len(),
+			mv_data: key.as_ref().as_ptr() as *mut u8,
 		};
 		let mut data_val = MDB_val {
 			mv_size: 0,
@@ -39,21 +40,37 @@ impl LmdbTxn {
 		}
 	}
 
-	pub fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), Error> {
+	pub fn put<K: AsRef<[u8]>, V: AsRef<[u8]>>(&mut self, key: &K, value: &V) -> Result<(), Error> {
 		if !self.write {
 			return Err(Error::new(IllegalState));
 		}
 		let mut key_val = MDB_val {
-			mv_size: key.len(),
-			mv_data: key.as_ptr() as *mut u8,
+			mv_size: key.as_ref().len(),
+			mv_data: key.as_ref().as_ptr() as *mut u8,
 		};
 		let mut data_val = MDB_val {
-			mv_size: value.len(),
-			mv_data: value.as_ptr() as *mut u8,
+			mv_size: value.as_ref().len(),
+			mv_data: value.as_ref().as_ptr() as *mut u8,
 		};
 		unsafe {
 			if mdb_put(self.txn, self.dbi, &mut key_val, &mut data_val, 0) != MDB_SUCCESS {
 				return Err(Error::new(LmdbPut));
+			}
+		}
+		Ok(())
+	}
+
+	pub fn del<K: AsRef<[u8]>>(&mut self, key: &K) -> Result<(), Error> {
+		if !self.write {
+			return Err(Error::new(IllegalState));
+		}
+		let mut key_val = MDB_val {
+			mv_size: key.as_ref().len(),
+			mv_data: key.as_ref().as_ptr() as *mut u8,
+		};
+		unsafe {
+			if mdb_del(self.txn, self.dbi, &mut key_val, null_mut()) != MDB_SUCCESS {
+				return Err(Error::new(LmdbDel));
 			}
 		}
 		Ok(())
@@ -70,22 +87,6 @@ impl LmdbTxn {
 			}
 		}
 		forget(self);
-		Ok(())
-	}
-
-	pub fn del(&mut self, key: &[u8]) -> Result<(), Error> {
-		if !self.write {
-			return Err(Error::new(IllegalState));
-		}
-		let mut key_val = MDB_val {
-			mv_size: key.len(),
-			mv_data: key.as_ptr() as *mut u8,
-		};
-		unsafe {
-			if mdb_del(self.txn, self.dbi, &mut key_val, null_mut()) != MDB_SUCCESS {
-				return Err(Error::new(LmdbDel));
-			}
-		}
 		Ok(())
 	}
 }
@@ -110,20 +111,26 @@ mod test {
 		let db_size = 1024 * 1024 * 100;
 		let db_name = "mydb";
 		let db_dir = "bin";
+		let target = String::new("abc")?;
 		let mut db = Lmdb::new(db_dir, db_size, db_name)?;
 		let mut txn = db.write()?;
-		let mut v = match txn.get(&[0, 0, 0, 0])? {
+		let mut v = match txn.get(&target)? {
 			Some(v) => v[0],
 			None => 0,
 		};
 
-		println!("v={}", v);
+		//println!("v={}", v);
 		v += 1;
 		if v >= 10 {
-			txn.del(&[0, 0, 0, 0])?;
+			txn.del(&target)?;
 		} else {
-			txn.put(&[0, 0, 0, 0], &[v])?;
+			let vs = String::newb(&[v])?;
+			txn.put(&target, &vs)?;
 		}
+
+		let k1 = String::new("def")?;
+		let v1 = Box::new(1)?;
+		txn.put(&k1, &v1)?;
 
 		txn.commit()?;
 
@@ -131,11 +138,11 @@ mod test {
 
 		let db = Lmdb::new(db_dir, db_size, db_name)?;
 		let txn = db.read()?;
-		let _v = match txn.get(&[0, 0, 0, 0])? {
+		let _v = match txn.get(&target)? {
 			Some(v) => v[0],
 			None => 0,
 		};
-		println!("v2={}", v);
+		//println!("v2={}", v);
 
 		Ok(())
 	}

@@ -1,4 +1,5 @@
 use core::cmp::PartialEq;
+use core::convert::AsRef;
 use core::fmt::Debug;
 use core::fmt::Formatter as CoreFormatter;
 use core::ptr::copy_nonoverlapping;
@@ -28,6 +29,12 @@ impl Display for String {
 impl PartialEq for String {
 	fn eq(&self, other: &String) -> bool {
 		strcmp(self.to_str(), other.to_str()) == 0
+	}
+}
+
+impl AsRef<[u8]> for String {
+	fn as_ref(&self) -> &[u8] {
+		self.to_str().as_ref()
 	}
 }
 
