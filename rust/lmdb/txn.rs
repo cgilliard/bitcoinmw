@@ -30,8 +30,8 @@ impl LmdbCursor {
 	) -> Result<Option<(usize, usize)>, Error> {
 		unsafe {
 			let mut key_val = MDB_val {
-				mv_size: self.prefix.len(),
-				mv_data: self.prefix.as_mut_ptr(),
+				mv_size: 0,
+				mv_data: null_mut(),
 			};
 
 			let mut data_val = MDB_val {
@@ -53,13 +53,6 @@ impl LmdbCursor {
 			} else if rc != MDB_SUCCESS {
 				return Err(Error::new(LmdbCursor));
 			}
-
-			/*
-			let prefix_string = match self.prefix.as_str() {
-				Ok(ps) => ps,
-				Err(_) => return Err(Error::new(IllegalState)),
-			};
-						*/
 
 			let key_len = if key_val.mv_size > key.len() {
 				key.len()
@@ -189,8 +182,6 @@ impl LmdbTxn {
 			}
 
 			Ok(LmdbCursor {
-				//txn: self.txn,
-				//dbi: self.dbi,
 				cursor,
 				prefix: prefix_cstr,
 				is_first: true,
@@ -515,12 +506,16 @@ pub mod test {
 		make_lmdb_test_dir(db_dir)?;
 		let mut db = Lmdb::new(db_dir, db_name, db_size)?;
 
+		let test1 = "test1".as_bytes();
+		let test2 = "test2".as_bytes();
+		let test3 = "test3".as_bytes();
+
 		{
 			let mut txn = db.write()?;
 
-			txn.put(&String::new("test3")?, &['x' as u8; 1])?;
-			txn.put(&String::new("test2")?, &['y' as u8; 1])?;
-			txn.put(&String::new("test1")?, &['z' as u8; 1])?;
+			txn.put(&test3, &['x' as u8; 1])?;
+			txn.put(&test2, &['y' as u8; 1])?;
+			txn.put(&test1, &['z' as u8; 1])?;
 			txn.commit()?;
 		}
 
@@ -529,7 +524,8 @@ pub mod test {
 
 		{
 			let txn = db.read()?;
-			let mut iter = txn.iter(&String::new("test")?)?;
+			let test = [b't', b'e', b's', b't'];
+			let mut iter = txn.iter(&test)?;
 			let mut count = 0;
 			loop {
 				let mut key = [0u8; 128];
