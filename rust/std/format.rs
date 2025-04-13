@@ -165,6 +165,24 @@ impl_display_array!(
 	27, 28, 29, 30, 31, 32, 40, 48, 56, 64, 96, 128, 256
 );
 
+impl<T: Display> Display for &[T] {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
+		let len = self.len();
+		writeb!(f, "[")?;
+		if len > 0 {
+			for i in 0..len {
+				if i != len - 1 {
+					writeb!(f, "{}, ", self[i])?;
+				} else {
+					writeb!(f, "{}", self[i])?;
+				}
+			}
+		}
+		writeb!(f, "]")?;
+		Ok(())
+	}
+}
+
 /*
 impl<T: Display> Display for [T; 32] {
 	fn format(&self, f: &mut Formatter) -> Result<(), Error> {

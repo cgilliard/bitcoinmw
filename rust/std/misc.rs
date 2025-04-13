@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 
+use core::ptr::{copy_nonoverlapping, null};
 use core::slice::from_raw_parts;
 use prelude::*;
+use std::ffi::{alloc, release};
 
 pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
 	if len + off > n.len() {
@@ -247,4 +249,38 @@ pub fn u256_less_than_or_equal(max_value: &[u8; 32], value: &[u8; 32]) -> bool {
 		i += 1;
 	}
 	true
+}
+
+pub struct CStr {
+	ptr: *const u8,
+}
+
+impl Drop for CStr {
+	fn drop(&mut self) {
+		unsafe {
+			if !self.ptr.is_null() {
+				release(self.ptr);
+				self.ptr = null();
+			}
+		}
+	}
+}
+
+impl CStr {
+	pub fn new(s: &str) -> Result<Self, Error> {
+		let len = s.len();
+		unsafe {
+			let ptr = alloc(len + 1) as *mut u8;
+			if ptr.is_null() {
+				return Err(Error::new(Alloc));
+			}
+			copy_nonoverlapping(s.as_ptr(), ptr, len);
+			*ptr.add(len) = 0u8;
+			Ok(Self { ptr })
+		}
+	}
+
+	pub fn as_ptr(&self) -> *const u8 {
+		self.ptr
+	}
 }
