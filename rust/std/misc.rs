@@ -335,6 +335,18 @@ impl CStr {
 	pub fn as_mut_ptr(&mut self) -> *mut u8 {
 		self.ptr as *mut u8
 	}
+
+	pub fn copy_to_slice(&self, slice: &mut [u8], offset: usize) -> Result<(), Error> {
+		let len = self.len();
+		if offset + slice.len() > len {
+			Err(Error::new(ArrayIndexOutOfBounds))
+		} else {
+			unsafe {
+				copy_nonoverlapping(self.ptr.offset(offset as isize), slice.as_mut_ptr(), len);
+			}
+			Ok(())
+		}
+	}
 }
 
 #[cfg(test)]
@@ -361,6 +373,18 @@ mod test {
 		assert_eq!(c1[3], 't' as u8);
 		assert_eq!(c1[4], 'r' as u8);
 		assert_eq!(c1[5], 0 as u8);
+
+		let mut slice = [0u8; 5];
+		c1.copy_to_slice(&mut slice, 0)?;
+		assert_eq!(
+			slice,
+			['m' as u8, 'y' as u8, 's' as u8, 't' as u8, 'r' as u8]
+		);
+
+		assert!(c1.copy_to_slice(&mut slice, 1).is_err());
+		let mut slice = [0u8; 3];
+		c1.copy_to_slice(&mut slice, 2)?;
+		assert_eq!(slice, ['s' as u8, 't' as u8, 'r' as u8]);
 
 		Ok(())
 	}
