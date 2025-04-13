@@ -118,14 +118,14 @@ mod test {
 	#[test]
 	fn test_lmdb1() -> Result<(), Error> {
 		let env = LmdbEnv::new("bin", 1024 * 1024 * 100, 10)?;
-		let db = env.open_db(Some("mydb"))?;
-		let mut txn = env.begin_txn(true)?;
+		let db = env.open_db("mydb")?;
+		let mut txn = db.write()?;
 		let mut v = match txn.get(&db, &[0, 0, 0, 0])? {
 			Some(v) => v[0],
 			None => 0,
 		};
 
-		//println!("v={}", v);
+		println!("v={}", v);
 		v += 1;
 		txn.put(&db, &[0, 0, 0, 0], &[v], true)?;
 

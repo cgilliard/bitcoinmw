@@ -57,11 +57,8 @@ impl LmdbEnv {
 		Ok(LmdbTxn::new(txn, write))
 	}
 
-	pub fn open_db(&self, name: Option<&str>) -> Result<LmdbDb, Error> {
-		let name_cstr = match name {
-			Some(name) => CStr::new(name),
-			None => CStr::new(""),
-		}?;
+	pub fn open_db(&self, name: &str) -> Result<LmdbDb, Error> {
+		let name_cstr = CStr::new(name)?;
 		let mut txn = self.begin_txn(true)?;
 		let mut dbi = MDB_dbi(0);
 		unsafe {
@@ -71,16 +68,26 @@ impl LmdbEnv {
 			}
 		}
 		txn.commit()?;
-		Ok(LmdbDb { dbi })
+		let env = self;
+		Ok(LmdbDb { dbi, env })
 	}
 }
 
-pub struct LmdbDb {
+pub struct LmdbDb<'a> {
 	dbi: MDB_dbi,
+	env: &'a LmdbEnv,
 }
 
-impl LmdbDb {
+impl LmdbDb<'_> {
 	pub fn dbi(&self) -> MDB_dbi {
 		self.dbi
+	}
+
+	pub fn write(&self) -> Result<LmdbTxn, Error> {
+		self.env.begin_txn(true)
+	}
+
+	pub fn read(&self) -> Result<LmdbTxn, Error> {
+		self.env.begin_txn(false)
 	}
 }
