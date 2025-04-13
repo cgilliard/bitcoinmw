@@ -1,5 +1,5 @@
 mod constants;
-mod env;
+pub mod db;
 mod ffi;
-mod txn;
+pub mod txn;
 mod types;
