@@ -102,9 +102,42 @@ mod test {
 		let db_name = "mydb";
 		let db_dir = "bin/.lmdb3";
 		make_lmdb_test_dir(db_dir)?;
-		let _db = Lmdb::new(db_dir, db_name, db_size)?;
+		let mut db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let mut txn = db.write()?;
+			let a = String::new("a")?;
+			let b = String::new("b")?;
+			txn.put(&a, &b)?;
+			txn.commit()?;
+		}
+
+		db.close()?;
+
+		let mut db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let mut txn = db.write()?;
+			let a = String::new("a")?;
+			let v = txn.get(&a)?.unwrap();
+			assert_eq!(v[0], 'b' as u8);
+
+			txn.del(&a)?;
+			txn.commit()?;
+		}
+
+		db.close()?;
+		let db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let txn = db.read()?;
+			let a = String::new("a")?;
+			let v = txn.get(&a)?;
+			assert!(v.is_none());
+		}
 
 		remove_lmdb_test_dir(db_dir)?;
+
 		Ok(())
 	}
 }
