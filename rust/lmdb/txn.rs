@@ -102,15 +102,42 @@ impl Drop for LmdbTxn {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
 	use super::*;
 	use lmdb::db::Lmdb;
+	use std::ffi::{mkdir, rmdir, unlink};
+	use std::misc::CStr;
+
+	pub fn make_lmdb_test_dir(s: &str) -> Result<(), Error> {
+		remove_lmdb_test_dir(s)?;
+		let cstr = CStr::new(s)?;
+		unsafe {
+			mkdir(cstr.as_ptr(), 0o700);
+		}
+		Ok(())
+	}
+
+	pub fn remove_lmdb_test_dir(s: &str) -> Result<(), Error> {
+		let data_file = format!("{}/data.mdb", s)?;
+		let lock_file = format!("{}/lock.mdb", s)?;
+		let dir = CStr::new(s)?;
+		let data = CStr::new(data_file.to_str())?;
+		let lock = CStr::new(lock_file.to_str())?;
+
+		unsafe {
+			unlink(data.as_ptr());
+			unlink(lock.as_ptr());
+			rmdir(dir.as_ptr());
+		}
+		Ok(())
+	}
 
 	#[test]
 	fn test_lmdb1() -> Result<(), Error> {
 		let db_size = 1024 * 1024 * 100;
 		let db_name = "mydb";
-		let db_dir = "bin";
+		let db_dir = "bin/.lmdb";
+		make_lmdb_test_dir(db_dir)?;
 		let target = String::new("abc")?;
 		let mut db = Lmdb::new(db_dir, db_name, db_size)?;
 		{
@@ -120,7 +147,55 @@ mod test {
 				None => 0,
 			};
 
-			//println!("v={}", v);
+			assert_eq!(v, 0);
+
+			v += 1;
+			if v >= 10 {
+				txn.del(&target)?;
+			} else {
+				let vs = String::newb(&[v])?;
+				txn.put(&target, &vs)?;
+			}
+
+			txn.commit()?;
+		}
+
+		db.close()?;
+
+		let db = Lmdb::new(db_dir, db_name, db_size)?;
+		{
+			let txn = db.read()?;
+			let v = match txn.get(&target)? {
+				Some(v) => v[0],
+				None => 0,
+			};
+			assert_eq!(v, 1);
+		}
+
+		remove_lmdb_test_dir(db_dir)?;
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_lmdb2() -> Result<(), Error> {
+		let db_dir = "bin/.lmdb2";
+		let db_size = 1024 * 1024 * 100;
+		let db_name = "mydb";
+		let target = String::new("abc")?;
+
+		make_lmdb_test_dir(db_dir)?;
+		let mut db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let mut txn = db.write()?;
+			let mut v = match txn.get(&target)? {
+				Some(v) => v[0],
+				None => 0,
+			};
+
+			assert_eq!(v, 0);
+
 			v += 1;
 			if v >= 10 {
 				txn.del(&target)?;
@@ -141,32 +216,15 @@ mod test {
 		let db = Lmdb::new(db_dir, db_name, db_size)?;
 		{
 			let txn = db.read()?;
-			let _v = match txn.get(&target)? {
+			let v = match txn.get(&target)? {
 				Some(v) => v[0],
 				None => 0,
 			};
-			//println!("v2={}", _v);
+
+			assert_eq!(v, 1);
 		}
 
-		Ok(())
-	}
-
-	#[test]
-	fn test_lmdb2() -> Result<(), Error> {
-		/*
-		let db_size = 1024 * 1024 * 100;
-		let db_name = "mydb2";
-		let db_dir = "bin";
-		let db = Lmdb::new(db_dir, db_name, db_size)?;
-		{
-			let txn = db.write()?;
-			let txn2 = db.read()?;
-
-			txn.commit()?;
-		}
-
-		let txn = db.write()?;
-			*/
+		remove_lmdb_test_dir(db_dir)?;
 		Ok(())
 	}
 }

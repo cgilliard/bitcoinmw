@@ -90,3 +90,21 @@ impl Lmdb {
 		Ok(())
 	}
 }
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use lmdb::txn::test::{make_lmdb_test_dir, remove_lmdb_test_dir};
+
+	#[test]
+	fn test_lmdb3() -> Result<(), Error> {
+		let db_size = 1024 * 1024 * 100;
+		let db_name = "mydb";
+		let db_dir = "bin/.lmdb3";
+		make_lmdb_test_dir(db_dir)?;
+		let _db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		remove_lmdb_test_dir(db_dir)?;
+		Ok(())
+	}
+}
