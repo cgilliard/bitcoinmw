@@ -108,14 +108,16 @@ mod test {
 	#[test]
 	fn test_lmdb1() -> Result<(), Error> {
 		let db_size = 1024 * 1024 * 100;
-		let mut db = Lmdb::new("bin", db_size, "mydb")?;
+		let db_name = "mydb";
+		let db_dir = "bin";
+		let mut db = Lmdb::new(db_dir, db_size, db_name)?;
 		let mut txn = db.write()?;
 		let mut v = match txn.get(&[0, 0, 0, 0])? {
 			Some(v) => v[0],
 			None => 0,
 		};
 
-		//println!("v={}", v);
+		println!("v={}", v);
 		v += 1;
 		if v >= 10 {
 			txn.del(&[0, 0, 0, 0])?;
@@ -127,13 +129,13 @@ mod test {
 
 		db.close()?;
 
-		let db = Lmdb::new("bin", db_size, "mydb")?;
+		let db = Lmdb::new(db_dir, db_size, db_name)?;
 		let txn = db.read()?;
 		let _v = match txn.get(&[0, 0, 0, 0])? {
 			Some(v) => v[0],
 			None => 0,
 		};
-		//println!("v2={}", v);
+		println!("v2={}", v);
 
 		Ok(())
 	}
