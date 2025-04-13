@@ -303,6 +303,16 @@ impl CStr {
 		len
 	}
 
+	pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
+		let len = self.len();
+		let mut r = Vec::with_capacity(len)?;
+		unsafe {
+			copy_nonoverlapping(self.ptr, r.as_mut_ptr(), len);
+			r.set_len(len);
+		}
+		Ok(r)
+	}
+
 	pub fn as_ptr(&self) -> *const u8 {
 		self.ptr
 	}

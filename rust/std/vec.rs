@@ -314,6 +314,10 @@ impl<T> Vec<T> {
 		self.elements
 	}
 
+	pub fn set_len(&mut self, elements: usize) {
+		self.elements = elements;
+	}
+
 	pub fn as_mut_ptr(&mut self) -> *mut T {
 		self.value.raw() as *mut T
 	}

@@ -17,8 +17,6 @@ pub struct LmdbTxn {
 }
 
 pub struct LmdbCursor {
-	txn: *mut MDB_txn,
-	dbi: MDB_dbi,
 	cursor: *mut MDB_cursor,
 	prefix: CStr,
 	is_first: bool,
@@ -125,8 +123,8 @@ impl LmdbTxn {
 			}
 
 			Ok(LmdbCursor {
-				txn: self.txn,
-				dbi: self.dbi,
+				//txn: self.txn,
+				//dbi: self.dbi,
 				cursor,
 				prefix: prefix_cstr,
 				is_first: true,
@@ -383,10 +381,13 @@ pub mod test {
 			for v in txn.iter(&String::new("test")?)? {
 				if i == 0 {
 					assert_eq!(unsafe { *v.as_ptr() }, 'z' as u8);
+					assert_eq!(v.as_bytes()?[0], 'z' as u8);
 				} else if i == 1 {
 					assert_eq!(unsafe { *v.as_ptr() }, 'y' as u8);
+					assert_eq!(v.as_bytes()?[0], 'y' as u8);
 				} else if i == 2 {
 					assert_eq!(unsafe { *v.as_ptr() }, 'x' as u8);
+					assert_eq!(v.as_bytes()?[0], 'x' as u8);
 				}
 				i += 1;
 			}
