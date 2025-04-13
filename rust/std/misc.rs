@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use core::ops::{Index, IndexMut};
 use core::ptr::{copy_nonoverlapping, null};
 use core::slice::from_raw_parts;
 use prelude::*;
@@ -267,6 +268,20 @@ impl Drop for CStr {
 	}
 }
 
+impl Index<usize> for CStr {
+	type Output = u8;
+
+	fn index(&self, index: usize) -> &Self::Output {
+		unsafe { &*self.ptr.offset(index as isize) }
+	}
+}
+
+impl IndexMut<usize> for CStr {
+	fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+		unsafe { &mut *(self.ptr.offset(index as isize) as *mut u8) }
+	}
+}
+
 impl CStr {
 	pub fn new(s: &str) -> Result<Self, Error> {
 		let len = s.len();
@@ -286,7 +301,7 @@ impl CStr {
 	}
 
 	pub fn as_str(&self) -> Result<String, Error> {
-		unsafe { String::newb(crate::core::slice::from_raw_parts(self.ptr, self.len())) }
+		unsafe { String::newb(from_raw_parts(self.ptr, self.len())) }
 	}
 
 	pub fn len(&self) -> usize {
@@ -339,6 +354,13 @@ mod test {
 			assert_eq!(*ptr.offset(4), 'r' as u8);
 			assert_eq!(*ptr.offset(5), 0 as u8);
 		}
+
+		assert_eq!(c1[0], 'm' as u8);
+		assert_eq!(c1[1], 'y' as u8);
+		assert_eq!(c1[2], 's' as u8);
+		assert_eq!(c1[3], 't' as u8);
+		assert_eq!(c1[4], 'r' as u8);
+		assert_eq!(c1[5], 0 as u8);
 
 		Ok(())
 	}

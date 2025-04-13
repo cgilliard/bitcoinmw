@@ -23,7 +23,7 @@ pub struct LmdbCursor {
 }
 
 impl Iterator for LmdbCursor {
-	type Item = CStr;
+	type Item = (CStr, CStr);
 
 	fn next(&mut self) -> Option<Self::Item> {
 		unsafe {
@@ -60,21 +60,21 @@ impl Iterator for LmdbCursor {
 
 			// Convert key to CStr to check prefix
 			let key_slice = from_raw_parts(key_val.mv_data, key_val.mv_size);
-			match String::newb(key_slice) {
+			let key_cstr = match String::newb(key_slice) {
 				Ok(s) => {
 					if s.find(prefix_string.to_str()) != Some(0) {
 						return None;
 					}
 					match CStr::new(s.to_str()) {
-						Ok(_) => {}
+						Ok(s) => s,
 						Err(_) => return None,
 					}
 				}
 				Err(_) => return None,
-			}
+			};
 
 			let data_cstr = CStr::from_ptr(data_val.mv_data, true);
-			Some(data_cstr)
+			Some((key_cstr, data_cstr))
 		}
 	}
 }
@@ -378,16 +378,19 @@ pub mod test {
 			assert_eq!(unsafe { *out.unwrap().as_ptr() }, 'x' as u8);
 
 			let mut i = 0;
-			for v in txn.iter(&String::new("test")?)? {
+			for (k, v) in txn.iter(&String::new("test")?)? {
 				if i == 0 {
 					assert_eq!(unsafe { *v.as_ptr() }, 'z' as u8);
 					assert_eq!(v.as_bytes()?[0], 'z' as u8);
+					assert_eq!(k.as_str()?, String::new("test1")?);
 				} else if i == 1 {
 					assert_eq!(unsafe { *v.as_ptr() }, 'y' as u8);
 					assert_eq!(v.as_bytes()?[0], 'y' as u8);
+					assert_eq!(k.as_str()?, String::new("test2")?);
 				} else if i == 2 {
 					assert_eq!(unsafe { *v.as_ptr() }, 'x' as u8);
 					assert_eq!(v.as_bytes()?[0], 'x' as u8);
+					assert_eq!(k.as_str()?, String::new("test3")?);
 				}
 				i += 1;
 			}
