@@ -1,7 +1,7 @@
 use core::convert::AsRef;
 use core::iter::Iterator;
 use core::mem::forget;
-use core::ptr::null_mut;
+use core::ptr::{copy_nonoverlapping, null_mut};
 use core::slice::from_raw_parts;
 use core::str::from_utf8;
 use lmdb::constants::{MDB_GET_CURRENT, MDB_NEXT, MDB_NOTFOUND, MDB_SET_RANGE, MDB_SUCCESS};
@@ -20,6 +20,63 @@ pub struct LmdbCursor {
 	cursor: *mut MDB_cursor,
 	prefix: CStr,
 	is_first: bool,
+}
+
+impl LmdbCursor {
+	pub fn next_bytes(
+		&mut self,
+		key: &mut [u8],
+		value: &mut [u8],
+	) -> Result<Option<(usize, usize)>, Error> {
+		unsafe {
+			let mut key_val = MDB_val {
+				mv_size: self.prefix.len(),
+				mv_data: self.prefix.as_mut_ptr(),
+			};
+
+			let mut data_val = MDB_val {
+				mv_size: 0,
+				mv_data: null_mut(),
+			};
+
+			let rc = if self.is_first {
+				// First call: use current position from MDB_SET_RANGE
+				self.is_first = false;
+				mdb_cursor_get(self.cursor, &mut key_val, &mut data_val, MDB_GET_CURRENT)
+			} else {
+				// Subsequent calls: move to next key
+				mdb_cursor_get(self.cursor, &mut key_val, &mut data_val, MDB_NEXT)
+			};
+
+			if rc == MDB_NOTFOUND {
+				return Ok(None);
+			} else if rc != MDB_SUCCESS {
+				return Err(Error::new(LmdbCursor));
+			}
+
+			/*
+			let prefix_string = match self.prefix.as_str() {
+				Ok(ps) => ps,
+				Err(_) => return Err(Error::new(IllegalState)),
+			};
+						*/
+
+			let key_len = if key_val.mv_size > key.len() {
+				key.len()
+			} else {
+				key_val.mv_size
+			};
+			copy_nonoverlapping(key_val.mv_data, key.as_mut_ptr(), key_len);
+
+			let value_len = if data_val.mv_size > value.len() {
+				value.len()
+			} else {
+				data_val.mv_size
+			};
+			copy_nonoverlapping(data_val.mv_data, value.as_mut_ptr(), value_len);
+			Ok(Some((key_val.mv_size, data_val.mv_size)))
+		}
+	}
 }
 
 impl Iterator for LmdbCursor {
@@ -73,7 +130,16 @@ impl Iterator for LmdbCursor {
 				Err(_) => return None,
 			};
 
-			let data_cstr = CStr::from_ptr(data_val.mv_data, true);
+			let data_slice = from_raw_parts(data_val.mv_data, data_val.mv_size);
+			let data_cstr = match String::newb(data_slice) {
+				Ok(s) => CStr::new(s.to_str()),
+				Err(_) => return None,
+			};
+			let data_cstr = match data_cstr {
+				Ok(s) => s,
+				Err(_) => return None,
+			};
+
 			Some((key_cstr, data_cstr))
 		}
 	}
@@ -266,8 +332,7 @@ pub mod test {
 			if v >= 10 {
 				txn.del(&target)?;
 			} else {
-				let vs = String::newb(&[v])?;
-				txn.put(&target, &vs)?;
+				txn.put(&target, &[v])?;
 			}
 
 			txn.commit()?;
@@ -313,8 +378,7 @@ pub mod test {
 			if v >= 10 {
 				txn.del(&target)?;
 			} else {
-				let vs = String::newb(&[v])?;
-				txn.put(&target, &vs)?;
+				txn.put(&target, &[v])?;
 			}
 
 			let k1 = String::new("def")?;
@@ -399,6 +463,106 @@ pub mod test {
 
 		remove_lmdb_test_dir(db_dir)?;
 
+		Ok(())
+	}
+
+	#[test]
+	fn test_simple_iter() -> Result<(), Error> {
+		let db_dir = "bin/.lmdb_simple_iter";
+		let db_size = 1024 * 1024 * 100;
+		let db_name = "mydb";
+		make_lmdb_test_dir(db_dir)?;
+		let mut db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let mut txn = db.write()?;
+
+			txn.put(&String::new("test3")?, &['x' as u8; 1])?;
+			txn.put(&String::new("test2")?, &['y' as u8; 1])?;
+			txn.put(&String::new("test1")?, &['z' as u8; 1])?;
+			txn.commit()?;
+		}
+
+		db.close()?;
+		let db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let txn = db.read()?;
+			let mut values = Vec::new();
+			let mut keys = Vec::new();
+			for (k, v) in txn.iter(&String::new("test")?)? {
+				keys.push(k)?;
+				values.push(v)?;
+			}
+			assert_eq!(keys[0].as_str()?, String::new("test1")?);
+			assert_eq!(keys[1].as_str()?, String::new("test2")?);
+			assert_eq!(keys[2].as_str()?, String::new("test3")?);
+
+			assert_eq!(values[0].as_bytes()?, vec!['z' as u8]?);
+			assert_eq!(values[1].as_bytes()?, vec!['y' as u8]?);
+			assert_eq!(values[2].as_bytes()?, vec!['x' as u8]?);
+		}
+
+		remove_lmdb_test_dir(db_dir)?;
+		Ok(())
+	}
+
+	#[test]
+	fn test_raw_iter() -> Result<(), Error> {
+		let db_dir = "bin/.lmdb_raw_iter";
+		let db_size = 1024 * 1024 * 100;
+		let db_name = "mydb";
+		make_lmdb_test_dir(db_dir)?;
+		let mut db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let mut txn = db.write()?;
+
+			txn.put(&String::new("test3")?, &['x' as u8; 1])?;
+			txn.put(&String::new("test2")?, &['y' as u8; 1])?;
+			txn.put(&String::new("test1")?, &['z' as u8; 1])?;
+			txn.commit()?;
+		}
+
+		db.close()?;
+		let db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let txn = db.read()?;
+			let mut iter = txn.iter(&String::new("test")?)?;
+			let mut count = 0;
+			loop {
+				let mut key = [0u8; 128];
+				let mut value = [0u8; 128];
+				let res = iter.next_bytes(&mut key, &mut value)?;
+				match res {
+					Some((klen, vlen)) => {
+						if count == 0 {
+							assert_eq!(&key[0..5], "test1".as_bytes());
+							assert_eq!(klen, 5);
+							assert_eq!(vlen, 1);
+							assert_eq!(value[0], b'z');
+						} else if count == 1 {
+							assert_eq!(&key[0..5], "test2".as_bytes());
+							assert_eq!(klen, 5);
+							assert_eq!(vlen, 1);
+							assert_eq!(value[0], b'y');
+						} else {
+							assert_eq!(&key[0..5], "test3".as_bytes());
+							assert_eq!(klen, 5);
+							assert_eq!(vlen, 1);
+							assert_eq!(value[0], b'x');
+						}
+						count += 1;
+					}
+					None => break,
+				}
+			}
+
+			assert_eq!(count, 3);
+		}
+
+		remove_lmdb_test_dir(db_dir)?;
 		Ok(())
 	}
 }

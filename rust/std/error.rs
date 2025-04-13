@@ -40,6 +40,7 @@ define_errorkind_with_strings!(
 	LmdbPut,
 	LmdbGet,
 	LmdbDel,
+	LmdbCursor,
 	BlockNotFound,
 	KernelNotFound,
 	MultipleCoinbase,
