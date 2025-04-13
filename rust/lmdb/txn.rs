@@ -112,38 +112,61 @@ mod test {
 		let db_name = "mydb";
 		let db_dir = "bin";
 		let target = String::new("abc")?;
-		let mut db = Lmdb::new(db_dir, db_size, db_name)?;
-		let mut txn = db.write()?;
-		let mut v = match txn.get(&target)? {
-			Some(v) => v[0],
-			None => 0,
-		};
+		let mut db = Lmdb::new(db_dir, db_name, db_size)?;
+		{
+			let mut txn = db.write()?;
+			let mut v = match txn.get(&target)? {
+				Some(v) => v[0],
+				None => 0,
+			};
 
-		//println!("v={}", v);
-		v += 1;
-		if v >= 10 {
-			txn.del(&target)?;
-		} else {
-			let vs = String::newb(&[v])?;
-			txn.put(&target, &vs)?;
+			//println!("v={}", v);
+			v += 1;
+			if v >= 10 {
+				txn.del(&target)?;
+			} else {
+				let vs = String::newb(&[v])?;
+				txn.put(&target, &vs)?;
+			}
+
+			let k1 = String::new("def")?;
+			let v1 = Box::new(1)?;
+			txn.put(&k1, &v1)?;
+
+			txn.commit()?;
 		}
-
-		let k1 = String::new("def")?;
-		let v1 = Box::new(1)?;
-		txn.put(&k1, &v1)?;
-
-		txn.commit()?;
 
 		db.close()?;
 
-		let db = Lmdb::new(db_dir, db_size, db_name)?;
-		let txn = db.read()?;
-		let _v = match txn.get(&target)? {
-			Some(v) => v[0],
-			None => 0,
-		};
-		//println!("v2={}", v);
+		let db = Lmdb::new(db_dir, db_name, db_size)?;
+		{
+			let txn = db.read()?;
+			let _v = match txn.get(&target)? {
+				Some(v) => v[0],
+				None => 0,
+			};
+			//println!("v2={}", _v);
+		}
 
+		Ok(())
+	}
+
+	#[test]
+	fn test_lmdb2() -> Result<(), Error> {
+		/*
+		let db_size = 1024 * 1024 * 100;
+		let db_name = "mydb2";
+		let db_dir = "bin";
+		let db = Lmdb::new(db_dir, db_name, db_size)?;
+		{
+			let txn = db.write()?;
+			let txn2 = db.read()?;
+
+			txn.commit()?;
+		}
+
+		let txn = db.write()?;
+			*/
 		Ok(())
 	}
 }

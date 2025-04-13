@@ -23,7 +23,7 @@ impl Drop for Lmdb {
 }
 
 impl Lmdb {
-	pub fn new(path: &str, map_size: usize, name: &str) -> Result<Self, Error> {
+	pub fn new(path: &str, name: &str, map_size: usize) -> Result<Self, Error> {
 		let mut env: *mut MDB_env = null_mut();
 		let mut dbi;
 		unsafe {
