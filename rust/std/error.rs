@@ -32,6 +32,7 @@ define_errorkind_with_strings!(
 	InvalidSecretKey,
 	InsufficientBlockHash,
 	InvalidBlockHash,
+	InvalidUtf8,
 	LmdbCreate,
 	LmdbOpen,
 	LmdbBeginTxn,

@@ -253,12 +253,13 @@ pub fn u256_less_than_or_equal(max_value: &[u8; 32], value: &[u8; 32]) -> bool {
 
 pub struct CStr {
 	ptr: *const u8,
+	leak: bool,
 }
 
 impl Drop for CStr {
 	fn drop(&mut self) {
 		unsafe {
-			if !self.ptr.is_null() {
+			if !self.leak && !self.ptr.is_null() {
 				release(self.ptr);
 				self.ptr = null();
 			}
@@ -276,11 +277,59 @@ impl CStr {
 			}
 			copy_nonoverlapping(s.as_ptr(), ptr, len);
 			*ptr.add(len) = 0u8;
-			Ok(Self { ptr })
+			Ok(Self { ptr, leak: false })
 		}
+	}
+
+	pub fn from_ptr(ptr: *const u8, leak: bool) -> Self {
+		Self { ptr, leak }
+	}
+
+	pub fn as_str(&self) -> Result<String, Error> {
+		unsafe { String::newb(crate::core::slice::from_raw_parts(self.ptr, self.len())) }
+	}
+
+	pub fn len(&self) -> usize {
+		let mut len = 0;
+		unsafe {
+			let mut current = self.ptr;
+			while *current != 0 {
+				len += 1;
+				current = current.add(1);
+				// Safety: Assume ptr is valid and null-terminated (from new)
+				// No bound check; trust alloc(len + 1) in new
+			}
+		}
+		len
 	}
 
 	pub fn as_ptr(&self) -> *const u8 {
 		self.ptr
+	}
+
+	pub fn as_mut_ptr(&mut self) -> *mut u8 {
+		self.ptr as *mut u8
+	}
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	#[test]
+	fn test_cstr() -> Result<(), Error> {
+		let c1 = CStr::new("mystr")?;
+		assert_eq!(c1.as_str()?, String::new("mystr")?);
+
+		let ptr = c1.as_ptr();
+		unsafe {
+			assert_eq!(*ptr, 'm' as u8);
+			assert_eq!(*ptr.offset(1), 'y' as u8);
+			assert_eq!(*ptr.offset(2), 's' as u8);
+			assert_eq!(*ptr.offset(3), 't' as u8);
+			assert_eq!(*ptr.offset(4), 'r' as u8);
+			assert_eq!(*ptr.offset(5), 0 as u8);
+		}
+
+		Ok(())
 	}
 }

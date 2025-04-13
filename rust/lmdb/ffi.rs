@@ -1,4 +1,4 @@
-use lmdb::types::{MDB_dbi, MDB_env, MDB_txn, MDB_val};
+use lmdb::types::{MDB_cursor, MDB_dbi, MDB_env, MDB_txn, MDB_val};
 
 extern "C" {
 	pub fn mdb_env_create(env: *mut *mut MDB_env) -> i32;
@@ -24,4 +24,12 @@ extern "C" {
 	) -> i32;
 	pub fn mdb_get(txn: *mut MDB_txn, dbi: MDB_dbi, key: *mut MDB_val, data: *mut MDB_val) -> i32;
 	pub fn mdb_del(txn: *mut MDB_txn, dbi: MDB_dbi, key: *mut MDB_val, data: *mut MDB_val) -> i32;
+	pub fn mdb_cursor_open(txn: *mut MDB_txn, dbi: MDB_dbi, cursor: *mut *mut MDB_cursor) -> i32;
+	pub fn mdb_cursor_get(
+		cursor: *mut MDB_cursor,
+		key: *mut MDB_val,
+		data: *mut MDB_val,
+		op: u32,
+	) -> i32;
+	pub fn mdb_cursor_close(cursor: *mut MDB_cursor);
 }

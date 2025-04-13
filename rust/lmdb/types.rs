@@ -7,6 +7,9 @@ pub struct MDB_txn(i32); // Opaque
 pub struct MDB_dbi(pub u32);
 
 #[repr(C)]
+pub struct MDB_cursor(i32);
+
+#[repr(C)]
 pub struct MDB_val {
 	pub mv_size: usize,
 	pub mv_data: *mut u8,
