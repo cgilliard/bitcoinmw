@@ -1,5 +1,5 @@
 // Internal
-pub use crypto::{Cpsrng, Sha3};
+pub use crypto::{Cpsrng, Sha3, Sha3ByteSize};
 pub use mw::{KeyChain, Slate, Transaction};
 pub use std::boxed::Box;
 pub use std::clone::TryClone;
