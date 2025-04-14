@@ -4,7 +4,7 @@ use mw::kernel::Kernel;
 use mw::transaction::Transaction;
 use prelude::*;
 use std::ffi::getmicros;
-use std::misc::{to_le_bytes_u32, u256_less_than_or_equal};
+use std::misc::{to_le_bytes_u32, to_le_bytes_u64, u256_less_than_or_equal};
 
 /*
  * Further optimization:
@@ -17,8 +17,9 @@ pub struct BlockHeader {
 	header_version: u8,
 	// the 16 lower bytes of the hash of prev block (sufficient to describe chain)
 	prev_hash: [u8; 16],
-	// timestamp in seconds since epoch (ISO 8601) 00:00:00 Jan 1, 1970
-	timestamp: u32,
+	// timestamp in seconds since epoch (ISO 8601) 00:00:00 Jan 1, 1970 (5 bytes allows for
+	// 1099511627776 seconds (~34865 years).
+	timestamp: [u8; 5],
 	// The merkle root of all the kernels in this block. (using sha3-256).
 	kernel_merkle_root: [u8; 32],
 	// nonce (for calculating pow)
@@ -51,7 +52,9 @@ pub struct Block {
 impl BlockHeader {
 	fn new(prev_hash: [u8; 16], kernel_merkle_root: [u8; 32]) -> Self {
 		let header_version = BLOCK_HEADER_VERSION;
-		let timestamp = unsafe { getmicros() / 1_000_000u64 } as u32;
+		let timestamp = unsafe { getmicros() / 1_000_000u64 };
+		let timestamp = Self::timestamp_to_bytes_le(timestamp);
+
 		let nonce = 0;
 		Self {
 			header_version,
@@ -60,6 +63,12 @@ impl BlockHeader {
 			nonce,
 			kernel_merkle_root,
 		}
+	}
+
+	fn timestamp_to_bytes_le(timestamp: u64) -> [u8; 5] {
+		let mut bytes = [0u8; 8];
+		to_le_bytes_u64(timestamp, &mut bytes);
+		[bytes[0], bytes[1], bytes[2], bytes[3], bytes[4]]
 	}
 }
 
@@ -173,8 +182,7 @@ impl Block {
 		sha3.update(&self.header.prev_hash);
 
 		// timestamp
-		to_le_bytes_u32(self.header.timestamp, &mut buf32);
-		sha3.update(&buf32[..]);
+		sha3.update(&self.header.timestamp);
 
 		// kernel_merkle_root
 		sha3.update(&self.header.kernel_merkle_root);
