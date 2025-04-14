@@ -1,4 +1,5 @@
 mod block;
+mod chain;
 mod constants;
 mod kernel;
 mod keychain;
