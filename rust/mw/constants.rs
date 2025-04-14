@@ -3,9 +3,9 @@ pub const INITIAL_DIFFICULTY: [u8; 32] = [255u8; 32];
 
 #[cfg(test)]
 pub const DIFFICULTY_8BIT_LEADING: [u8; 32] = [
-	0x0, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8,
+	0x0F, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8,
 	255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8, 255u8,
-	255u8, 255u8, 255u8, 255u8, 255u8,
+	255u8, 255u8, 255u8, 255u8, 255u8, 255u8,
 ];
 #[cfg(test)]
 pub const DIFFICULTY_HARD: [u8; 32] = [

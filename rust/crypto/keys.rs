@@ -5,6 +5,7 @@ use crypto::constants::ZERO_KEY;
 use crypto::ctx::Ctx;
 use crypto::ffi::*;
 use prelude::*;
+use std::misc::bytes_to_hex_64;
 
 #[repr(C)]
 pub struct Message([u8; 32]);
@@ -19,6 +20,16 @@ pub struct SecretKey([u8; 32]);
 pub struct Signature([u8; 64]);
 #[repr(C)]
 pub struct PublicKeyUncompressed([u8; 64]);
+
+impl Display for Signature {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
+		let b = bytes_to_hex_64(&self.0);
+		for i in 0..128 {
+			writeb!(f, "{}", b[i] as char)?;
+		}
+		Ok(())
+	}
+}
 
 impl Message {
 	pub fn new(v: [u8; 32]) -> Self {

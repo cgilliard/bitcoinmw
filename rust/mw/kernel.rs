@@ -11,6 +11,12 @@ pub struct Kernel {
 	features: u8,
 }
 
+impl Display for Kernel {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
+		writeb!(f, "{}{}", self.excess, self.signature)
+	}
+}
+
 impl Kernel {
 	pub fn new(excess: Commitment, signature: Signature, fee: u64, features: u8) -> Self {
 		Self {

@@ -248,3 +248,42 @@ pub fn u256_less_than_or_equal(max_value: &[u8; 32], value: &[u8; 32]) -> bool {
 	}
 	true
 }
+
+#[inline]
+fn nibble_to_hex(nibble: u8) -> u8 {
+	if nibble < 10 {
+		nibble + 48 // '0' = 48
+	} else {
+		nibble + 55 // 'A' = 65 (10 → 65, 11 → 66, ..., 15 → 70)
+	}
+}
+
+pub fn bytes_to_hex_33(bytes: &[u8; 33]) -> [u8; 66] {
+	let mut hex = [0u8; 66];
+
+	for i in 0..33 {
+		let byte = bytes[i];
+		let high = (byte >> 4) & 0x0F;
+		let low = byte & 0x0F;
+
+		hex[2 * i] = nibble_to_hex(high);
+		hex[2 * i + 1] = nibble_to_hex(low);
+	}
+
+	hex
+}
+
+pub fn bytes_to_hex_64(bytes: &[u8; 64]) -> [u8; 128] {
+	let mut hex = [0u8; 128];
+
+	for i in 0..64 {
+		let byte = bytes[i];
+		let high = (byte >> 4) & 0x0F;
+		let low = byte & 0x0F;
+
+		hex[2 * i] = nibble_to_hex(high);
+		hex[2 * i + 1] = nibble_to_hex(low);
+	}
+
+	hex
+}

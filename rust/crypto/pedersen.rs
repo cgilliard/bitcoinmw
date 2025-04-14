@@ -4,6 +4,7 @@ use crypto::ffi::*;
 use crypto::keys::PublicKeyUncompressed;
 use crypto::PublicKey;
 use prelude::*;
+use std::misc::bytes_to_hex_33;
 
 #[repr(C)]
 #[derive(Clone)]
@@ -21,6 +22,16 @@ impl CommitmentUncompressed {
 
 	pub fn as_mut_ptr(&mut self) -> *mut CommitmentUncompressed {
 		self.0.as_mut_ptr() as *mut CommitmentUncompressed
+	}
+}
+
+impl Display for Commitment {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
+		let b = bytes_to_hex_33(&self.0);
+		for i in 0..66 {
+			writeb!(f, "{}", b[i] as char)?;
+		}
+		Ok(())
 	}
 }
 
