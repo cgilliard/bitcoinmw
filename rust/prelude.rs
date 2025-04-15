@@ -3,6 +3,7 @@ pub use crypto::{Cpsrng, Sha3, Sha3ByteSize};
 pub use mw::{KeyChain, Slate, Transaction};
 pub use std::boxed::Box;
 pub use std::clone::TryClone;
+pub use std::cmp::{Ord, Ordering};
 pub use std::display::Display;
 pub use std::error::{Error, ErrorKind, ErrorKind::*};
 pub use std::format::Formatter;

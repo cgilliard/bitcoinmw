@@ -1,5 +1,4 @@
 use core::clone::Clone;
-use core::cmp::Ord;
 use core::ops::FnMut;
 use core::ptr::null_mut;
 use prelude::*;
@@ -471,7 +470,6 @@ impl<V: Ord> RbTree<V> {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use core::cmp::Ordering;
 	use std::ffi::getalloccount;
 	use util::murmur32::murmur3_32_of_u64;
 
