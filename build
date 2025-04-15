@@ -44,7 +44,6 @@ elif [ "mrustc" = "$1" ]; then
         fi
     done
     cd ..
-    export CC=clang # currently require clang here
     ${MRUSTC} -C panic=abort \
         -O \
         --crate-type=lib \
