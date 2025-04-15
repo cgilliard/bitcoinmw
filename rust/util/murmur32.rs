@@ -62,7 +62,12 @@ pub fn murmur3_32_of_slice(source: &[u8], seed: u32) -> u32 {
 				state = (state.wrapping_mul(M)).wrapping_add(N);
 				// SAFETY: unwrap ok because we know processed is '4' so we have
 				// sufficient bytes in the slice
-				buffer = subslice(buffer, 4, buffer.len() - 4).unwrap();
+				let buffer = match subslice(buffer, 4, buffer.len() - 4) {
+					Ok(buffer) => buffer,
+					Err(e) => {
+						return 0; // this doesn't happen bounds check ok
+					}
+				};
 			}
 			_ => {}
 		};
