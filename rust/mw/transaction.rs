@@ -1,11 +1,13 @@
 use crypto::{Commitment, Ctx, RangeProof, SecretKey};
 use mw::kernel::Kernel;
 use prelude::*;
+//use util::rbtree::RbTree;
 
 pub struct Transaction {
 	inputs: Vec<Commitment>,
 	outputs: Vec<(Commitment, RangeProof)>,
 	kernels: Vec<Kernel>,
+	//kernels_rb: RbTree<Kernel>,
 	offset: Option<SecretKey>,
 }
 
@@ -18,6 +20,7 @@ impl TryClone for Transaction {
 			inputs: self.inputs.try_clone()?,
 			outputs: self.outputs.try_clone()?,
 			kernels: self.kernels.try_clone()?,
+			//kernels_rb: RbTree::new(),
 			offset: self.offset.clone(),
 		})
 	}
@@ -29,6 +32,7 @@ impl Transaction {
 			inputs: Vec::new(),
 			outputs: Vec::new(),
 			kernels: Vec::new(),
+			//kernels_rb: RbTree::new(),
 			offset: Some(skey),
 		}
 	}
@@ -38,6 +42,7 @@ impl Transaction {
 			inputs: Vec::new(),
 			outputs: Vec::new(),
 			kernels: Vec::new(),
+			//kernels_rb: RbTree::new(),
 			offset: None,
 		}
 	}
