@@ -35,6 +35,20 @@ impl Display for Commitment {
 	}
 }
 
+impl Ord for Commitment {
+	fn cmp(&self, other: &Self) -> Order {
+		let len = self.0.len();
+		for i in 0..len {
+			if self.0[i] < other.0[i] {
+				return Order::Less;
+			} else if self.0[i] > other.0[i] {
+				return Order::Greater;
+			}
+		}
+		Order::Equal
+	}
+}
+
 impl Commitment {
 	pub fn new(v: [u8; 33]) -> Self {
 		Self(v)

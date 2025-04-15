@@ -31,6 +31,20 @@ impl Display for Signature {
 	}
 }
 
+impl Ord for Signature {
+	fn cmp(&self, other: &Self) -> Order {
+		let len = self.0.len();
+		for i in 0..len {
+			if self.0[i] < other.0[i] {
+				return Order::Less;
+			} else if self.0[i] > other.0[i] {
+				return Order::Greater;
+			}
+		}
+		Order::Equal
+	}
+}
+
 impl Message {
 	pub fn new(v: [u8; 32]) -> Self {
 		Self(v)

@@ -90,11 +90,73 @@ impl<V: Ord> RbTreeNode<V> {
 
 pub struct RbTree<V: Ord> {
 	root: Ptr<RbTreeNode<V>>,
+	count: usize,
+}
+
+impl<T: Clone + Ord> TryClone for RbTree<T> {
+	fn try_clone(&self) -> Result<Self, Error>
+	where
+		Self: Sized,
+	{
+		let mut ret: RbTree<T> = RbTree::new();
+		let root = self.root();
+		if !root.is_null() {
+			self.insert_children(root, &mut ret)?;
+		}
+
+		Ok(ret)
+	}
 }
 
 impl<V: Ord> RbTree<V> {
+	fn insert_children<T: Clone + Ord>(
+		&self,
+		ptr: Ptr<RbTreeNode<T>>,
+		n: &mut RbTree<T>,
+	) -> Result<(), Error> {
+		let mut search = move |base: Ptr<RbTreeNode<T>>, value: Ptr<RbTreeNode<T>>| {
+			let mut is_right = false;
+			let mut cur = base;
+			let mut parent = Ptr::null();
+
+			while !cur.is_null() {
+				let cmp = (*value).value.cmp(&(*cur).value);
+				if cmp == Order::Equal {
+					break;
+				} else if cmp == Order::Less {
+					parent = cur;
+					is_right = false;
+					cur = cur.left;
+				} else {
+					parent = cur;
+					is_right = true;
+					cur = cur.right;
+				}
+			}
+
+			RbNodePair {
+				cur,
+				parent,
+				is_right,
+			}
+		};
+
+		let nval = Ptr::alloc(RbTreeNode::new(ptr.value.clone()))?;
+		n.insert(nval, &mut search);
+
+		if !ptr.right.is_null() {
+			self.insert_children(ptr.right, n)?;
+		}
+		if !ptr.left.is_null() {
+			self.insert_children(ptr.left, n)?;
+		}
+		Ok(())
+	}
 	pub fn new() -> Self {
-		Self { root: Ptr::null() }
+		Self {
+			root: Ptr::null(),
+			count: 0,
+		}
 	}
 
 	pub fn root(&self) -> Ptr<RbTreeNode<V>> {
@@ -109,6 +171,7 @@ impl<V: Ord> RbTree<V> {
 		let pair = search(self.root, n);
 		let ret = self.insert_impl(n, pair);
 		if ret.is_none() {
+			self.count += 1;
 			self.insert_fixup(n);
 		}
 		ret
@@ -125,7 +188,12 @@ impl<V: Ord> RbTree<V> {
 		}
 		let ret = pair.cur.clone();
 		self.remove_impl(pair);
+		self.count -= 1;
 		Some(ret)
+	}
+
+	pub fn len(&self) -> usize {
+		self.count
 	}
 
 	fn remove_impl(&mut self, pair: RbNodePair<V>) {
@@ -554,9 +622,9 @@ mod test {
 
 			while !cur.is_null() {
 				let cmp = (*value).value.cmp(&(*cur).value);
-				if cmp == Ordering::Equal {
+				if cmp == Order::Equal {
 					break;
-				} else if cmp == Ordering::Less {
+				} else if cmp == Order::Less {
 					parent = cur;
 					is_right = false;
 					cur = cur.left;
@@ -690,7 +758,7 @@ mod test {
 	}
 
 	impl Ord for TestTransplant {
-		fn cmp(&self, other: &Self) -> Ordering {
+		fn cmp(&self, other: &Self) -> Order {
 			self.x.cmp(&other.x)
 		}
 	}
@@ -707,9 +775,9 @@ mod test {
 
 			while !cur.is_null() {
 				let cmp = (*value).value.cmp(&(*cur).value);
-				if cmp == Ordering::Equal {
+				if cmp == Order::Equal {
 					break;
-				} else if cmp == Ordering::Less {
+				} else if cmp == Order::Less {
 					parent = cur;
 					is_right = false;
 					cur = cur.left;

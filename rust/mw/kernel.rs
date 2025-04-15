@@ -11,6 +11,32 @@ pub struct Kernel {
 	features: u8,
 }
 
+impl Ord for Kernel {
+	fn cmp(&self, other: &Self) -> Order {
+		let c = self.excess.cmp(&other.excess);
+		if c != Order::Equal {
+			return c;
+		}
+		let c = self.signature.cmp(&other.signature);
+		if c != Order::Equal {
+			return c;
+		}
+		if self.fee < other.fee {
+			return Order::Less;
+		} else if self.fee > other.fee {
+			return Order::Greater;
+		}
+
+		if self.features < other.features {
+			return Order::Less;
+		} else if self.features > other.features {
+			return Order::Greater;
+		}
+
+		Order::Equal
+	}
+}
+
 impl Display for Kernel {
 	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		writeb!(f, "{}{}", self.excess, self.signature)

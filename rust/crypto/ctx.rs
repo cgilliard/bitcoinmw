@@ -352,45 +352,25 @@ impl Ctx {
 		}
 	}
 
-	pub fn verify_balance(
+	/// Shared helper for balance verification.
+	fn verify_balance_inner(
 		&self,
-		positive: &[&Commitment],
-		negative: &[&Commitment],
+		pos_vec: Vec<CommitmentUncompressed>,
+		neg_vec: Vec<CommitmentUncompressed>,
 		overage: i128,
 	) -> Result<(), Error> {
+		// Validate overage
 		if overage > 0xFFFF_FFFF_FFFF_FFFF_i128 {
 			return Err(Error::new(Overflow));
 		} else if overage < -0xFFFF_FFFF_FFFF_FFFF_i128 {
 			return Err(Error::new(Underflow));
 		}
-		let mut pos_vec = match Vec::with_capacity(positive.len() + 1) {
-			Ok(p) => p,
-			Err(e) => return Err(e),
-		};
-		let mut neg_vec = match Vec::with_capacity(negative.len() + 1) {
-			Ok(n) => n,
-			Err(e) => return Err(e),
-		};
-		for p in positive {
-			match p.decompress(self) {
-				Ok(p) => match pos_vec.push(p) {
-					Ok(_) => {}
-					Err(e) => return Err(e),
-				},
-				Err(e) => return Err(e),
-			}
-		}
-		for n in negative {
-			match n.decompress(self) {
-				Ok(n) => match neg_vec.push(n) {
-					Ok(_) => {}
-					Err(e) => return Err(e),
-				},
-				Err(e) => return Err(e),
-			}
-		}
 
-		// handle overage
+		// Mutable copies to handle overage
+		let mut pos_vec = pos_vec;
+		let mut neg_vec = neg_vec;
+
+		// Handle overage
 		if overage != 0 {
 			let rblind = SecretKey::gen(self);
 			let p = if overage < 0 {
@@ -407,18 +387,16 @@ impl Ctx {
 			neg_vec.push(n.decompress(self)?)?;
 		}
 
-		// build the slice in the expected format
+		// Build pointer arrays
 		let pos_ptr_size = pos_vec.len() * size_of::<*const u8>();
 		let neg_ptr_size = neg_vec.len() * size_of::<*const u8>();
 
 		let pos_ptrs = unsafe { alloc(pos_ptr_size) as *mut *const u8 };
-
 		if pos_ptrs.is_null() {
 			return Err(Error::new(Alloc));
 		}
 
 		let neg_ptrs = unsafe { alloc(neg_ptr_size) as *mut *const u8 };
-
 		if neg_ptrs.is_null() {
 			unsafe {
 				release(pos_ptrs as *const u8);
@@ -435,7 +413,7 @@ impl Ctx {
 			}
 		}
 
-		// call secp256k1_pedersen_verify_tally to verify balance
+		// Verify balance
 		unsafe {
 			let res = secp256k1_pedersen_verify_tally(
 				self.secp,
@@ -454,6 +432,62 @@ impl Ctx {
 				Err(Error::new(InvalidTransaction))
 			}
 		}
+	}
+
+	/// Original function, using references.
+	pub fn verify_balance(
+		&self,
+		positive: &[&Commitment],
+		negative: &[&Commitment],
+		overage: i128,
+	) -> Result<(), Error> {
+		// Convert &[&Commitment] to Vec<CommitmentUncompressed>
+		let mut pos_vec = match Vec::with_capacity(positive.len() + 1) {
+			Ok(p) => p,
+			Err(e) => return Err(e),
+		};
+		let mut neg_vec = match Vec::with_capacity(negative.len() + 1) {
+			Ok(n) => n,
+			Err(e) => return Err(e),
+		};
+
+		for &p in positive {
+			pos_vec.push(p.decompress(self)?)?;
+		}
+		for &n in negative {
+			neg_vec.push(n.decompress(self)?)?;
+		}
+
+		// Delegate to shared helper
+		self.verify_balance_inner(pos_vec, neg_vec, overage)
+	}
+
+	/// New function for owned Commitments.
+	pub fn verify_balance_owned(
+		&self,
+		positive: &[Commitment],
+		negative: &[Commitment],
+		overage: i128,
+	) -> Result<(), Error> {
+		// Convert &[Commitment] to Vec<CommitmentUncompressed>
+		let mut pos_vec = match Vec::with_capacity(positive.len() + 1) {
+			Ok(p) => p,
+			Err(e) => return Err(e),
+		};
+		let mut neg_vec = match Vec::with_capacity(negative.len() + 1) {
+			Ok(n) => n,
+			Err(e) => return Err(e),
+		};
+
+		for p in positive {
+			pos_vec.push(p.decompress(self)?)?;
+		}
+		for n in negative {
+			neg_vec.push(n.decompress(self)?)?;
+		}
+
+		// Delegate to shared helper
+		self.verify_balance_inner(pos_vec, neg_vec, overage)
 	}
 
 	pub fn range_proof(&self, value: u64, blind: &SecretKey) -> Result<RangeProof, Error> {
