@@ -1,5 +1,5 @@
 use core::ptr::copy_nonoverlapping;
-use core::sync::atomic::{compiler_fence, Ordering};
+use core::sync::atomic::{compiler_fence, Ordering::SeqCst};
 use crypto::constants::SECP256K1_EC_COMPRESSED;
 use crypto::constants::ZERO_KEY;
 use crypto::ctx::Ctx;
@@ -32,16 +32,16 @@ impl Display for Signature {
 }
 
 impl Ord for Signature {
-	fn cmp(&self, other: &Self) -> Order {
+	fn cmp(&self, other: &Self) -> Ordering {
 		let len = self.0.len();
 		for i in 0..len {
 			if self.0[i] < other.0[i] {
-				return Order::Less;
+				return Ordering::Less;
 			} else if self.0[i] > other.0[i] {
-				return Order::Greater;
+				return Ordering::Greater;
 			}
 		}
-		Order::Equal
+		Ordering::Equal
 	}
 }
 
@@ -72,7 +72,7 @@ impl Drop for SecretKey {
 	fn drop(&mut self) {
 		unsafe {
 			copy_nonoverlapping(ZERO_KEY.as_ptr(), self.0.as_mut_ptr(), 32);
-			compiler_fence(Ordering::SeqCst);
+			compiler_fence(SeqCst);
 		}
 	}
 }

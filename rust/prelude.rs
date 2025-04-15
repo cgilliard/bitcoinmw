@@ -4,7 +4,7 @@ pub use mw::Slate;
 pub use mw::{KeyChain, Transaction};
 pub use std::boxed::Box;
 pub use std::clone::TryClone;
-pub use std::cmp::{Ord, Order};
+pub use std::cmp::{Ord, Ordering};
 pub use std::display::Display;
 pub use std::error::{Error, ErrorKind, ErrorKind::*};
 pub use std::format::Formatter;

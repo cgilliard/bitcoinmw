@@ -1,34 +1,34 @@
 #[derive(PartialEq)]
-pub enum Order {
+pub enum Ordering {
 	Equal,
 	Less,
 	Greater,
 }
 
 pub trait Ord {
-	fn cmp(&self, other: &Self) -> Order;
+	fn cmp(&self, other: &Self) -> Ordering;
 }
 
 impl Ord for i32 {
-	fn cmp(&self, other: &Self) -> Order {
+	fn cmp(&self, other: &Self) -> Ordering {
 		if *self < *other {
-			Order::Less
+			Ordering::Less
 		} else if *self > *other {
-			Order::Greater
+			Ordering::Greater
 		} else {
-			Order::Equal
+			Ordering::Equal
 		}
 	}
 }
 
 impl Ord for u64 {
-	fn cmp(&self, other: &Self) -> Order {
+	fn cmp(&self, other: &Self) -> Ordering {
 		if *self < *other {
-			Order::Less
+			Ordering::Less
 		} else if *self > *other {
-			Order::Greater
+			Ordering::Greater
 		} else {
-			Order::Equal
+			Ordering::Equal
 		}
 	}
 }

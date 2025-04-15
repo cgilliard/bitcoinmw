@@ -84,9 +84,9 @@ impl Transaction {
 
 			while !cur.is_null() {
 				let cmp = (*value).value.cmp(&(*cur).value);
-				if cmp == Order::Equal {
+				if cmp == Ordering::Equal {
 					break;
-				} else if cmp == Order::Less {
+				} else if cmp == Ordering::Less {
 					parent = cur;
 					is_right = false;
 					cur = cur.left;
@@ -174,9 +174,9 @@ impl Transaction {
 
 			while !cur.is_null() {
 				let cmp = (*value).value.cmp(&(*cur).value);
-				if cmp == Order::Equal {
+				if cmp == Ordering::Equal {
 					break;
-				} else if cmp == Order::Less {
+				} else if cmp == Ordering::Less {
 					parent = cur;
 					is_right = false;
 					cur = cur.left;

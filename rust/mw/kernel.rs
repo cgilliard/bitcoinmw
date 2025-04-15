@@ -12,28 +12,28 @@ pub struct Kernel {
 }
 
 impl Ord for Kernel {
-	fn cmp(&self, other: &Self) -> Order {
+	fn cmp(&self, other: &Self) -> Ordering {
 		let c = self.excess.cmp(&other.excess);
-		if c != Order::Equal {
+		if c != Ordering::Equal {
 			return c;
 		}
 		let c = self.signature.cmp(&other.signature);
-		if c != Order::Equal {
+		if c != Ordering::Equal {
 			return c;
 		}
 		if self.fee < other.fee {
-			return Order::Less;
+			return Ordering::Less;
 		} else if self.fee > other.fee {
-			return Order::Greater;
+			return Ordering::Greater;
 		}
 
 		if self.features < other.features {
-			return Order::Less;
+			return Ordering::Less;
 		} else if self.features > other.features {
-			return Order::Greater;
+			return Ordering::Greater;
 		}
 
-		Order::Equal
+		Ordering::Equal
 	}
 }
 

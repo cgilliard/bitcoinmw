@@ -121,9 +121,9 @@ impl<V: Ord> RbTree<V> {
 
 			while !cur.is_null() {
 				let cmp = (*value).value.cmp(&(*cur).value);
-				if cmp == Order::Equal {
+				if cmp == Ordering::Equal {
 					break;
-				} else if cmp == Order::Less {
+				} else if cmp == Ordering::Less {
 					parent = cur;
 					is_right = false;
 					cur = cur.left;
@@ -622,9 +622,9 @@ mod test {
 
 			while !cur.is_null() {
 				let cmp = (*value).value.cmp(&(*cur).value);
-				if cmp == Order::Equal {
+				if cmp == Ordering::Equal {
 					break;
-				} else if cmp == Order::Less {
+				} else if cmp == Ordering::Less {
 					parent = cur;
 					is_right = false;
 					cur = cur.left;
@@ -758,7 +758,7 @@ mod test {
 	}
 
 	impl Ord for TestTransplant {
-		fn cmp(&self, other: &Self) -> Order {
+		fn cmp(&self, other: &Self) -> Ordering {
 			self.x.cmp(&other.x)
 		}
 	}
@@ -775,9 +775,9 @@ mod test {
 
 			while !cur.is_null() {
 				let cmp = (*value).value.cmp(&(*cur).value);
-				if cmp == Order::Equal {
+				if cmp == Ordering::Equal {
 					break;
-				} else if cmp == Order::Less {
+				} else if cmp == Ordering::Less {
 					parent = cur;
 					is_right = false;
 					cur = cur.left;

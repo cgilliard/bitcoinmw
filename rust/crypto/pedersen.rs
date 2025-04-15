@@ -36,16 +36,16 @@ impl Display for Commitment {
 }
 
 impl Ord for Commitment {
-	fn cmp(&self, other: &Self) -> Order {
+	fn cmp(&self, other: &Self) -> Ordering {
 		let len = self.0.len();
 		for i in 0..len {
 			if self.0[i] < other.0[i] {
-				return Order::Less;
+				return Ordering::Less;
 			} else if self.0[i] > other.0[i] {
-				return Order::Greater;
+				return Ordering::Greater;
 			}
 		}
-		Order::Equal
+		Ordering::Equal
 	}
 }
 
