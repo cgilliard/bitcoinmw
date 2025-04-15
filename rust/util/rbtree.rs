@@ -24,7 +24,7 @@ enum Color {
 }
 
 pub struct RbTreeIterator<V: Ord> {
-	stack: [Option<Ptr<RbTreeNode<V>>>; 64], // Fixed-size stack
+	stack: [Option<Ptr<RbTreeNode<V>>>; 80], // Fixed-size stack
 	stack_top: usize,
 }
 
@@ -34,7 +34,7 @@ impl<V: Ord> RbTreeIterator<V> {
 		while !node.is_null() {
 			if self.stack_top >= self.stack.len() {
 				// Stack overflow; tree is too deep
-				return; // Or panic in debug builds
+				return;
 			}
 			self.stack[self.stack_top] = Some(node);
 			self.stack_top += 1;
@@ -235,7 +235,7 @@ impl<V: Ord> RbTree<V> {
 	// it might not work.
 	pub fn iter(&self) -> RbTreeIterator<V> {
 		let mut iter = RbTreeIterator {
-			stack: [None; 64],
+			stack: [None; 80],
 			stack_top: 0,
 		};
 		iter.push_leftmost(self.root);
