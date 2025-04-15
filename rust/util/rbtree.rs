@@ -23,6 +23,41 @@ enum Color {
 	Red,
 }
 
+pub struct RbTreeIterator<V: Ord> {
+	stack: [Option<Ptr<RbTreeNode<V>>>; 64], // Fixed-size stack
+	stack_top: usize,
+}
+
+impl<V: Ord> RbTreeIterator<V> {
+	// Push all left children starting from a node
+	fn push_leftmost(&mut self, mut node: Ptr<RbTreeNode<V>>) {
+		while !node.is_null() {
+			if self.stack_top >= self.stack.len() {
+				// Stack overflow; tree is too deep
+				return; // Or panic in debug builds
+			}
+			self.stack[self.stack_top] = Some(node);
+			self.stack_top += 1;
+			node = (*node).left;
+		}
+	}
+}
+
+impl<V: Ord + Clone> Iterator for RbTreeIterator<V> {
+	type Item = V;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.stack_top == 0 {
+			return None;
+		}
+		self.stack_top -= 1;
+		let node = self.stack[self.stack_top].take()?;
+		let node_ref = &*node;
+		self.push_leftmost(node_ref.right);
+		Some((*node).value.clone())
+	}
+}
+
 impl<V: Ord> Display for RbTreeNode<V> {
 	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		writeb!(
@@ -194,6 +229,17 @@ impl<V: Ord> RbTree<V> {
 
 	pub fn len(&self) -> usize {
 		self.count
+	}
+
+	// note: iter uses standard ordering. If the custom search function is much different
+	// it might not work.
+	pub fn iter(&self) -> RbTreeIterator<V> {
+		let mut iter = RbTreeIterator {
+			stack: [None; 64],
+			stack_top: 0,
+		};
+		iter.push_leftmost(self.root);
+		iter
 	}
 
 	fn remove_impl(&mut self, pair: RbNodePair<V>) {
@@ -868,5 +914,82 @@ mod test {
 			}
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
+	}
+
+	#[test]
+	fn test_rbtree_iter() -> Result<(), Error> {
+		let mut tree = RbTree::new();
+
+		let mut search = move |base: Ptr<RbTreeNode<u64>>, value: Ptr<RbTreeNode<u64>>| {
+			let mut is_right = false;
+			let mut cur = base;
+			let mut parent = Ptr::null();
+
+			while !cur.is_null() {
+				let cmp = (*value).value.cmp(&(*cur).value);
+				if cmp == Ordering::Equal {
+					break;
+				} else if cmp == Ordering::Less {
+					parent = cur;
+					is_right = false;
+					cur = cur.left;
+				} else {
+					parent = cur;
+					is_right = true;
+					cur = cur.right;
+				}
+			}
+
+			RbNodePair {
+				cur,
+				parent,
+				is_right,
+			}
+		};
+
+		let size = 100;
+		let initial = unsafe { getalloccount() };
+		for x in 0..5 {
+			let seed = 0x1234 + x;
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				assert!(tree.insert(next, &mut search).is_none());
+				validate_tree(tree.root());
+			}
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = search(tree.root(), ptr);
+				assert!(!res.cur.is_null());
+				assert_eq!((*(res.cur)).value, v as u64);
+				ptr.release();
+			}
+
+			let mut i = 0;
+			let mut last = 0;
+			for v in tree.iter() {
+				i += 1;
+				assert!(last < v);
+				last = v;
+			}
+			assert_eq!(i, size);
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = tree.remove(ptr, &mut search);
+				validate_tree(tree.root());
+				res.unwrap().release();
+				let res = search(tree.root(), ptr);
+				assert!(res.cur.is_null());
+				ptr.release();
+			}
+		}
+
+		assert_eq!(initial, unsafe { getalloccount() });
+
+		Ok(())
 	}
 }
