@@ -131,3 +131,18 @@ impl Commitment {
 		&self.0
 	}
 }
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use crypto::SecretKey;
+
+	#[test]
+	fn test_commitment() -> Result<(), Error> {
+		let ctx = Ctx::new()?;
+		let blind = SecretKey::gen(&ctx);
+		let x = ctx.commit(0, &blind)?;
+		assert_eq!(x.0.len(), 33);
+		Ok(())
+	}
+}

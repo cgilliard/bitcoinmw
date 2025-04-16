@@ -254,7 +254,7 @@ fn nibble_to_hex(nibble: u8) -> u8 {
 	if nibble < 10 {
 		nibble + 48 // '0' = 48
 	} else {
-		nibble + 55 // 'A' = 65 (10 → 65, 11 → 66, ..., 15 → 70)
+		nibble + 87 // 'a' = 97 - 10
 	}
 }
 
