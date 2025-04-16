@@ -231,7 +231,10 @@ impl Transaction {
 		while leaves.len() > 1 {
 			let mut next_level = Vec::with_capacity((leaves.len() + 1) / 2)?;
 
-			for i in (0..leaves.len()).step_by(2) {
+			for i in 0..leaves.len() {
+				if i % 2 != 0 {
+					continue;
+				}
 				let left = leaves[i];
 				let right = if i + 1 < leaves.len() {
 					leaves[i + 1]
