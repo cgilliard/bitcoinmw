@@ -249,6 +249,7 @@ impl Block {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use core::ptr::copy_nonoverlapping;
 	use mw::constants::{DIFFICULTY_8BIT_LEADING, DIFFICULTY_HARD};
 
 	#[test]
@@ -350,6 +351,42 @@ mod test {
 		assert_eq!(complete.tx.outputs().len(), 5);
 		assert_eq!(complete.tx.inputs().len(), 2);
 		assert_eq!(complete.tx.kernels().len(), 3);
+
+		let kernels = complete.tx.kernels();
+
+		let mut leaves = Vec::with_capacity(kernels.len())?;
+
+		// Copy kernel hashes from red-black tree to Vec
+		for k in complete.tx.kernels().iter() {
+			ctx.sha3().reset();
+			let mut hash = [0u8; 32];
+			k.sha3(ctx.sha3());
+			ctx.sha3().finalize(&mut hash)?;
+			leaves.push(hash)?;
+		}
+
+		let mut input1 = [0u8; 64];
+		let mut input2 = [0u8; 64];
+		let mut input_mid = [0u8; 64];
+		unsafe {
+			copy_nonoverlapping(leaves[0].as_ptr(), input1.as_mut_ptr(), 32);
+			copy_nonoverlapping(leaves[1].as_ptr(), input1.as_mut_ptr().add(32), 32);
+			copy_nonoverlapping(leaves[2].as_ptr(), input2.as_mut_ptr(), 32);
+			copy_nonoverlapping(leaves[2].as_ptr(), input2.as_mut_ptr().add(32), 32);
+			ctx.sha3().reset();
+			ctx.sha3().update(&input1);
+
+			ctx.sha3().finalize(&mut input_mid[0..32])?;
+			ctx.sha3().reset();
+			ctx.sha3().update(&input2);
+			ctx.sha3().finalize(&mut input_mid[32..])?;
+		}
+
+		let mut hash = [0u8; 32];
+		ctx.sha3().reset();
+		ctx.sha3().update(&input_mid);
+		ctx.sha3().finalize(&mut hash)?;
+		assert_eq!(complete.tx.kernel_merkle_root(&mut ctx)?, hash);
 
 		Ok(())
 	}

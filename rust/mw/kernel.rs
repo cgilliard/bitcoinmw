@@ -118,18 +118,13 @@ mod test {
 	use crypto::SecretKey;
 
 	#[test]
-	fn test_kernel() -> Result<(), Error> {
+	fn test_kernel1() -> Result<(), Error> {
 		let ctx = Ctx::new()?;
 		let blind = SecretKey::gen(&ctx);
 		let x = ctx.commit(0, &blind)?;
 		let s = Signature::new();
 		let kernel = Kernel::new(x, s, 10, 0);
 		assert_eq!(kernel.fee(), 10);
-		/*
-		println!("kernel={}", kernel);
-		let commit = ctx.commit(10, &blind)?;
-		println!("excess={}", commit);
-				*/
 		Ok(())
 	}
 }

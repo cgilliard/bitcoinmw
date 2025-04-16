@@ -47,14 +47,15 @@ impl<V: Ord + Clone> Iterator for RbTreeIterator<V> {
 	type Item = V;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		if self.stack_top == 0 {
-			return None;
+		if self.stack_top > 0 && self.stack_top < self.stack.len() {
+			self.stack_top -= 1;
+			let node = self.stack[self.stack_top].take()?;
+			let node_ref = &*node;
+			self.push_leftmost(node_ref.right);
+			Some((*node).value.clone())
+		} else {
+			None
 		}
-		self.stack_top -= 1;
-		let node = self.stack[self.stack_top].take()?;
-		let node_ref = &*node;
-		self.push_leftmost(node_ref.right);
-		Some((*node).value.clone())
 	}
 }
 
