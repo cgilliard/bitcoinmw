@@ -246,7 +246,7 @@ impl Block {
 mod test {
 	use super::*;
 	use core::ptr::copy_nonoverlapping;
-	use mw::constants::{DIFFICULTY_8BIT_LEADING, DIFFICULTY_HARD};
+	use mw::constants::{DIFFICULTY_4BIT_LEADING, DIFFICULTY_HARD};
 
 	#[test]
 	fn test_block1() -> Result<(), Error> {
@@ -441,7 +441,7 @@ mod test {
 			overage,
 			0,
 			1024 * 1024,
-			DIFFICULTY_8BIT_LEADING,
+			DIFFICULTY_4BIT_LEADING,
 		)?;
 
 		assert!(hash != [0u8; 32]);
@@ -450,7 +450,7 @@ mod test {
 		let complete =
 			complete.with_coinbase(&mut ctx, &coinbase_blind, overage, nonce.clone(), bnonce)?;
 		assert!(complete
-			.validate_hash(&mut ctx, DIFFICULTY_8BIT_LEADING, hash)
+			.validate_hash(&mut ctx, DIFFICULTY_4BIT_LEADING, hash)
 			.is_ok());
 
 		// try something too difficult
