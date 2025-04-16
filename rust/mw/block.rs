@@ -91,54 +91,15 @@ impl Block {
 	pub fn mine_block(
 		&mut self,
 		ctx: &mut Ctx,
-		output_blind: &SecretKey,
-		overage: u64,
-		nonce: u32,
 		iterations: u32,
 		target: [u8; 32],
-	) -> Result<([u8; 32], SecretKey, u32), Error> {
-		let (mut coinbase, excess_blind) = match self.tx.offset() {
-			Some(offset) => {
-				let mut noffset = offset.clone();
-				noffset.negate(ctx)?;
-				let excess_blind = ctx.blind_sum(&[], &[output_blind, &noffset])?;
-				(Transaction::new(noffset), excess_blind)
-			}
-			None => {
-				let excess_blind = ctx.blind_sum(&[], &[output_blind])?;
-				(Transaction::empty(), excess_blind)
-			}
-		};
-		let v = self.fees() + overage;
-		let output = ctx.commit(v, output_blind)?;
-		let range_proof = ctx.range_proof(v, output_blind)?;
-		let excess = ctx.commit(0, &excess_blind)?;
-		let msg = ctx.hash_kernel(&excess, 0, 0)?;
-		let pubkey = PublicKey::from(&ctx, &excess_blind)?;
-		coinbase.add_output(output.clone(), range_proof.clone())?;
-
+	) -> Result<[u8; 32], Error> {
 		for i in 0..iterations {
-			let bnonce = nonce.wrapping_add(i);
-			let nonce = SecretKey::gen(ctx);
-			let pubnonce = PublicKey::from(ctx, &nonce)?;
-			let sig = ctx.sign_single(&msg, &excess_blind, &nonce, &pubnonce, &pubkey)?;
-			let kernel = Kernel::new(excess.clone(), sig, 0, 0);
-			let mut coinbase = coinbase.try_clone()?;
-			coinbase.add_kernel(kernel)?;
-			coinbase.verify(ctx, v)?;
-			let mut tx = self.tx.try_clone()?;
-			tx.merge(ctx, coinbase)?;
-			tx.set_offset_zero();
-			tx.verify(ctx, overage)?;
-
-			let mut header = self.header.clone();
-			header.kernel_merkle_root = tx.kernel_merkle_root(ctx)?;
-			header.nonce = bnonce;
-			let nblock = Block { header, tx };
-			let hash = nblock.calculate_hash(ctx)?;
+			self.header.nonce = self.header.nonce.wrapping_add(i);
+			let hash = self.calculate_hash(ctx)?;
 			if u256_less_than_or_equal(&target, &hash) {
 				// difficulty met - block found
-				return Ok((hash, nonce, i));
+				return Ok(hash);
 			}
 		}
 		Err(Error::new(BlockNotFound))
@@ -435,20 +396,41 @@ mod test {
 		let overage = 1000;
 		// generate a blind from our keychain
 		let coinbase_blind = miner_keychain.derive_key(&ctx, &[0, 0]);
-		let (hash, nonce, bnonce) = complete.mine_block(
-			&mut ctx,
-			&coinbase_blind,
-			overage,
-			0,
-			1024 * 1024,
-			DIFFICULTY_4BIT_LEADING,
-		)?;
+
+		let (mut coinbase, excess_blind) = match complete.tx.offset() {
+			Some(offset) => {
+				let mut noffset = offset.clone();
+				noffset.negate(&mut ctx)?;
+				let excess_blind = ctx.blind_sum(&[], &[&coinbase_blind, &noffset])?;
+				(Transaction::new(noffset), excess_blind)
+			}
+			None => {
+				let excess_blind = ctx.blind_sum(&[], &[&coinbase_blind])?;
+				(Transaction::empty(), excess_blind)
+			}
+		};
+		let v = complete.fees() + overage;
+		let output = ctx.commit(v, &coinbase_blind)?;
+		let range_proof = ctx.range_proof(v, &coinbase_blind)?;
+		let excess = ctx.commit(0, &excess_blind)?;
+		let msg = ctx.hash_kernel(&excess, 0, 0)?;
+		coinbase.add_output(output.clone(), range_proof.clone())?;
+
+		let nonce = SecretKey::gen(&mut ctx);
+		let pubnonce = PublicKey::from(&ctx, &nonce)?;
+		let pubkey = PublicKey::from(&ctx, &excess_blind)?;
+		let sig = ctx.sign_single(&msg, &excess_blind, &nonce, &pubnonce, &pubkey)?;
+
+		let kernel = Kernel::new(excess, sig, 0, 0);
+		coinbase.add_kernel(kernel)?;
+		complete.add_tx(&mut ctx, coinbase)?;
+		complete.header.kernel_merkle_root = complete.tx.kernel_merkle_root(&mut ctx)?;
+
+		let hash = complete.mine_block(&mut ctx, 1024 * 1024, DIFFICULTY_4BIT_LEADING)?;
 
 		assert!(hash != [0u8; 32]);
 		assert!(hash[0] & 0xF0 == 0);
 
-		let complete =
-			complete.with_coinbase(&mut ctx, &coinbase_blind, overage, nonce.clone(), bnonce)?;
 		assert!(complete
 			.validate_hash(&mut ctx, DIFFICULTY_4BIT_LEADING, hash)
 			.is_ok());
@@ -457,7 +439,7 @@ mod test {
 		let mut complete = Block::new(prev_hash, kernel_merkle_root);
 
 		assert!(complete
-			.mine_block(&mut ctx, &coinbase_blind, overage, 0, 128, DIFFICULTY_HARD,)
+			.mine_block(&mut ctx, 128, DIFFICULTY_HARD,)
 			.is_err());
 
 		Ok(())

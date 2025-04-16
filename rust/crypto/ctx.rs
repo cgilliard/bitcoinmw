@@ -536,8 +536,11 @@ impl Ctx {
 				message_ptr,
 			);
 			secp256k1_scratch_space_destroy(scratch);
+
 			if res == 0 {
 				Err(Error::new(InvalidRangeProof))
+			} else if plen > MAX_PROOF_SIZE {
+				Err(Error::new(IllegalState))
 			} else {
 				Ok(RangeProof { proof, plen })
 			}
