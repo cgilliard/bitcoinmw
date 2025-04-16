@@ -93,9 +93,10 @@ impl Block {
 		ctx: &mut Ctx,
 		output_blind: &SecretKey,
 		overage: u64,
-		iterations: u64,
+		nonce: u32,
+		iterations: u32,
 		target: [u8; 32],
-	) -> Result<([u8; 32], SecretKey), Error> {
+	) -> Result<([u8; 32], SecretKey, u32), Error> {
 		let (mut coinbase, excess_blind) = match self.tx.offset() {
 			Some(offset) => {
 				let mut noffset = offset.clone();
@@ -116,9 +117,10 @@ impl Block {
 		let pubkey = PublicKey::from(&ctx, &excess_blind)?;
 		coinbase.add_output(output.clone(), range_proof.clone())?;
 
-		for _ in 0..iterations {
+		for i in 0..iterations {
+			let bnonce = nonce.wrapping_add(i);
 			let nonce = SecretKey::gen(ctx);
-			let pubnonce = PublicKey::from(&ctx, &nonce)?;
+			let pubnonce = PublicKey::from(ctx, &nonce)?;
 			let sig = ctx.sign_single(&msg, &excess_blind, &nonce, &pubnonce, &pubkey)?;
 			let kernel = Kernel::new(excess.clone(), sig, 0, 0);
 			let mut coinbase = coinbase.try_clone()?;
@@ -129,12 +131,14 @@ impl Block {
 			tx.set_offset_zero();
 			tx.verify(ctx, overage)?;
 
-			let header = self.header.clone();
+			let mut header = self.header.clone();
+			header.kernel_merkle_root = tx.kernel_merkle_root(ctx)?;
+			header.nonce = bnonce;
 			let nblock = Block { header, tx };
 			let hash = nblock.calculate_hash(ctx)?;
 			if u256_less_than_or_equal(&target, &hash) {
 				// difficulty met - block found
-				return Ok((hash, nonce));
+				return Ok((hash, nonce, i));
 			}
 		}
 		Err(Error::new(BlockNotFound))
@@ -164,6 +168,7 @@ impl Block {
 		output_blind: &SecretKey,
 		overage: u64,
 		nonce: SecretKey,
+		bnonce: u32,
 	) -> Result<Self, Error> {
 		let (mut coinbase, excess_blind) = match self.tx.offset() {
 			Some(offset) => {
@@ -193,16 +198,14 @@ impl Block {
 		tx.merge(ctx, coinbase)?;
 		tx.set_offset_zero();
 		tx.verify(ctx, overage)?;
-		let header = self.header.clone();
+		let mut header = self.header.clone();
+		header.kernel_merkle_root = tx.kernel_merkle_root(ctx)?;
+		header.nonce = bnonce;
 		Ok(Block { header, tx })
 	}
 
 	pub fn fees(&self) -> u64 {
 		self.tx.fees()
-	}
-
-	fn calculate_kernel_merkle_root_hash(&self) -> Result<[u8; 32], Error> {
-		Ok([0u8; 32])
 	}
 
 	#[inline]
@@ -232,13 +235,6 @@ impl Block {
 		// nonce
 		to_le_bytes_u32(self.header.nonce, &mut buf32);
 		sha3.update(&buf32);
-
-		/*
-		// TODO: remove this and build the kernel_merkle_root only
-		for kernel in self.tx.kernels() {
-			kernel.sha3(sha3);
-		}
-				*/
 
 		let mut ret = [0u8; 32];
 		sha3.finalize(&mut ret)?;
@@ -343,7 +339,7 @@ mod test {
 		let coinbase_blind = miner_keychain.derive_key(&ctx, &[0, 0]);
 		let nonce = SecretKey::gen(&mut ctx);
 		// complete the block with the coinbas added
-		let complete = block.with_coinbase(&mut ctx, &coinbase_blind, overage, nonce)?;
+		let complete = block.with_coinbase(&mut ctx, &coinbase_blind, overage, nonce, 0)?;
 
 		// verify the block's transaction
 		assert!(complete.tx.verify(&mut ctx, overage).is_ok());
@@ -388,6 +384,8 @@ mod test {
 		ctx.sha3().finalize(&mut hash)?;
 		assert_eq!(complete.tx.kernel_merkle_root(&mut ctx)?, hash);
 
+		let _x = complete.calculate_hash(&mut ctx)?;
+
 		Ok(())
 	}
 
@@ -413,7 +411,7 @@ mod test {
 		let coinbase_blind = miner_keychain.derive_key(&ctx, &[0, 0]);
 		let nonce = SecretKey::gen(&mut ctx);
 		// complete the block with the coinbase added
-		let complete = block.with_coinbase(&mut ctx, &coinbase_blind, overage, nonce)?;
+		let complete = block.with_coinbase(&mut ctx, &coinbase_blind, overage, nonce, 0)?;
 
 		// verify coinbase
 		assert_eq!(complete.tx.outputs().len(), 1);
@@ -424,56 +422,44 @@ mod test {
 		Ok(())
 	}
 
-	/*
-		#[test]
-		fn test_mining() -> Result<(), Error> {
-			let mut ctx = Ctx::new()?;
-			let prev_hash = [0u8; 16];
-			let kernel_merkle_root = [0u8; 32];
-			let mut complete = Block::new(prev_hash, kernel_merkle_root);
+	#[test]
+	fn test_mining() -> Result<(), Error> {
+		let mut ctx = Ctx::new()?;
+		let prev_hash = [0u8; 16];
+		let kernel_merkle_root = [0u8; 32];
+		let mut complete = Block::new(prev_hash, kernel_merkle_root);
 
-			// mine an empty block (only coinbase)
-			let miner_keychain = KeyChain::from_seed([5u8; 32])?;
-			// set overage for this block height. We use 1000.
-			let overage = 1000;
-			// generate a blind from our keychain
-			let coinbase_blind = miner_keychain.derive_key(&ctx, &[0, 0]);
-			// complete the block with the coinbase added
-			//let mut complete = block.with_coinbase(&mut ctx, &coinbase_blind, overage)?;
+		// mine an empty block (only coinbase)
+		let miner_keychain = KeyChain::from_seed([5u8; 32])?;
+		// set overage for this block height. We use 1000.
+		let overage = 1000;
+		// generate a blind from our keychain
+		let coinbase_blind = miner_keychain.derive_key(&ctx, &[0, 0]);
+		let (hash, nonce, bnonce) = complete.mine_block(
+			&mut ctx,
+			&coinbase_blind,
+			overage,
+			0,
+			1024 * 1024,
+			DIFFICULTY_8BIT_LEADING,
+		)?;
 
-			let (hash, nonce) = complete.mine_block(
-				&mut ctx,
-				&coinbase_blind,
-				overage,
-				1024 * 1024,
-				DIFFICULTY_8BIT_LEADING,
-			)?;
+		assert!(hash != [0u8; 32]);
+		assert!(hash[0] & 0xF0 == 0);
 
-			assert!(hash != [0u8; 32]);
-			assert!(hash[0] & 0xF0 == 0);
+		let complete =
+			complete.with_coinbase(&mut ctx, &coinbase_blind, overage, nonce.clone(), bnonce)?;
+		assert!(complete
+			.validate_hash(&mut ctx, DIFFICULTY_8BIT_LEADING, hash)
+			.is_ok());
 
-			let complete = complete.with_coinbase(&mut ctx, &coinbase_blind, overage, nonce)?;
-			assert!(complete
-				.validate_hash(&mut ctx, DIFFICULTY_8BIT_LEADING, hash)
-				.is_ok());
+		// try something too difficult
+		let mut complete = Block::new(prev_hash, kernel_merkle_root);
 
-			// try something too difficult
-			let mut complete = Block::new(prev_hash, kernel_merkle_root);
+		assert!(complete
+			.mine_block(&mut ctx, &coinbase_blind, overage, 0, 128, DIFFICULTY_HARD,)
+			.is_err());
 
-			//let mut complete = block.with_coinbase(&mut ctx, &coinbase_blind, overage)?;
-			// verify coinbase
-			/*
-			assert_eq!(complete.tx.outputs().len(), 1);
-			assert_eq!(complete.tx.kernels().len(), 1);
-			assert_eq!(complete.tx.inputs().len(), 0);
-			assert!(complete.tx.verify(&mut ctx, overage).is_ok());
-					*/
-
-			assert!(complete
-				.mine_block(&mut ctx, &coinbase_blind, overage, 128, DIFFICULTY_HARD,)
-				.is_err());
-
-			Ok(())
-		}
-	*/
+		Ok(())
+	}
 }
