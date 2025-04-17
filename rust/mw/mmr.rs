@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use prelude::*;
 
 pub struct MMR {}
@@ -14,7 +16,7 @@ mod test {
 
 	#[test]
 	fn test_mmr1() -> Result<(), Error> {
-		let mmr = MMR::new()?;
+		let _mmr = MMR::new()?;
 		Ok(())
 	}
 }

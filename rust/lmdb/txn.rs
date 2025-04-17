@@ -288,6 +288,7 @@ impl Drop for LmdbTxn {
 		unsafe {
 			if !self.txn.is_null() {
 				mdb_txn_abort(self.txn);
+				self.txn = null_mut();
 			}
 		}
 	}

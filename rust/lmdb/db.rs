@@ -10,23 +10,47 @@ struct LmdbEnv {
 	env: *mut MDB_env,
 }
 
+impl Drop for LmdbEnv {
+	fn drop(&mut self) {
+		unsafe {
+			if !self.env.is_null() {
+				mdb_env_close(self.env);
+				self.env = null_mut();
+			}
+		}
+	}
+}
+
+impl TryClone for Lmdb {
+	fn try_clone(&self) -> Result<Self, Error>
+	where
+		Self: Sized,
+	{
+		let env = self.env.clone();
+		let c_path = CStr::new(self.c_path.as_str()?.to_str())?;
+		let c_name = CStr::new(self.c_name.as_str()?.to_str())?;
+		Ok(Self {
+			env,
+			dbi: self.dbi,
+			map_size: self.map_size,
+			c_path,
+			c_name,
+		})
+	}
+}
+
 pub struct Lmdb {
-	env: *mut MDB_env,
+	env: Rc<LmdbEnv>,
 	dbi: MDB_dbi,
 	map_size: usize,
 	c_path: CStr,
 	c_name: CStr,
 }
 
-impl Drop for Lmdb {
-	fn drop(&mut self) {
-		self.close();
-	}
-}
-
 impl Lmdb {
 	pub fn new(path: &str, name: &str, map_size: usize) -> Result<Self, Error> {
 		let env: *mut MDB_env = null_mut();
+		let env = Rc::new(LmdbEnv { env })?;
 		let c_path = CStr::new(path)?;
 		let c_name = CStr::new(name)?;
 		let dbi = MDB_dbi(0);
@@ -44,7 +68,7 @@ impl Lmdb {
 	pub fn write(&self) -> Result<LmdbTxn, Error> {
 		let mut txn: *mut MDB_txn = null_mut();
 		unsafe {
-			if mdb_txn_begin(self.env, null_mut(), 0, &mut txn) != MDB_SUCCESS {
+			if mdb_txn_begin(self.env.env, null_mut(), 0, &mut txn) != MDB_SUCCESS {
 				return Err(Error::new(LmdbBeginTxn));
 			}
 		}
@@ -54,7 +78,8 @@ impl Lmdb {
 	pub fn read(&self) -> Result<LmdbTxn, Error> {
 		let mut txn: *mut MDB_txn = null_mut();
 		unsafe {
-			if mdb_txn_begin(self.env, null_mut(), MDB_READONLY, &mut txn) != MDB_SUCCESS {
+			let r = mdb_txn_begin(self.env.env, null_mut(), MDB_READONLY, &mut txn);
+			if r != MDB_SUCCESS {
 				return Err(Error::new(LmdbBeginTxn));
 			}
 		}
@@ -63,9 +88,9 @@ impl Lmdb {
 
 	pub fn close(&mut self) {
 		unsafe {
-			if !self.env.is_null() {
-				mdb_env_close(self.env);
-				self.env = null_mut();
+			if !self.env.env.is_null() {
+				mdb_env_close(self.env.env);
+				self.env.env = null_mut();
 			}
 		}
 	}
@@ -81,26 +106,26 @@ impl Lmdb {
 	}
 
 	fn init(&mut self) -> Result<(), Error> {
-		self.env = null_mut();
+		self.env.env = null_mut();
 		unsafe {
-			if mdb_env_create(&mut self.env) != MDB_SUCCESS {
+			if mdb_env_create(&mut self.env.env) != MDB_SUCCESS {
 				return Err(Error::new(LmdbCreate));
 			}
-			if mdb_env_set_mapsize(self.env, self.map_size) != MDB_SUCCESS {
+			if mdb_env_set_mapsize(self.env.env, self.map_size) != MDB_SUCCESS {
 				self.close();
 				return Err(Error::new(Alloc));
 			}
-			if mdb_env_set_maxdbs(self.env, MDB_MAX_DBS) != MDB_SUCCESS {
+			if mdb_env_set_maxdbs(self.env.env, MDB_MAX_DBS) != MDB_SUCCESS {
 				self.close();
 				return Err(Error::new(Alloc));
 			}
-			if mdb_env_open(self.env, self.c_path.as_ptr(), 0, FILE_MODE) != MDB_SUCCESS {
+			if mdb_env_open(self.env.env, self.c_path.as_ptr(), 0, FILE_MODE) != MDB_SUCCESS {
 				self.close();
 				return Err(Error::new(IO));
 			}
 
 			let mut txn: *mut MDB_txn = null_mut();
-			if mdb_txn_begin(self.env, null_mut(), 0, &mut txn) != MDB_SUCCESS {
+			if mdb_txn_begin(self.env.env, null_mut(), 0, &mut txn) != MDB_SUCCESS {
 				return Err(Error::new(LmdbBeginTxn));
 			}
 			let rc = mdb_dbi_open(txn, self.c_name.as_ptr(), MDB_CREATE, &mut self.dbi);
@@ -244,6 +269,41 @@ mod test {
 			let v = txn.get(&a)?;
 			assert!(v.is_none());
 		}
+
+		let db_clone = db.try_clone()?;
+		let db_clone2 = db.try_clone()?;
+
+		{
+			let mut txn = db.write()?;
+			let a = String::new("a")?;
+			let b = String::new("b")?;
+			txn.put(&a, &b)?;
+
+			let txn2 = db_clone.read()?;
+			let a = String::new("a")?;
+			let v = txn2.get(&a)?;
+			assert!(v.is_none());
+
+			txn.commit()?;
+		}
+
+		{
+			let mut txn = db_clone.write()?;
+			let a = String::new("a")?;
+			let v = txn.get(&a)?.unwrap();
+			assert_eq!(v[0], 'b' as u8);
+
+			txn.del(&a)?;
+			txn.commit()?;
+		}
+
+		{
+			let txn = db_clone2.read()?;
+			let a = String::new("a")?;
+			let v = txn.get(&a)?;
+			assert!(v.is_none());
+		}
+
 		remove_lmdb_test_dir(db_dir)?;
 		Ok(())
 	}
