@@ -164,11 +164,13 @@ impl Block {
 		coinbase.add_output(output, range_proof)?;
 		coinbase.verify(ctx, v)?;
 		let mut tx = self.tx.try_clone()?;
+
 		tx.merge(ctx, coinbase)?;
 		tx.set_offset_zero();
 		tx.verify(ctx, overage)?;
 		let mut header = self.header.clone();
 		header.kernel_merkle_root = tx.kernel_merkle_root(ctx)?;
+		// TODO: calculate header.output_mmr_root_hash and header.output_mmr_size
 
 		Ok(Block { header, tx })
 	}
@@ -424,7 +426,6 @@ mod test {
 			.is_ok());
 
 		// try something too difficult
-		let block = Block::new(prev_hash);
 		let mut complete = block.with_coinbase(&mut ctx, &coinbase_blind, overage)?;
 
 		assert!(complete

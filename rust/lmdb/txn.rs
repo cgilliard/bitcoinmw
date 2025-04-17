@@ -4,7 +4,9 @@ use core::mem::forget;
 use core::ptr::{copy_nonoverlapping, null_mut};
 use core::slice::from_raw_parts;
 use core::str::from_utf8;
-use lmdb::constants::{MDB_GET_CURRENT, MDB_NEXT, MDB_NOTFOUND, MDB_SET_RANGE, MDB_SUCCESS};
+use lmdb::constants::{
+	MDB_GET_CURRENT, MDB_MAP_FULL, MDB_NEXT, MDB_NOTFOUND, MDB_SET_RANGE, MDB_SUCCESS,
+};
 use lmdb::ffi::*;
 use lmdb::types::{MDB_cursor, MDB_dbi, MDB_txn, MDB_val};
 use prelude::*;
@@ -178,7 +180,11 @@ impl LmdbTxn {
 			let rc = mdb_cursor_get(cursor, &mut key_val, &mut data_val, MDB_SET_RANGE);
 			if rc != MDB_SUCCESS && rc != MDB_NOTFOUND {
 				mdb_cursor_close(cursor);
-				return Err(Error::new(IllegalState));
+				if rc == MDB_MAP_FULL {
+					return Err(Error::new(LmdbFull));
+				} else {
+					return Err(Error::new(IllegalState));
+				}
 			}
 
 			Ok(LmdbCursor {
@@ -224,11 +230,15 @@ impl LmdbTxn {
 			mv_data: value.as_ref().as_ptr() as *mut u8,
 		};
 		unsafe {
-			if mdb_put(self.txn, self.dbi, &mut key_val, &mut data_val, 0) != MDB_SUCCESS {
+			let r = mdb_put(self.txn, self.dbi, &mut key_val, &mut data_val, 0);
+			if r == MDB_SUCCESS {
+				Ok(())
+			} else if r == MDB_MAP_FULL {
+				return Err(Error::new(LmdbFull));
+			} else {
 				return Err(Error::new(LmdbPut));
 			}
 		}
-		Ok(())
 	}
 
 	pub fn del<K: AsRef<[u8]>>(&mut self, key: &K) -> Result<(), Error> {
@@ -240,18 +250,27 @@ impl LmdbTxn {
 			mv_data: key.as_ref().as_ptr() as *mut u8,
 		};
 		unsafe {
-			if mdb_del(self.txn, self.dbi, &mut key_val, null_mut()) != MDB_SUCCESS {
+			let r = mdb_del(self.txn, self.dbi, &mut key_val, null_mut());
+			if r == MDB_SUCCESS {
+				Ok(())
+			} else if r == MDB_MAP_FULL {
+				return Err(Error::new(LmdbFull));
+			} else {
 				return Err(Error::new(LmdbDel));
 			}
 		}
-		Ok(())
 	}
 
 	pub fn commit(self) -> Result<(), Error> {
 		unsafe {
 			if self.write {
-				if mdb_txn_commit(self.txn) != MDB_SUCCESS {
-					return Err(Error::new(LmdbCommit));
+				let r = mdb_txn_commit(self.txn);
+				if r != MDB_SUCCESS {
+					if r == MDB_MAP_FULL {
+						return Err(Error::new(LmdbFull));
+					} else {
+						return Err(Error::new(LmdbCommit));
+					}
 				}
 			} else {
 				mdb_txn_abort(self.txn);
@@ -325,6 +344,8 @@ pub mod test {
 			} else {
 				txn.put(&target, &[v])?;
 			}
+
+			assert_eq!(txn.get(&String::new("def")?)?, None);
 
 			txn.commit()?;
 		}

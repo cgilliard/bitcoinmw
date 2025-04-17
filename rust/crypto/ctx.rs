@@ -70,6 +70,7 @@ impl Ctx {
 		}
 	}
 
+	#[inline]
 	pub fn sha3(&mut self) -> &mut Sha3 {
 		&mut self.sha3
 	}

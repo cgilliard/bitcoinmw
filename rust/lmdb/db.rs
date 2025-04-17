@@ -9,6 +9,9 @@ use std::cstring::CStr;
 pub struct Lmdb {
 	env: *mut MDB_env,
 	dbi: MDB_dbi,
+	map_size: usize,
+	c_path: CStr,
+	c_name: CStr,
 }
 
 impl Drop for Lmdb {
@@ -24,40 +27,19 @@ impl Drop for Lmdb {
 
 impl Lmdb {
 	pub fn new(path: &str, name: &str, map_size: usize) -> Result<Self, Error> {
-		let mut env: *mut MDB_env = null_mut();
-		let mut dbi;
-		unsafe {
-			if mdb_env_create(&mut env) != MDB_SUCCESS {
-				return Err(Error::new(LmdbCreate));
-			}
-			if mdb_env_set_mapsize(env, map_size) != MDB_SUCCESS {
-				mdb_env_close(env);
-				return Err(Error::new(Alloc));
-			}
-			if mdb_env_set_maxdbs(env, MDB_MAX_DBS) != MDB_SUCCESS {
-				mdb_env_close(env);
-				return Err(Error::new(Alloc));
-			}
-			let c_path = CStr::new(path)?;
-			if mdb_env_open(env, c_path.as_ptr(), 0, FILE_MODE) != MDB_SUCCESS {
-				mdb_env_close(env);
-				return Err(Error::new(IO));
-			}
-			let name_cstr = CStr::new(name)?;
-			let mut txn: *mut MDB_txn = null_mut();
-			if mdb_txn_begin(env, null_mut(), 0, &mut txn) != MDB_SUCCESS {
-				return Err(Error::new(LmdbBeginTxn));
-			}
-			dbi = MDB_dbi(0);
-			let rc = mdb_dbi_open(txn, name_cstr.as_ptr(), MDB_CREATE, &mut dbi);
-			if rc != MDB_SUCCESS {
-				return Err(Error::new(LmdbOpen));
-			}
-			if mdb_txn_commit(txn) != MDB_SUCCESS {
-				return Err(Error::new(LmdbCommit));
-			}
-		}
-		Ok(Lmdb { env, dbi })
+		let env: *mut MDB_env = null_mut();
+		let c_path = CStr::new(path)?;
+		let c_name = CStr::new(name)?;
+		let dbi = MDB_dbi(0);
+		let mut lmdb = Lmdb {
+			env,
+			dbi,
+			map_size,
+			c_path,
+			c_name,
+		};
+		lmdb.init()?;
+		Ok(lmdb)
 	}
 
 	pub fn write(&self) -> Result<LmdbTxn, Error> {
@@ -85,6 +67,51 @@ impl Lmdb {
 			if !self.env.is_null() {
 				mdb_env_close(self.env);
 				self.env = null_mut();
+			}
+		}
+		Ok(())
+	}
+
+	pub fn resize(&mut self, nsize: usize) -> Result<(), Error> {
+		self.map_size = nsize;
+		self.close()?;
+		self.init()
+	}
+
+	pub fn size(&self) -> usize {
+		self.map_size
+	}
+
+	fn init(&mut self) -> Result<(), Error> {
+		self.env = null_mut();
+		unsafe {
+			if mdb_env_create(&mut self.env) != MDB_SUCCESS {
+				return Err(Error::new(LmdbCreate));
+			}
+			if mdb_env_set_mapsize(self.env, self.map_size) != MDB_SUCCESS {
+				mdb_env_close(self.env);
+				return Err(Error::new(Alloc));
+			}
+			if mdb_env_set_maxdbs(self.env, MDB_MAX_DBS) != MDB_SUCCESS {
+				mdb_env_close(self.env);
+				return Err(Error::new(Alloc));
+			}
+
+			if mdb_env_open(self.env, self.c_path.as_ptr(), 0, FILE_MODE) != MDB_SUCCESS {
+				mdb_env_close(self.env);
+				return Err(Error::new(IO));
+			}
+
+			let mut txn: *mut MDB_txn = null_mut();
+			if mdb_txn_begin(self.env, null_mut(), 0, &mut txn) != MDB_SUCCESS {
+				return Err(Error::new(LmdbBeginTxn));
+			}
+			let rc = mdb_dbi_open(txn, self.c_name.as_ptr(), MDB_CREATE, &mut self.dbi);
+			if rc != MDB_SUCCESS {
+				return Err(Error::new(LmdbOpen));
+			}
+			if mdb_txn_commit(txn) != MDB_SUCCESS {
+				return Err(Error::new(LmdbCommit));
 			}
 		}
 		Ok(())
@@ -135,8 +162,39 @@ mod test {
 			let v = txn.get(&a)?;
 			assert!(v.is_none());
 		}
-
 		remove_lmdb_test_dir(db_dir)?;
+		Ok(())
+	}
+
+	#[test]
+	fn test_lmdb_resize() -> Result<(), Error> {
+		let db_size = 1024 * 100;
+		let db_name = "mydb";
+		let db_dir = "bin/.lmdb4";
+		make_lmdb_test_dir(db_dir)?;
+		let mut db = Lmdb::new(db_dir, db_name, db_size)?;
+		let mut err = 0;
+		{
+			loop {
+				let mut txn = db.write()?;
+				let a = String::new("a")?;
+				let b = String::new("b")?;
+				txn.put(&a, &b)?;
+				match txn.commit() {
+					Ok(_) => {
+						break;
+					}
+					Err(e) => {
+						assert_eq!(e, Error::new(LmdbFull));
+						err += 1;
+						let nsize = db.size() * 2;
+						db.resize(nsize)?;
+					}
+				}
+			}
+		}
+		remove_lmdb_test_dir(db_dir)?;
+		assert_eq!(err, 1);
 
 		Ok(())
 	}

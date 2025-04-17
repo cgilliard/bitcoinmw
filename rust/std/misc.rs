@@ -127,6 +127,7 @@ pub fn from_le_bytes_u16(bytes: &[u8]) -> u16 {
 	}
 }
 
+#[inline]
 pub fn to_le_bytes_u32(value: u32, bytes: &mut [u8]) {
 	if bytes.len() >= 4 {
 		bytes[0] = value as u8;
@@ -249,7 +250,6 @@ pub fn u256_less_than_or_equal(max_value: &[u8; 32], value: &[u8; 32]) -> bool {
 	true
 }
 
-#[inline]
 fn nibble_to_hex(nibble: u8) -> u8 {
 	if nibble < 10 {
 		nibble + 48 // '0' = 48

@@ -55,6 +55,7 @@ impl Sha3 {
 		}
 	}
 
+	#[inline]
 	pub fn reset(&mut self) {
 		unsafe {
 			match self.byte_size {
@@ -65,12 +66,14 @@ impl Sha3 {
 		}
 	}
 
+	#[inline]
 	pub fn update(&mut self, b: &[u8]) {
 		unsafe {
 			sha3_Update(self.ctx, b.as_ptr(), b.len());
 		}
 	}
 
+	#[inline]
 	pub fn finalize(&self, b: &mut [u8]) -> Result<(), Error> {
 		match &self.byte_size {
 			Sha3ByteSize::Sha3_256 => {

@@ -40,6 +40,7 @@ define_errorkind_with_strings!(
 	LmdbPut,
 	LmdbGet,
 	LmdbDel,
+	LmdbFull,
 	LmdbCursor,
 	BlockNotFound,
 	KernelNotFound,
@@ -60,6 +61,7 @@ pub struct Error {
 }
 
 impl Error {
+	#[inline]
 	pub fn new(kind: ErrorKind) -> Self {
 		Self { kind }
 	}
