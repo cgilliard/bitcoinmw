@@ -84,7 +84,7 @@ impl Ctx {
 	}
 
 	#[cfg(test)]
-	fn new_r(rand: Cpsrng) -> Result<Self, Error> {
+	pub fn new_r(rand: Cpsrng) -> Result<Self, Error> {
 		let sha3 = Sha3::new(Sha3_256)?;
 		let secp =
 			unsafe { secp256k1_context_create(SECP256K1_START_SIGN | SECP256K1_START_VERIFY) };

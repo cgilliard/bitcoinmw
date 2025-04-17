@@ -201,6 +201,19 @@ impl MMR {
 		Ok(from_le_bytes_u64(size))
 	}
 
+	pub fn contains(&mut self, ctx: &mut Ctx, data: &[u8]) -> Result<bool, Error> {
+		// Compute the hash of the input commitment
+		ctx.sha3().reset();
+		ctx.sha3().update(data);
+		let mut hash = [0u8; 32];
+		ctx.sha3().finalize(&mut hash)?;
+
+		// Query the reverse index
+		let data_key = format!("{}:data:{}", self.prefix, hash)?;
+		let txn = self.db.read()?;
+		Ok(txn.get(&data_key)?.is_some())
+	}
+
 	fn has_sibling(pos: u64, height: u32) -> bool {
 		let tree_size = 1u64 << height; // Size of a perfect tree at this height
 		let next_pos = pos + 1; // Next position
@@ -216,7 +229,7 @@ impl MMR {
 		(pos | 1) + 1 // Parent of pos in MMR
 	}
 
-	pub fn peak_height(peak_index: usize, size: u64) -> Result<u32, Error> {
+	fn peak_height(peak_index: usize, size: u64) -> Result<u32, Error> {
 		println!(
 			"calling peak_height with peak_index={}, size={}",
 			peak_index, size
@@ -291,7 +304,6 @@ impl MMR {
 mod test {
 	use super::*;
 	use core::convert::Into;
-	use crypto::SecretKey;
 
 	#[test]
 	fn test_mmr1() -> Result<(), Error> {
@@ -307,18 +319,40 @@ mod test {
 
 		assert_eq!(mmr.size()?, 0);
 		println!("rh={}", mmr.root_hash(&mut ctx)?);
-		let blind = SecretKey::gen(&mut ctx);
+		let keychain = KeyChain::from_seed([3u8; 32])?;
+		let blind = keychain.derive_key(&mut ctx, &[0, 0]);
 		let commitment = ctx.commit(0, &blind)?;
 		mmr.append(&mut ctx, commitment.as_ref())?;
 		println!("rh1={}", mmr.root_hash(&mut ctx)?);
 		assert_eq!(mmr.size()?, 1);
+		assert!(mmr.contains(&mut ctx, commitment.as_ref())?);
 
-		let blind = SecretKey::gen(&mut ctx);
-		let commitment = ctx.commit(1, &blind)?;
-		println!("==================start insert 2==========================");
-		mmr.append(&mut ctx, commitment.as_ref())?;
+		let blind = keychain.derive_key(&mut ctx, &[0, 1]);
+		let commitment2 = ctx.commit(1, &blind)?;
+		mmr.append(&mut ctx, commitment2.as_ref())?;
 		println!("rh2={}", mmr.root_hash(&mut ctx)?);
 		assert_eq!(mmr.size()?, 2);
+
+		assert!(mmr.contains(&mut ctx, commitment2.as_ref())?);
+		assert!(mmr.contains(&mut ctx, commitment.as_ref())?);
+
+		let blind = keychain.derive_key(&mut ctx, &[0, 2]);
+		let commitment3 = ctx.commit(1, &blind)?;
+		assert!(!mmr.contains(&mut ctx, commitment3.as_ref())?);
+		mmr.append(&mut ctx, commitment3.as_ref())?;
+		println!("rh3={}", mmr.root_hash(&mut ctx)?);
+		assert_eq!(mmr.size()?, 3);
+
+		assert!(mmr.contains(&mut ctx, commitment3.as_ref())?);
+		assert!(mmr.contains(&mut ctx, commitment2.as_ref())?);
+		assert!(mmr.contains(&mut ctx, commitment.as_ref())?);
+
+		for i in 0..10 {
+			let blind = keychain.derive_key(&mut ctx, &[0, 3 + i]);
+			let commitment = ctx.commit(100, &blind)?;
+			mmr.append(&mut ctx, commitment.as_ref())?;
+			println!("rh{}={}", i + 4, mmr.root_hash(&mut ctx)?);
+		}
 
 		remove_lmdb_test_dir(db_dir)?;
 
