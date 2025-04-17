@@ -277,11 +277,13 @@ impl MMR {
 		}
 		let mut peaks = Vec::new();
 		for chunk in bytes.chunks(32) {
-			let mut nval = [0u8; 32];
-			unsafe {
-				copy_nonoverlapping(chunk.as_ptr(), nval.as_mut_ptr(), 32);
+			if chunk.len() == 32 {
+				let mut nval = [0u8; 32];
+				unsafe {
+					copy_nonoverlapping(chunk.as_ptr(), nval.as_mut_ptr(), 32);
+				}
+				peaks.push(nval)?;
 			}
-			peaks.push(nval)?;
 		}
 		Ok(peaks)
 	}
