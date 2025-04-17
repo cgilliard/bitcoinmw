@@ -23,8 +23,6 @@ impl MMR {
 		})
 	}
 
-	/*
-
 	pub fn append(&mut self, ctx: &mut Ctx, data: &[u8]) -> Result<(), Error> {
 		if data.is_empty() {
 			return Err(Error::new(IllegalArgument));
@@ -226,7 +224,6 @@ impl MMR {
 		if size == 0 {
 			return Err(Error::new(IllegalArgument)); // No peaks for empty MMR
 		}
-		/*
 		if peak_index >= size.count_ones() as usize {
 			println!(
 				"Invalid peak_index={} >= num_peaks={}",
@@ -235,7 +232,6 @@ impl MMR {
 			);
 			return Err(Error::new(IllegalArgument));
 		}
-				*/
 
 		let mut remaining_peaks = peak_index as u32;
 		let mut bit_position: u32 = 63; // Start at most significant bit (for u64)
@@ -270,7 +266,6 @@ impl MMR {
 		Ok(result)
 	}
 
-		*/
 	fn deserialize_peaks(bytes: &[u8]) -> Result<Vec<[u8; 32]>, Error> {
 		if bytes.len() % 32 != 0 {
 			return Err(Error::new(InvalidData));
@@ -298,7 +293,6 @@ mod test {
 	use core::convert::Into;
 	use crypto::SecretKey;
 
-	/*
 	#[test]
 	fn test_mmr1() -> Result<(), Error> {
 		let mut ctx = Ctx::new()?;
@@ -330,5 +324,4 @@ mod test {
 
 		Ok(())
 	}
-		*/
 }
