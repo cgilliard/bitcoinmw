@@ -192,7 +192,6 @@ impl MMR {
 		ctx.sha3().finalize(&mut hash)?;
 		Ok(hash)
 	}
-		*/
 
 	pub fn size(&self) -> Result<u64, Error> {
 		let txn = self.db.read()?;
@@ -285,6 +284,7 @@ impl MMR {
 		}
 		Ok(peaks)
 	}
+		*/
 }
 
 #[cfg(test)]
