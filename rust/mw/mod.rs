@@ -3,6 +3,7 @@ mod chain;
 mod constants;
 mod kernel;
 mod keychain;
+mod mmr;
 mod slate;
 mod transaction;
 

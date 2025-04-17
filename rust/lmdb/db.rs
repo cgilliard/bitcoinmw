@@ -6,6 +6,10 @@ use lmdb::types::{MDB_dbi, MDB_env, MDB_txn};
 use prelude::*;
 use std::cstring::CStr;
 
+struct LmdbEnv {
+	env: *mut MDB_env,
+}
+
 pub struct Lmdb {
 	env: *mut MDB_env,
 	dbi: MDB_dbi,
@@ -198,6 +202,49 @@ mod test {
 		remove_lmdb_test_dir(db_dir)?;
 		assert_eq!(err, 1);
 
+		Ok(())
+	}
+
+	#[test]
+	fn test_lmdb_multi() -> Result<(), Error> {
+		let db_size = 1024 * 1024 * 100;
+		let db_name = "mydb";
+		let db_dir = "bin/.lmdb5";
+		make_lmdb_test_dir(db_dir)?;
+		let mut db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let mut txn = db.write()?;
+			let a = String::new("a")?;
+			let b = String::new("b")?;
+			txn.put(&a, &b)?;
+			txn.commit()?;
+		}
+
+		db.close();
+
+		let mut db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let mut txn = db.write()?;
+			let a = String::new("a")?;
+			let v = txn.get(&a)?.unwrap();
+			assert_eq!(v[0], 'b' as u8);
+
+			txn.del(&a)?;
+			txn.commit()?;
+		}
+
+		db.close();
+		let db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let txn = db.read()?;
+			let a = String::new("a")?;
+			let v = txn.get(&a)?;
+			assert!(v.is_none());
+		}
+		remove_lmdb_test_dir(db_dir)?;
 		Ok(())
 	}
 }
