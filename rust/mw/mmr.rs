@@ -270,6 +270,7 @@ impl MMR {
 		Ok(result)
 	}
 
+		*/
 	fn deserialize_peaks(bytes: &[u8]) -> Result<Vec<[u8; 32]>, Error> {
 		if bytes.len() % 32 != 0 {
 			return Err(Error::new(InvalidData));
@@ -284,7 +285,6 @@ impl MMR {
 		}
 		Ok(peaks)
 	}
-		*/
 }
 
 #[cfg(test)]
