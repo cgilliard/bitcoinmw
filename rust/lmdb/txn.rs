@@ -352,7 +352,7 @@ pub mod test {
 			txn.commit()?;
 		}
 
-		db.close()?;
+		db.close();
 
 		let db = Lmdb::new(db_dir, db_name, db_size)?;
 		{
@@ -402,7 +402,7 @@ pub mod test {
 			txn.commit()?;
 		}
 
-		db.close()?;
+		db.close();
 
 		let db = Lmdb::new(db_dir, db_name, db_size)?;
 		{
@@ -497,7 +497,7 @@ pub mod test {
 			txn.commit()?;
 		}
 
-		db.close()?;
+		db.close();
 		let db = Lmdb::new(db_dir, db_name, db_size)?;
 
 		{
@@ -542,7 +542,7 @@ pub mod test {
 			txn.commit()?;
 		}
 
-		db.close()?;
+		db.close();
 		let db = Lmdb::new(db_dir, db_name, db_size)?;
 
 		{

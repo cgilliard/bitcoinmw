@@ -16,12 +16,7 @@ pub struct Lmdb {
 
 impl Drop for Lmdb {
 	fn drop(&mut self) {
-		unsafe {
-			if !self.env.is_null() {
-				mdb_env_close(self.env);
-				self.env = null_mut();
-			}
-		}
+		self.close();
 	}
 }
 
@@ -62,18 +57,17 @@ impl Lmdb {
 		Ok(LmdbTxn::new(txn, self.dbi, false))
 	}
 
-	pub fn close(&mut self) -> Result<(), Error> {
+	pub fn close(&mut self) {
 		unsafe {
 			if !self.env.is_null() {
 				mdb_env_close(self.env);
 				self.env = null_mut();
 			}
 		}
-		Ok(())
 	}
 
 	pub fn resize(&mut self, nsize: usize) -> Result<(), Error> {
-		self.close()?;
+		self.close();
 		self.map_size = nsize;
 		self.init()
 	}
@@ -89,15 +83,15 @@ impl Lmdb {
 				return Err(Error::new(LmdbCreate));
 			}
 			if mdb_env_set_mapsize(self.env, self.map_size) != MDB_SUCCESS {
-				self.close()?;
+				self.close();
 				return Err(Error::new(Alloc));
 			}
 			if mdb_env_set_maxdbs(self.env, MDB_MAX_DBS) != MDB_SUCCESS {
-				self.close()?;
+				self.close();
 				return Err(Error::new(Alloc));
 			}
 			if mdb_env_open(self.env, self.c_path.as_ptr(), 0, FILE_MODE) != MDB_SUCCESS {
-				self.close()?;
+				self.close();
 				return Err(Error::new(IO));
 			}
 
@@ -138,7 +132,7 @@ mod test {
 			txn.commit()?;
 		}
 
-		db.close()?;
+		db.close();
 
 		let mut db = Lmdb::new(db_dir, db_name, db_size)?;
 
@@ -152,7 +146,7 @@ mod test {
 			txn.commit()?;
 		}
 
-		db.close()?;
+		db.close();
 		let db = Lmdb::new(db_dir, db_name, db_size)?;
 
 		{
