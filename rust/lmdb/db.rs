@@ -73,8 +73,8 @@ impl Lmdb {
 	}
 
 	pub fn resize(&mut self, nsize: usize) -> Result<(), Error> {
-		self.map_size = nsize;
 		self.close()?;
+		self.map_size = nsize;
 		self.init()
 	}
 
@@ -89,16 +89,15 @@ impl Lmdb {
 				return Err(Error::new(LmdbCreate));
 			}
 			if mdb_env_set_mapsize(self.env, self.map_size) != MDB_SUCCESS {
-				mdb_env_close(self.env);
+				self.close()?;
 				return Err(Error::new(Alloc));
 			}
 			if mdb_env_set_maxdbs(self.env, MDB_MAX_DBS) != MDB_SUCCESS {
-				mdb_env_close(self.env);
+				self.close()?;
 				return Err(Error::new(Alloc));
 			}
-
 			if mdb_env_open(self.env, self.c_path.as_ptr(), 0, FILE_MODE) != MDB_SUCCESS {
-				mdb_env_close(self.env);
+				self.close()?;
 				return Err(Error::new(IO));
 			}
 
@@ -196,7 +195,7 @@ mod test {
 					Err(e) => {
 						assert_eq!(e, Error::new(LmdbFull));
 						err += 1;
-						let nsize = db.size() * 2;
+						let nsize = 1024 * 1024 * 10;
 						db.resize(nsize)?;
 					}
 				}
