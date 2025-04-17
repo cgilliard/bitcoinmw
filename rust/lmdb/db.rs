@@ -178,8 +178,17 @@ mod test {
 			loop {
 				let mut txn = db.write()?;
 				let a = String::new("a")?;
-				let b = String::new("b")?;
-				txn.put(&a, &b)?;
+				let b = [0u8; 1024 * 1024];
+				match txn.put(&a, &b) {
+					Ok(_) => {}
+					Err(e) => {
+						assert_eq!(e, Error::new(LmdbFull));
+						err += 1;
+						let nsize = 1024 * 1024 * 10;
+						db.resize(nsize)?;
+						continue;
+					}
+				}
 				match txn.commit() {
 					Ok(_) => {
 						break;

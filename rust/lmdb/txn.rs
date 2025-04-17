@@ -180,11 +180,7 @@ impl LmdbTxn {
 			let rc = mdb_cursor_get(cursor, &mut key_val, &mut data_val, MDB_SET_RANGE);
 			if rc != MDB_SUCCESS && rc != MDB_NOTFOUND {
 				mdb_cursor_close(cursor);
-				if rc == MDB_MAP_FULL {
-					return Err(Error::new(LmdbFull));
-				} else {
-					return Err(Error::new(IllegalState));
-				}
+				return Err(Error::new(IllegalState));
 			}
 
 			Ok(LmdbCursor {
@@ -234,6 +230,8 @@ impl LmdbTxn {
 			if r == MDB_SUCCESS {
 				Ok(())
 			} else if r == MDB_MAP_FULL {
+				// set txn to null because drop should not abort in this case
+				self.txn = null_mut();
 				return Err(Error::new(LmdbFull));
 			} else {
 				return Err(Error::new(LmdbPut));
@@ -254,6 +252,8 @@ impl LmdbTxn {
 			if r == MDB_SUCCESS {
 				Ok(())
 			} else if r == MDB_MAP_FULL {
+				// set txn to null because drop should not abort in this case
+				self.txn = null_mut();
 				return Err(Error::new(LmdbFull));
 			} else {
 				return Err(Error::new(LmdbDel));
@@ -261,12 +261,14 @@ impl LmdbTxn {
 		}
 	}
 
-	pub fn commit(self) -> Result<(), Error> {
+	pub fn commit(mut self) -> Result<(), Error> {
 		unsafe {
 			if self.write {
 				let r = mdb_txn_commit(self.txn);
 				if r != MDB_SUCCESS {
 					if r == MDB_MAP_FULL {
+						// set txn to null because drop should not abort in this case
+						self.txn = null_mut();
 						return Err(Error::new(LmdbFull));
 					} else {
 						return Err(Error::new(LmdbCommit));
