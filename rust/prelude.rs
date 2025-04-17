@@ -1,5 +1,6 @@
 // Internal
 pub use crypto::{Cpsrng, Sha3, Sha3ByteSize};
+pub use lmdb::db::Lmdb;
 pub use mw::Slate;
 pub use mw::{KeyChain, Transaction};
 pub use std::boxed::Box;
@@ -23,6 +24,11 @@ pub use core::ops::Drop;
 pub use core::option::{Option, Option::None, Option::Some};
 pub use core::result::{Result, Result::Err, Result::Ok};
 
+// test
 #[allow(unused)]
 #[cfg(test)]
 pub use core::panic;
+
+#[allow(unused)]
+#[cfg(test)]
+pub use lmdb::txn::test::{make_lmdb_test_dir, remove_lmdb_test_dir};

@@ -155,7 +155,7 @@ impl LmdbTxn {
 		Self { txn, dbi, write }
 	}
 
-	pub fn iter<K: AsRef<[u8]>>(&self, key: &K) -> Result<LmdbCursor, Error> {
+	pub fn iter<K: AsRef<[u8]> + ?Sized>(&self, key: &K) -> Result<LmdbCursor, Error> {
 		unsafe {
 			let mut cursor: *mut MDB_cursor = null_mut();
 			let rc = mdb_cursor_open(self.txn, self.dbi, &mut cursor);
@@ -191,7 +191,7 @@ impl LmdbTxn {
 		}
 	}
 
-	pub fn get<K: AsRef<[u8]>>(&self, key: &K) -> Result<Option<&[u8]>, Error> {
+	pub fn get<K: AsRef<[u8]> + ?Sized>(&self, key: &K) -> Result<Option<&[u8]>, Error> {
 		let mut key_val = MDB_val {
 			mv_size: key.as_ref().len(),
 			mv_data: key.as_ref().as_ptr() as *mut u8,
@@ -213,7 +213,11 @@ impl LmdbTxn {
 		}
 	}
 
-	pub fn put<K: AsRef<[u8]>, V: AsRef<[u8]>>(&mut self, key: &K, value: &V) -> Result<(), Error> {
+	pub fn put<K: AsRef<[u8]> + ?Sized, V: AsRef<[u8]> + ?Sized>(
+		&mut self,
+		key: &K,
+		value: &V,
+	) -> Result<(), Error> {
 		if !self.write {
 			return Err(Error::new(IllegalState));
 		}
@@ -239,7 +243,7 @@ impl LmdbTxn {
 		}
 	}
 
-	pub fn del<K: AsRef<[u8]>>(&mut self, key: &K) -> Result<(), Error> {
+	pub fn del<K: AsRef<[u8]> + ?Sized>(&mut self, key: &K) -> Result<(), Error> {
 		if !self.write {
 			return Err(Error::new(IllegalState));
 		}
