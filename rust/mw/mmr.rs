@@ -276,13 +276,16 @@ impl MMR {
 			return Err(Error::new(InvalidData));
 		}
 		let mut peaks = Vec::new();
-		for chunk in bytes.chunks(32) {
-			if chunk.len() == 32 {
+		let mut vec1 = Vec::new();
+		for byte in bytes {
+			vec1.push(*byte)?;
+			if vec1.len() == 32 {
 				let mut nval = [0u8; 32];
 				unsafe {
-					copy_nonoverlapping(chunk.as_ptr(), nval.as_mut_ptr(), 32);
+					copy_nonoverlapping(vec1.as_ptr(), nval.as_mut_ptr(), 32);
 				}
 				peaks.push(nval)?;
+				vec1 = Vec::new();
 			}
 		}
 		Ok(peaks)
