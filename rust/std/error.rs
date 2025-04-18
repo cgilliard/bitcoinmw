@@ -45,6 +45,7 @@ define_errorkind_with_strings!(
 	LmdbDel,
 	LmdbFull,
 	LmdbCursor,
+	AlreadyPruned,
 	BlockNotFound,
 	KernelNotFound,
 	MultipleCoinbase,
