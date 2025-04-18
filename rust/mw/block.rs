@@ -20,14 +20,14 @@ pub struct BlockHeader {
 	// The hash of the output MMR at this block height.
 	output_mmr_root_hash: [u8; 32],
 	// The count of outputs in the output_mmr.
-	output_mmr_size: u32,
+	output_mmr_size: u64,
 	// Auxilary merkle root
 	aux_merkle_root: [u8; 32],
 	// nonce
 	nonce: u32,
 }
 
-// Header = 126 bytes
+// Header = 130 bytes
 // Minimal coinbase = 814 (1 kernel + 1 output + 1 range proof = 106 + 33 + 675) bytes
 
 // implied values stored during block validation by miners but not broadcast
@@ -184,6 +184,7 @@ impl Block {
 		let sha3 = ctx.sha3();
 		sha3.reset();
 		let mut buf32 = [0u8; 4];
+		let mut buf64 = [0u8; 8];
 
 		// header_version
 		sha3.update(&[self.header.header_version]);
@@ -200,8 +201,8 @@ impl Block {
 		// output_mmr_root_hash
 		sha3.update(&self.header.output_mmr_root_hash);
 
-		to_le_bytes_u32(self.header.output_mmr_size, &mut buf32);
-		sha3.update(&buf32);
+		to_le_bytes_u64(self.header.output_mmr_size, &mut buf64);
+		sha3.update(&buf64);
 
 		// aux_merkle_root
 		sha3.update(&self.header.aux_merkle_root);

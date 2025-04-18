@@ -34,38 +34,46 @@ pub fn murmur3_32_of_slice(source: &[u8], seed: u32) -> u32 {
 		match min(buffer.len(), 4) {
 			0 => return finish(state, processed),
 			1 => {
-				processed += 1;
-				let k: u32 = buffer[0] as u32;
-				state ^= calc_k(k);
-				return finish(state, processed);
+				if buffer.len() > 0 {
+					processed += 1;
+					let k: u32 = buffer[0] as u32;
+					state ^= calc_k(k);
+					return finish(state, processed);
+				}
 			}
 			2 => {
-				processed += 2;
-				let k: u32 = ((buffer[1] as u32) << 8) | (buffer[0] as u32);
-				state ^= calc_k(k);
-				return finish(state, processed);
+				if buffer.len() > 1 {
+					processed += 2;
+					let k: u32 = ((buffer[1] as u32) << 8) | (buffer[0] as u32);
+					state ^= calc_k(k);
+					return finish(state, processed);
+				}
 			}
 			3 => {
-				processed += 3;
-				let k: u32 =
-					((buffer[2] as u32) << 16) | ((buffer[1] as u32) << 8) | (buffer[0] as u32);
-				state ^= calc_k(k);
-				return finish(state, processed);
+				if buffer.len() > 2 {
+					processed += 3;
+					let k: u32 =
+						((buffer[2] as u32) << 16) | ((buffer[1] as u32) << 8) | (buffer[0] as u32);
+					state ^= calc_k(k);
+					return finish(state, processed);
+				}
 			}
 			4 => {
-				processed += 4;
-				let k: u32 = ((buffer[3] as u32) << 24)
-					| ((buffer[2] as u32) << 16)
-					| ((buffer[1] as u32) << 8)
-					| (buffer[0] as u32);
-				state ^= calc_k(k);
-				state = state.rotate_left(R2);
-				state = (state.wrapping_mul(M)).wrapping_add(N);
-				let len = buffer.len();
-				buffer = match subslice(buffer, 4, len - 4) {
-					Ok(buffer) => buffer,
-					Err(_) => &[], // should not happen
-				};
+				if buffer.len() > 3 {
+					processed += 4;
+					let k: u32 = ((buffer[3] as u32) << 24)
+						| ((buffer[2] as u32) << 16)
+						| ((buffer[1] as u32) << 8)
+						| (buffer[0] as u32);
+					state ^= calc_k(k);
+					state = state.rotate_left(R2);
+					state = (state.wrapping_mul(M)).wrapping_add(N);
+					let len = buffer.len();
+					buffer = match subslice(buffer, 4, len - 4) {
+						Ok(buffer) => buffer,
+						Err(_) => &[], // should not happen
+					};
+				}
 			}
 			_ => {}
 		};
