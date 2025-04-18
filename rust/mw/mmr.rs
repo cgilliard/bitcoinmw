@@ -221,12 +221,17 @@ impl MMR {
 		// Remove leaf data
 		txn.del(&leaf_key)?;
 
-		// Retain reverse index entry (Grin’s approach)
-		// To prune reverse index, uncomment:
+		// Remove reverse index
 		txn.del(&data_key)?;
 
 		// Update peaks (simplified: recompute for now)
 		self.update_peaks_after_prune(ctx, &mut txn, index, size)?;
+
+		// update size (note size is at least one from checks above)
+		let size_key = format!("{}:meta:size", self.prefix)?;
+		let mut size_bytes = [0u8; 8];
+		to_le_bytes_u64(size - 1, &mut size_bytes);
+		txn.put(&size_key, &size_bytes)?;
 
 		txn.commit()?;
 		Ok(())
@@ -614,13 +619,17 @@ mod test {
 		}
 
 		// Insert 13 commitments
+		let mut i = 0;
 		for commitment in &commitments {
 			mmr.append(&mut ctx, commitment.as_ref())?;
+			i += 1;
+			assert_eq!(mmr.size()?, i);
 		}
 		let original_root = mmr.root_hash(&mut ctx)?;
 
 		// Prune the first commitment
 		mmr.prune(&mut ctx, commitments[0].as_ref())?;
+		assert_eq!(mmr.size()?, i - 1);
 
 		// Verify contains
 		assert!(
