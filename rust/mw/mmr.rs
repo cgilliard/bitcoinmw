@@ -227,12 +227,6 @@ impl MMR {
 		// Update peaks (simplified: recompute for now)
 		self.update_peaks_after_prune(ctx, &mut txn, index, size)?;
 
-		// update size (note size is at least one from checks above)
-		let size_key = format!("{}:meta:size", self.prefix)?;
-		let mut size_bytes = [0u8; 8];
-		to_le_bytes_u64(size - 1, &mut size_bytes);
-		txn.put(&size_key, &size_bytes)?;
-
 		txn.commit()?;
 		Ok(())
 	}
@@ -629,7 +623,8 @@ mod test {
 
 		// Prune the first commitment
 		mmr.prune(&mut ctx, commitments[0].as_ref())?;
-		assert_eq!(mmr.size()?, i - 1);
+		// size remains the same after pruning
+		assert_eq!(mmr.size()?, i);
 
 		// Verify contains
 		assert!(
