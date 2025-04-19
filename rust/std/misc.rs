@@ -75,7 +75,7 @@ pub fn i128_to_str(mut n: i128, buf: &mut [u8], base: u8) -> usize {
 	}
 }
 
-pub fn array_copy<T>(src: &[T], dst: &mut [T], len: usize) -> Result<(), Error> {
+pub fn array_copy<T: Copy>(src: &[T], dst: &mut [T], len: usize) -> Result<(), Error> {
 	if dst.len() < len || src.len() < len {
 		Err(Error::new(ArrayIndexOutOfBounds))
 	} else {
@@ -88,28 +88,18 @@ pub fn array_copy<T>(src: &[T], dst: &mut [T], len: usize) -> Result<(), Error> 
 mod test {
 	use super::*;
 
+	#[derive(Copy, Clone)]
 	struct Copyable {
 		x: u32,
 		y: u64,
-		z: String,
+		z: i32,
 	}
+
 	#[test]
 	fn test_array_copy() -> Result<(), Error> {
-		let mut arr = vec![Copyable {
-			x: 1,
-			y: 2,
-			z: String::new("abc")?,
-		}]?;
-		arr.push(Copyable {
-			x: 3,
-			y: 4,
-			z: String::new("def")?,
-		})?;
-		arr.push(Copyable {
-			x: 7,
-			y: 7,
-			z: String::new("ghi")?,
-		})?;
+		let mut arr = vec![Copyable { x: 1, y: 2, z: -1 }]?;
+		arr.push(Copyable { x: 3, y: 4, z: -2 })?;
+		arr.push(Copyable { x: 7, y: 7, z: -3 })?;
 
 		let mut n = Vec::new();
 		n.resize(3)?;
@@ -118,7 +108,7 @@ mod test {
 		assert_eq!(n[1].x, 3);
 		assert_eq!(n[2].x, 7);
 		assert_eq!(n[2].y, 7);
-		assert_eq!(n[2].z, String::new("ghi")?);
+		assert_eq!(n[2].z, -3);
 		assert_eq!(n.len(), 3);
 
 		let v = vec![0u64, 1u64, 2u64]?;

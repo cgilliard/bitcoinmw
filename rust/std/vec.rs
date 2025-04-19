@@ -1,3 +1,4 @@
+use core::convert::AsRef;
 use core::marker::PhantomData;
 use core::mem::{needs_drop, size_of};
 use core::ops::{Index, IndexMut};
@@ -13,6 +14,12 @@ pub struct Vec<T> {
 	elements: usize,
 	min: usize,
 	_marker: PhantomData<T>,
+}
+
+impl<T> AsRef<[T]> for Vec<T> {
+	fn as_ref(&self) -> &[T] {
+		self.as_slice()
+	}
 }
 
 impl<T: Clone> TryClone for Vec<T> {
