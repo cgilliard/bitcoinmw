@@ -1,5 +1,7 @@
 use core::fmt::Formatter as CoreFormatter;
 use prelude::*;
+use std::cstring::CStr;
+use std::ffi::{format_err, write};
 
 macro_rules! define_errorkind_with_strings {
     ( $( $variant:ident ),* ) => {
@@ -41,8 +43,6 @@ impl Error {
 	}
 }
 
-use std::cstring::CStr;
-use std::ffi::{format_err, write};
 impl Debug for Error {
 	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
 		// There doesn't seem to be a way to call formatter in no_std so we print to stdout
@@ -87,7 +87,7 @@ mod test {
 		assert!(e8.kind.as_str() == "IO");
 		assert!(e7.kind.as_str() == "Serialization");
 
-		test_error_return()?;
+		assert!(test_error_return().is_err());
 
 		let res = match e3.kind {
 			_ => 1,

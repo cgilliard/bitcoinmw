@@ -1,4 +1,4 @@
-#define u64 unsigned long long
+#include "atomic.h"
 
 void atomic_store_u64(u64 *ptr, u64 value) {
 	__atomic_store_n(ptr, value, __ATOMIC_RELEASE);

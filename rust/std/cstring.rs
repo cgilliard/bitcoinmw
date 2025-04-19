@@ -1,21 +1,18 @@
 use core::ops::{Index, IndexMut};
-use core::ptr::{copy_nonoverlapping, null};
-use core::slice::from_raw_parts;
+use core::ptr::copy_nonoverlapping;
 use prelude::*;
-use std::ffi::{alloc, release};
+use std::ffi::alloc;
+use std::Ptr;
 
 pub struct CStr {
-	ptr: *const u8,
-	leak: bool,
+	ptr: Ptr<u8>,
 }
 
 impl Drop for CStr {
 	fn drop(&mut self) {
-		unsafe {
-			if !self.leak && !self.ptr.is_null() {
-				release(self.ptr);
-				self.ptr = null();
-			}
+		if !self.ptr.is_null() && !self.ptr.get_bit() {
+			self.ptr.release();
+			self.ptr = Ptr::null();
 		}
 	}
 }
@@ -24,13 +21,13 @@ impl Index<usize> for CStr {
 	type Output = u8;
 
 	fn index(&self, index: usize) -> &Self::Output {
-		unsafe { &*self.ptr.offset(index as isize) }
+		unsafe { &*self.ptr.raw().offset(index as isize) }
 	}
 }
 
 impl IndexMut<usize> for CStr {
 	fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-		unsafe { &mut *(self.ptr.offset(index as isize) as *mut u8) }
+		unsafe { &mut *(self.ptr.raw().offset(index as isize) as *mut u8) }
 	}
 }
 
@@ -44,12 +41,16 @@ impl CStr {
 			}
 			copy_nonoverlapping(s.as_ptr(), ptr, len);
 			*ptr.add(len) = 0u8;
-			Ok(Self { ptr, leak: false })
+			let ptr = Ptr::new(ptr);
+
+			Ok(Self { ptr })
 		}
 	}
 
 	pub fn from_ptr(ptr: *const u8, leak: bool) -> Self {
-		Self { ptr, leak }
+		let mut ptr = Ptr::new(ptr);
+		ptr.set_bit(leak);
+		Self { ptr }
 	}
 
 	/*
@@ -61,7 +62,7 @@ impl CStr {
 	pub fn len(&self) -> usize {
 		let mut len = 0;
 		unsafe {
-			let mut current = self.ptr;
+			let mut current = self.ptr.raw();
 			while *current != 0 {
 				len += 1;
 				current = current.add(1);
@@ -83,11 +84,11 @@ impl CStr {
 		*/
 
 	pub fn as_ptr(&self) -> *const u8 {
-		self.ptr
+		self.ptr.raw()
 	}
 
 	pub fn as_mut_ptr(&mut self) -> *mut u8 {
-		self.ptr as *mut u8
+		self.ptr.raw() as *mut u8
 	}
 
 	pub fn copy_to_slice(&self, slice: &mut [u8], offset: usize) -> Result<(), Error> {
@@ -96,21 +97,24 @@ impl CStr {
 			Err(Error::new(ArrayIndexOutOfBounds))
 		} else {
 			unsafe {
-				copy_nonoverlapping(self.ptr.offset(offset as isize), slice.as_mut_ptr(), len);
+				copy_nonoverlapping(
+					self.ptr.raw().offset(offset as isize),
+					slice.as_mut_ptr(),
+					len,
+				);
 			}
 			Ok(())
 		}
 	}
 }
 
-/*
 #[cfg(test)]
 mod test {
 	use super::*;
 	#[test]
 	fn test_cstr() -> Result<(), Error> {
 		let c1 = CStr::new("mystr")?;
-		assert_eq!(c1.as_str()?, String::new("mystr")?);
+		//assert_eq!(c1.as_str()?, String::new("mystr")?);
 
 		let ptr = c1.as_ptr();
 		unsafe {
@@ -141,7 +145,14 @@ mod test {
 		c1.copy_to_slice(&mut slice, 2)?;
 		assert_eq!(slice, ['s' as u8, 't' as u8, 'r' as u8]);
 
+		let init = unsafe { getalloccount() };
+		{
+			let x1 = unsafe { alloc(100) };
+			let _c1 = CStr::from_ptr(x1, true);
+			let _c2 = CStr::from_ptr(x1, false);
+		}
+		assert_eq!(unsafe { getalloccount() }, init);
+
 		Ok(())
 	}
 }
-*/

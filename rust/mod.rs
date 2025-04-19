@@ -3,4 +3,4 @@
 
 pub mod prelude;
 mod real_main;
-mod std;
+pub mod std;
