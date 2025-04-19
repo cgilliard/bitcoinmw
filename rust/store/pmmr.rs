@@ -13,6 +13,12 @@ pub struct Pmmr {
 	write: bool,
 }
 
+struct PeakInfo {
+	hash: [u8; 32],
+	height: u8,
+	index: u64,
+}
+
 impl Pmmr {
 	// create a new instance of this pmmr with the specified lmdb instance and prefix
 	pub fn new(db: Lmdb, prefix_str: &str) -> Result<Self, Error> {
@@ -250,16 +256,6 @@ impl Pmmr {
 		sha3.update(data);
 		sha3.finalize(&mut ret)?;
 		Ok(ret)
-	}
-
-	fn get_parent_info(&self, index: u64) -> Result<(u64, u32), Error> {
-		let mut pos = index;
-		let mut height = 0;
-		while pos % 2 == 1 {
-			pos /= 2;
-			height += 1;
-		}
-		Ok((pos / 2, height))
 	}
 
 	fn has_sibling(pos: u64, height: u32) -> bool {
