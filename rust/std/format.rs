@@ -5,35 +5,30 @@ use std::misc::{array_copy, i128_to_str, subslice, subslice_mut, u128_to_str};
 
 pub struct Formatter {
 	buffer: Vec<u8>,
-	pos: usize,
 }
 
 impl Formatter {
 	pub fn new() -> Self {
-		Self {
-			buffer: Vec::new(),
-			pos: 0,
-		}
+		Self { buffer: Vec::new() }
 	}
+
 	pub fn write_str(&mut self, s: &str, len: usize) -> Result<(), Error> {
 		let bytes = s.as_bytes();
-		match self.buffer.resize(len + self.pos) {
+		let start = self.buffer.len();
+		match self.buffer.resize(start + len) {
 			Ok(_) => {}
 			Err(e) => return Err(e),
 		}
-
-		let dest_slice = subslice_mut(&mut self.buffer, self.pos, len)?;
+		let dest_slice = subslice_mut(&mut self.buffer, start, len)?;
 		array_copy(bytes, dest_slice, len)?;
-		self.pos += len;
-
 		Ok(())
 	}
 
 	pub fn as_str(&self) -> &str {
-		if self.pos == 0 {
+		if self.buffer.len() == 0 {
 			""
 		} else {
-			unsafe { from_utf8_unchecked(&self.buffer.slice(0, self.pos)) }
+			unsafe { from_utf8_unchecked(&self.buffer.slice(0, self.buffer.len())) }
 		}
 	}
 }
@@ -138,17 +133,17 @@ macro_rules! impl_display_array {
             impl<T: Display> Display for [T; $n] {
         fn format(&self, f: &mut Formatter) -> Result<(), Error> {
                 let len = self.len();
-                writeb!(f, "[")?;
+                writef!(f, "[")?;
                 if len > 0 {
                         for i in 0..len {
                                 if i != len - 1 {
-                                        writeb!(f, "{}, ", self[i])?;
+                                        writef!(f, "{}, ", self[i])?;
                                 } else {
-                                        writeb!(f, "{}", self[i])?;
+                                        writef!(f, "{}", self[i])?;
                                 }
                         }
                 }
-                writeb!(f, "]")?;
+                writef!(f, "]")?;
                 Ok(())
         }
 }
@@ -164,17 +159,17 @@ impl_display_array!(
 impl<T: Display> Display for &[T] {
 	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		let len = self.len();
-		writeb!(f, "[")?;
+		writef!(f, "[")?;
 		if len > 0 {
 			for i in 0..len {
 				if i != len - 1 {
-					writeb!(f, "{}, ", self[i])?;
+					writef!(f, "{}, ", self[i])?;
 				} else {
-					writeb!(f, "{}", self[i])?;
+					writef!(f, "{}", self[i])?;
 				}
 			}
 		}
-		writeb!(f, "]")?;
+		writef!(f, "]")?;
 		Ok(())
 	}
 }
@@ -256,7 +251,7 @@ mod test {
 		let init = unsafe { getalloccount() };
 		{
 			let mut f = Formatter::new();
-			writeb!(
+			writef!(
 				&mut f,
 				"test {} {} {} {} {} {} {} end",
 				1,
@@ -274,5 +269,18 @@ mod test {
 			assert_eq!(x.to_str(), "this is a test 7 8");
 		}
 		assert_eq!(init, unsafe { getalloccount() });
+	}
+
+	#[test]
+	fn test_grow_formatter() -> Result<(), Error> {
+		let mut f = Formatter::new();
+		writef!(&mut f, "abc")?;
+		writef!(&mut f, "def")?;
+		let x = 101;
+		writef!(&mut f, "{}", x)?;
+
+		assert_eq!(f.as_str(), "abcdef101");
+
+		Ok(())
 	}
 }

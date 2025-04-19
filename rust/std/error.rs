@@ -20,7 +20,7 @@ macro_rules! define_errorkind_with_strings {
 
         impl Display for ErrorKind {
             fn format(&self, f: &mut Formatter) -> Result<(), Error> {
-                writeb!(f, "{}", match self { $( Self::$variant => stringify!($variant) ),*  })
+                writef!(f, "{}", match self { $( Self::$variant => stringify!($variant) ),*  })
             }
         }
     };
@@ -71,7 +71,7 @@ impl Debug for Error {
 
 impl Display for Error {
 	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
-		writeb!(f, "Error:kind={}", self.kind)
+		writef!(f, "Error:kind={}", self.kind)
 	}
 }
 

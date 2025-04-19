@@ -162,9 +162,9 @@ macro_rules! vec {
 }
 
 #[macro_export]
-macro_rules! writeb {
+macro_rules! writef {
         ($f:expr, $fmt:expr) => {{
-            writeb!($f, "{}", $fmt)
+            writef!($f, "{}", $fmt)
         }};
         ($f:expr, $fmt:expr, $($t:expr),*) => {{
             let mut err = Error::new(Unknown);
@@ -225,7 +225,7 @@ macro_rules! format {
         }};
         ($fmt:expr, $($t:expr),*) => {{
                 let mut formatter = Formatter::new();
-                match writeb!(&mut formatter, $fmt, $($t),*) {
+                match writef!(&mut formatter, $fmt, $($t),*) {
                     Ok(_) => String::new(formatter.as_str()),
                     Err(e) => Err(e)
                 }
