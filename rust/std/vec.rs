@@ -6,6 +6,7 @@ use core::ptr;
 use core::ptr::{drop_in_place, null_mut, write_bytes};
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
+use std::constants::VEC_MIN_SIZE;
 use std::ffi::{alloc, release, resize};
 use std::misc::array_copy;
 
@@ -13,7 +14,6 @@ pub struct Vec<T> {
 	value: Ptr<u8>,
 	capacity: usize,
 	elements: usize,
-	min: usize,
 	_marker: PhantomData<T>,
 }
 
@@ -51,7 +51,6 @@ impl<T: Clone> TryClone for Vec<T> {
 		match Vec::with_capacity(self.capacity) {
 			Ok(mut v) => {
 				v.elements = self.elements;
-				v.min = self.min;
 				for i in 0..v.elements {
 					v[i] = self[i].clone();
 				}
@@ -243,13 +242,11 @@ impl<T> Vec<T> {
 		let value = Ptr::null();
 		let capacity = 0;
 		let elements = 0;
-		let min = 0;
 
 		Self {
 			value,
 			capacity,
 			elements,
-			min,
 			_marker: PhantomData,
 		}
 	}
@@ -263,10 +260,13 @@ impl<T> Vec<T> {
 				value: Ptr::new(ptr),
 				capacity,
 				elements: 0,
-				min: 0,
 				_marker: PhantomData,
 			})
 		}
+	}
+
+	pub fn allow_zero_alloc(&mut self, v: bool) {
+		self.value.set_bit(v);
 	}
 
 	pub fn push(&mut self, v: T) -> Result<(), Error> {
@@ -298,10 +298,10 @@ impl<T> Vec<T> {
 	pub fn clear(&mut self) -> Result<(), Error> {
 		self.truncate(0)?;
 
-		if !self.resize_impl(self.min) {
+		if !self.resize_impl(0) {
 			Err(Error::new(Alloc))
 		} else {
-			self.capacity = self.min;
+			self.capacity = VEC_MIN_SIZE;
 			Ok(())
 		}
 	}
@@ -332,10 +332,6 @@ impl<T> Vec<T> {
 		} else {
 			Err(Error::new(Alloc))
 		}
-	}
-
-	pub fn set_min(&mut self, n: usize) {
-		self.min = n;
 	}
 
 	pub fn len(&self) -> usize {
@@ -436,8 +432,11 @@ impl<T> Vec<T> {
 	}
 
 	fn next_power_of_two(&self, mut n: usize) -> usize {
-		if n < self.min {
-			return self.min;
+		if self.value.get_bit() && n == 0 {
+			return 0;
+		}
+		if n < VEC_MIN_SIZE {
+			return VEC_MIN_SIZE;
 		}
 		if n == 0 {
 			return 0;
@@ -483,7 +482,10 @@ impl<T> Vec<T> {
 				}
 			}
 			self.capacity = ncapacity;
-			let nptr = Ptr::new(nptr as *mut u8);
+			let mut nptr = Ptr::new(nptr as *mut u8);
+			if self.value.get_bit() {
+				nptr.set_bit(true);
+			}
 			if self.value.raw().is_null() {
 				self.value = nptr;
 			} else {
@@ -644,11 +646,22 @@ mod test {
 		let initial = unsafe { getalloccount() };
 		{
 			let mut v = Vec::new();
-			v.set_min(0);
+			v.allow_zero_alloc(true);
 			assert!(v.push(1).is_ok());
 			assert!(v.resize(128).is_ok());
 			assert!(v.resize(0).is_ok());
-			// it's already freed at this point
+
+			// already 0
+			unsafe {
+				assert_eq!(initial, getalloccount());
+			}
+
+			let mut v = Vec::new();
+			assert!(v.push(1).is_ok());
+			v.allow_zero_alloc(true);
+			assert!(v.resize(128).is_ok());
+			assert!(v.resize(0).is_ok());
+
 			unsafe {
 				assert_eq!(initial, getalloccount());
 			}

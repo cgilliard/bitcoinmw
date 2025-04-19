@@ -4,6 +4,7 @@ mod macros;
 mod boxed;
 mod clone;
 mod cmp;
+mod constants;
 mod cstring;
 mod display;
 mod error;
