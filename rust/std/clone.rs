@@ -5,3 +5,9 @@ pub trait TryClone {
 	where
 		Self: Sized;
 }
+
+impl<T: Clone> TryClone for T {
+	fn try_clone(&self) -> Result<Self, Error> {
+		Ok(self.clone())
+	}
+}

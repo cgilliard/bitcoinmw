@@ -40,15 +40,6 @@ impl<T: ?Sized + Clone> Clone for Box<T> {
 	}
 }
 
-impl<T: TryClone> TryClone for Box<T> {
-	fn try_clone(&self) -> Result<Box<T>, Error> {
-		match self.as_ref().try_clone() {
-			Ok(v) => Box::new(v),
-			Err(e) => Err(e),
-		}
-	}
-}
-
 impl<T> Deref for Box<T>
 where
 	T: ?Sized,

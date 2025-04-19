@@ -1,6 +1,6 @@
 use core::convert::{AsMut, AsRef};
 use core::marker::PhantomData;
-use core::mem::{needs_drop, size_of};
+use core::mem::{drop, needs_drop, size_of};
 use core::ops::{Deref, DerefMut, Index, IndexMut};
 use core::ptr;
 use core::ptr::{drop_in_place, null_mut, write_bytes};
@@ -19,13 +19,13 @@ pub struct Vec<T> {
 
 impl<T> AsRef<[T]> for Vec<T> {
 	fn as_ref(&self) -> &[T] {
-		self.as_slice()
+		self.slice_all()
 	}
 }
 
 impl<T> AsMut<[T]> for Vec<T> {
 	fn as_mut(&mut self) -> &mut [T] {
-		self.as_mut_slice()
+		self.slice_mut_all()
 	}
 }
 
@@ -33,32 +33,47 @@ impl<T> Deref for Vec<T> {
 	type Target = [T];
 
 	fn deref(&self) -> &Self::Target {
-		self.as_slice()
+		self.as_ref()
 	}
 }
 
 impl<T> DerefMut for Vec<T> {
 	fn deref_mut(&mut self) -> &mut Self::Target {
-		self.as_mut_slice()
+		self.as_mut()
 	}
 }
 
-impl<T: Clone> TryClone for Vec<T> {
+impl<T: TryClone> TryClone for Vec<T> {
 	fn try_clone(&self) -> Result<Self, Error>
 	where
 		Self: Sized,
 	{
-		match Vec::with_capacity(self.capacity) {
-			Ok(mut v) => {
-				v.elements = self.elements;
-				for i in 0..v.elements {
-					v[i] = self[i].clone();
-				}
+		// Allocate new Vec with same capacity
+		let mut v = Vec::with_capacity(self.capacity)?;
 
-				Ok(v)
+		// Clone elements one by one
+		let mut i = 0;
+		while i < self.elements {
+			match self[i].try_clone() {
+				Ok(cloned) => {
+					// Write cloned element to uninitialized slot
+					unsafe {
+						let dest_ptr = v.value.raw() as *mut u8;
+						let dest_ptr = dest_ptr.add(size_of::<T>() * i) as *mut T;
+						ptr::write(dest_ptr, cloned);
+					}
+					i += 1;
+					v.elements = i; // Update elements for drop safety
+				}
+				Err(e) => {
+					// Drop cloned elements and return error
+					v.elements = i; // Ensure only cloned elements are dropped
+					drop(v);
+					return Err(e);
+				}
 			}
-			Err(e) => Err(e),
 		}
+		Ok(v)
 	}
 }
 
@@ -252,6 +267,9 @@ impl<T> Vec<T> {
 	}
 
 	pub fn with_capacity(capacity: usize) -> Result<Self, Error> {
+		if capacity == 0 {
+			return Ok(Self::new());
+		}
 		let ptr = unsafe { alloc(capacity * size_of::<T>()) };
 		if ptr.is_null() {
 			Err(Error::new(Alloc))
@@ -273,9 +291,7 @@ impl<T> Vec<T> {
 		let size = size_of::<T>();
 
 		if self.elements + 1 > self.capacity {
-			if !self.resize_impl(self.elements + 1) {
-				return Err(Error::new(Alloc));
-			}
+			self.resize_impl(self.elements + 1)?;
 		}
 
 		let dest_ptr = self.value.raw() as *mut u8;
@@ -288,6 +304,24 @@ impl<T> Vec<T> {
 		Ok(())
 	}
 
+	pub fn extend(&mut self, v: &Vec<T>) -> Result<(), Error>
+	where
+		T: Copy,
+	{
+		self.extend_from_slice(v.slice_all())
+	}
+
+	pub fn extend_from_slice(&mut self, other: &[T]) -> Result<(), Error>
+	where
+		T: Copy,
+	{
+		let len = self.len();
+		let other_len = other.len();
+		self.resize_impl(other_len + len)?;
+		self.elements = other_len + len;
+		array_copy(other, self.slice_mut_from(len), other.len())
+	}
+
 	pub fn iter_mut(&mut self) -> VecRefMutIterator<'_, T> {
 		VecRefMutIterator {
 			vec: self,
@@ -297,13 +331,8 @@ impl<T> Vec<T> {
 
 	pub fn clear(&mut self) -> Result<(), Error> {
 		self.truncate(0)?;
-
-		if !self.resize_impl(0) {
-			Err(Error::new(Alloc))
-		} else {
-			self.capacity = VEC_MIN_SIZE;
-			Ok(())
-		}
+		self.resize_impl(0)?;
+		Ok(())
 	}
 
 	pub fn truncate(&mut self, n: usize) -> Result<(), Error> {
@@ -326,20 +355,13 @@ impl<T> Vec<T> {
 	}
 
 	pub fn resize(&mut self, n: usize) -> Result<(), Error> {
-		if self.resize_impl(n) {
-			self.elements = n;
-			Ok(())
-		} else {
-			Err(Error::new(Alloc))
-		}
+		self.resize_impl(n)?;
+		self.elements = n;
+		Ok(())
 	}
 
 	pub fn len(&self) -> usize {
 		self.elements
-	}
-
-	pub fn set_len(&mut self, elements: usize) {
-		self.elements = elements;
 	}
 
 	pub fn as_mut_ptr(&mut self) -> *mut T {
@@ -348,45 +370,6 @@ impl<T> Vec<T> {
 
 	pub fn as_ptr(&self) -> *const T {
 		self.value.raw() as *const T
-	}
-
-	pub fn as_slice(&self) -> &[T] {
-		unsafe { from_raw_parts(self.value.raw() as *const T, self.elements) }
-	}
-
-	pub fn as_mut_slice(&mut self) -> &mut [T] {
-		unsafe { from_raw_parts_mut(self.value.raw() as *mut T, self.elements) }
-	}
-
-	pub fn append(&mut self, v: &Vec<T>) -> Result<(), Error>
-	where
-		T: Copy,
-	{
-		let len = v.len();
-		if self.elements + len > self.capacity {
-			if !self.resize_impl(self.elements + len) {
-				return Err(Error::new(Alloc));
-			}
-		}
-
-		let size = size_of::<T>();
-
-		let dest_ptr = self.value.raw() as *mut u8;
-		let dest_ptr = unsafe {
-			let offset = size
-				.checked_mul(self.elements)
-				.ok_or_else(|| Error::new(Overflow))?;
-			if offset > self.capacity * size {
-				return Err(Error::new(OutOfBounds));
-			}
-			dest_ptr.add(offset)
-		};
-
-		let dest_slice = unsafe { from_raw_parts_mut(dest_ptr as *mut T, len) };
-		array_copy(v.as_ref(), dest_slice, len)?;
-
-		self.elements += len;
-		Ok(())
 	}
 
 	pub fn mut_slice(&mut self, start: usize, end: usize) -> &mut [T] {
@@ -411,6 +394,8 @@ impl<T> Vec<T> {
 				end,
 				self.elements
 			);
+		} else if start == end {
+			&[]
 		} else {
 			let size = size_of::<T>();
 			unsafe { from_raw_parts(self.value.raw().add(start * size) as *const T, end - start) }
@@ -425,10 +410,36 @@ impl<T> Vec<T> {
 				end,
 				self.elements
 			);
+		} else if start == end {
+			&mut []
 		} else {
 			let size = size_of::<T>();
 			unsafe { from_raw_parts_mut(self.value.raw().add(start * size) as *mut T, end - start) }
 		}
+	}
+
+	pub fn slice_all(&self) -> &[T] {
+		self.slice(0, self.len())
+	}
+
+	pub fn slice_mut_all(&mut self) -> &mut [T] {
+		self.slice_mut(0, self.len())
+	}
+
+	pub fn slice_to(&self, end: usize) -> &[T] {
+		self.slice(0, end)
+	}
+
+	pub fn slice_mut_to(&mut self, end: usize) -> &mut [T] {
+		self.slice_mut(0, end)
+	}
+
+	pub fn slice_from(&self, start: usize) -> &[T] {
+		self.slice(start, self.len())
+	}
+
+	pub fn slice_mut_from(&mut self, start: usize) -> &mut [T] {
+		self.slice_mut(start, self.len())
 	}
 
 	fn next_power_of_two(&self, mut n: usize) -> usize {
@@ -451,11 +462,11 @@ impl<T> Vec<T> {
 		n + 1
 	}
 
-	fn resize_impl(&mut self, needed: usize) -> bool {
+	fn resize_impl(&mut self, needed: usize) -> Result<(), Error> {
 		let ncapacity = self.next_power_of_two(needed);
 
 		if ncapacity == self.capacity {
-			return true;
+			return Ok(());
 		}
 
 		let rptr = self.value.raw();
@@ -491,10 +502,14 @@ impl<T> Vec<T> {
 			} else {
 				self.value = nptr;
 			}
-			true
+			Ok(())
 		} else {
 			self.value = Ptr::null();
-			ncapacity == 0
+			if ncapacity == 0 {
+				Ok(())
+			} else {
+				Err(Error::new(Alloc))
+			}
 		}
 	}
 }
@@ -563,7 +578,7 @@ mod test {
 		{
 			let mut v1 = vec![1u64, 2, 3].unwrap();
 			let v2 = vec![4u64, 5, 6].unwrap();
-			assert!(v1.append(&v2).is_ok());
+			assert!(v1.extend_from_slice(&v2).is_ok());
 			assert_eq!(v1.len(), 6);
 			assert_eq!(v2.len(), 3);
 
@@ -575,7 +590,7 @@ mod test {
 			// try a u8 version
 			let mut v1 = vec![1u8, 2, 3].unwrap();
 			let v2 = vec![4u8, 5, 6].unwrap();
-			assert!(v1.append(&v2).is_ok());
+			assert!(v1.extend_from_slice(&v2).is_ok());
 
 			assert_eq!(v1, vec![1, 2, 3, 4, 5, 6].unwrap());
 			assert!(v1 != vec![1, 2, 3, 4, 6, 6].unwrap());
@@ -719,6 +734,80 @@ mod test {
 	fn test_as_ref() -> Result<(), Error> {
 		let mut v = vec![1, 2, 3]?;
 		assert_eq!(v.as_mut(), &mut [1, 2, 3]);
+		Ok(())
+	}
+
+	#[test]
+	fn test_try_clone() -> Result<(), Error> {
+		let initial = unsafe { getalloccount() };
+		{
+			let v1 = vec![1, 2, 3, 4]?;
+			let v2 = v1.try_clone()?;
+			assert_eq!(v1, v2);
+
+			let x1 = vec![1, 2, 3]?;
+			let x2 = vec![4, 5, 6]?;
+			let x3 = vec![7, 8, 9]?;
+
+			let y1 = vec![9, 9, 9, 9]?;
+			let y2 = vec![10, 10, 10]?;
+			let y3 = vec![11, 11]?;
+			let y4 = vec![12]?;
+
+			let y = vec![y1, y2, y3, y4]?;
+			let x = vec![x1, x2, x3]?;
+
+			let z1 = vec![y, x]?;
+			let z2 = z1.try_clone()?;
+			assert_eq!(z1, z2);
+
+			assert_eq!(z1[1][2][1], 8);
+			assert_eq!(z2[1][1][0], 4);
+		}
+		unsafe {
+			assert_eq!(initial, getalloccount());
+		}
+		Ok(())
+	}
+
+	#[test]
+	fn test_extend_from_slice() -> Result<(), Error> {
+		let initial = unsafe { getalloccount() };
+		{
+			let mut v1 = vec![1, 2, 3, 4]?;
+			let v2 = vec![5, 6, 7, 8, 9, 10]?;
+			v1.extend_from_slice(v2.as_ref())?;
+			assert_eq!(v1, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]?);
+		}
+		unsafe {
+			assert_eq!(initial, getalloccount());
+		}
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_three_iters() -> Result<(), Error> {
+		let mut vec = vec![0, 1, 2, 3]?;
+		let mut i = 0;
+		for v in vec.iter() {
+			assert_eq!(*v, i);
+			i += 1;
+		}
+		assert_eq!(i, 4);
+		i = 0;
+		for v in vec.iter_mut() {
+			*v += 1;
+			assert_eq!(*v, i + 1);
+			i += 1;
+		}
+		assert_eq!(i, 4);
+		i = 1;
+		for v in vec {
+			assert_eq!(v, i);
+			i += 1;
+		}
+		assert_eq!(i, 5);
 		Ok(())
 	}
 }
