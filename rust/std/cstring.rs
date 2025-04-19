@@ -1,6 +1,5 @@
 use core::convert::AsRef;
 use core::ops::{Index, IndexMut};
-use core::ptr::copy_nonoverlapping;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
 use std::ffi::alloc;
@@ -34,6 +33,12 @@ impl IndexMut<usize> for CStr {
 	}
 }
 
+impl AsRef<[u8]> for CStr {
+	fn as_ref(&self) -> &[u8] {
+		unsafe { from_raw_parts(self.ptr.raw(), self.len()) }
+	}
+}
+
 impl CStr {
 	pub fn new(s: &str) -> Result<Self, Error> {
 		let len = s.len();
@@ -57,7 +62,7 @@ impl CStr {
 	}
 
 	pub fn as_str(&self) -> Result<String, Error> {
-		unsafe { String::newb(from_raw_parts(self.ptr.raw(), self.len())) }
+		String::newb(self.as_ref())
 	}
 
 	pub fn len(&self) -> usize {
@@ -75,10 +80,9 @@ impl CStr {
 	pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
 		let len = self.len();
 		let mut r = Vec::with_capacity(len)?;
-		unsafe {
-			copy_nonoverlapping(self.ptr.raw(), r.as_mut_ptr(), len);
-			r.set_len(len);
-		}
+		r.resize(len)?;
+		let mut slice = r.mut_slice(0, len);
+		array_copy(self.as_ref(), &mut slice, len)?;
 		Ok(r)
 	}
 
@@ -95,14 +99,8 @@ impl CStr {
 		if offset + slice.len() > len {
 			Err(Error::new(ArrayIndexOutOfBounds))
 		} else {
-			unsafe {
-				copy_nonoverlapping(
-					self.ptr.raw().offset(offset as isize),
-					slice.as_mut_ptr(),
-					len,
-				);
-			}
-			Ok(())
+			let b = unsafe { from_raw_parts(self.ptr.raw().offset(offset as isize), len) };
+			array_copy(b, slice, len - offset)
 		}
 	}
 }
@@ -113,7 +111,7 @@ mod test {
 	#[test]
 	fn test_cstr() -> Result<(), Error> {
 		let c1 = CStr::new("mystr")?;
-		//assert_eq!(c1.as_str()?, String::new("mystr")?);
+		assert_eq!(c1.as_str()?, String::new("mystr")?);
 
 		let ptr = c1.as_ptr();
 		unsafe {
@@ -152,6 +150,13 @@ mod test {
 		}
 		assert_eq!(unsafe { getalloccount() }, init);
 
+		Ok(())
+	}
+
+	#[test]
+	fn test_as_bytes() -> Result<(), Error> {
+		let str = CStr::new("abc")?;
+		assert_eq!(str.as_bytes()?, vec![b'a', b'b', b'c']?);
 		Ok(())
 	}
 }

@@ -280,8 +280,8 @@ macro_rules! exit {
 		exit!("{}", $fmt);
 	}};
 	($fmt:expr,  $($t:expr),*) => {{
-		//print!("Panic[@{}:{}]: ", file!(), line!());
-		//println!($fmt, $($t),*);
+		print!("Panic[@{}:{}]: ", file!(), line!());
+		println!($fmt, $($t),*);
 
 		#[allow(unused_unsafe)]
 		unsafe {

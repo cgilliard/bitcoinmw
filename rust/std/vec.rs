@@ -355,6 +355,20 @@ impl<T> Vec<T> {
 		Ok(())
 	}
 
+	pub fn mut_slice(&mut self, start: usize, end: usize) -> &mut [T] {
+		if start > end || end > self.elements {
+			exit!(
+				"Slice out of bounds: {}..{} > {}",
+				start,
+				end,
+				self.elements
+			);
+		} else {
+			let size = size_of::<T>();
+			unsafe { from_raw_parts_mut(self.value.raw().add(start * size) as *mut T, end - start) }
+		}
+	}
+
 	pub fn slice(&self, start: usize, end: usize) -> &[T] {
 		if start > end || end > self.elements {
 			exit!(

@@ -1,4 +1,3 @@
-use core::mem::size_of;
 use core::ptr::copy_nonoverlapping;
 use prelude::*;
 
@@ -78,9 +77,62 @@ pub fn i128_to_str(mut n: i128, buf: &mut [u8], base: u8) -> usize {
 
 pub fn array_copy<T>(src: &[T], dst: &mut [T], len: usize) -> Result<(), Error> {
 	if dst.len() < len || src.len() < len {
-		return Err(Error::new(ArrayIndexOutOfBounds));
+		Err(Error::new(ArrayIndexOutOfBounds))
+	} else {
+		unsafe { copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr(), len) }
+		Ok(())
 	}
+}
 
-	unsafe { copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr(), len * size_of::<T>()) }
-	Ok(())
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	struct Copyable {
+		x: u32,
+		y: u64,
+		z: String,
+	}
+	#[test]
+	fn test_array_copy() -> Result<(), Error> {
+		let mut arr = vec![Copyable {
+			x: 1,
+			y: 2,
+			z: String::new("abc")?,
+		}]?;
+		arr.push(Copyable {
+			x: 3,
+			y: 4,
+			z: String::new("def")?,
+		})?;
+		arr.push(Copyable {
+			x: 7,
+			y: 7,
+			z: String::new("ghi")?,
+		})?;
+
+		let mut n = Vec::new();
+		n.resize(3)?;
+		array_copy(arr.slice(0, 3), n.mut_slice(0, 3), 3)?;
+		assert_eq!(n[0].x, 1);
+		assert_eq!(n[1].x, 3);
+		assert_eq!(n[2].x, 7);
+		assert_eq!(n[2].y, 7);
+		assert_eq!(n[2].z, String::new("ghi")?);
+		assert_eq!(n.len(), 3);
+
+		let v = vec![0u64, 1u64, 2u64]?;
+		let mut v2 = vec![9u64, 9u64, 9u64]?;
+		array_copy(v.slice(0, 3), v2.mut_slice(0, 3), 3)?;
+
+		assert_eq!(v2[0], 0);
+		assert_eq!(v2[1], 1);
+		assert_eq!(v2[2], 2);
+		assert_eq!(v2.len(), 3);
+		assert_eq!(v[0], 0);
+		assert_eq!(v[1], 1);
+		assert_eq!(v[2], 2);
+		assert_eq!(v.len(), 3);
+		Ok(())
+	}
 }
