@@ -21,10 +21,10 @@ done
 cd ..
 ar rcs .obj/libtest.a .obj/*.o || exit 1;
 rustc -C debuginfo=2 --test rust/mod.rs \
-	-o bin/test_fam \
+	-o bin/test_bmw \
 	-L .obj \
 	-l static=test \
 	-l static=secp256k1 \
 	-l static=gmp \
 	${RUSTFLAGS} ||  exit 1;
-./bin/test_fam ${FILTER} --test-threads=1 || exit 1;
+./bin/test_bmw ${FILTER} --test-threads=1 || exit 1;
