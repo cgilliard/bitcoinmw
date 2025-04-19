@@ -4,7 +4,7 @@ use prelude::*;
 
 pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
 	if off > n.len() || len.checked_add(off).map_or(true, |end| end > n.len()) {
-		Err(Error::new(ArrayIndexOutOfBounds))
+		Err(Error::new(OutOfBounds))
 	} else {
 		Ok(unsafe { from_raw_parts(n.as_ptr().add(off), len) })
 	}
@@ -12,7 +12,7 @@ pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
 
 pub fn subslice_mut<N>(n: &mut [N], off: usize, len: usize) -> Result<&mut [N], Error> {
 	if off > n.len() || len.checked_add(off).map_or(true, |end| end > n.len()) {
-		Err(Error::new(ArrayIndexOutOfBounds))
+		Err(Error::new(OutOfBounds))
 	} else {
 		Ok(unsafe { from_raw_parts_mut(n.as_mut_ptr().add(off), len) })
 	}
@@ -94,11 +94,49 @@ pub fn i128_to_str(mut n: i128, buf: &mut [u8], base: u8) -> usize {
 
 pub fn array_copy<T: Copy>(src: &[T], dst: &mut [T], len: usize) -> Result<(), Error> {
 	if dst.len() < len || src.len() < len {
-		Err(Error::new(ArrayIndexOutOfBounds))
+		Err(Error::new(OutOfBounds))
 	} else {
 		unsafe { copy(src.as_ptr(), dst.as_mut_ptr(), len) }
 		Ok(())
 	}
+}
+
+pub fn is_utf8_valid(bytes: &[u8]) -> Result<(), Error> {
+	let mut i = 0;
+	while i < bytes.len() {
+		let b = bytes[i];
+		let len = if b <= 0x7F {
+			// 1-byte (ASCII)
+			1
+		} else if (b & 0xE0) == 0xC0 {
+			// 2-byte
+			2
+		} else if (b & 0xF0) == 0xE0 {
+			// 3-byte
+			3
+		} else if (b & 0xF8) == 0xF0 {
+			// 4-byte
+			4
+		} else {
+			// Invalid leading byte
+			return Err(Error::new(ErrorKind::Utf8Error));
+		};
+
+		// Check if there are enough bytes
+		if i + len > bytes.len() {
+			return Err(Error::new(ErrorKind::Utf8Error));
+		}
+
+		// Check continuation bytes
+		for j in 1..len {
+			if (bytes[i + j] & 0xC0) != 0x80 {
+				return Err(Error::new(ErrorKind::Utf8Error));
+			}
+		}
+
+		i += len;
+	}
+	Ok(())
 }
 
 #[cfg(test)]

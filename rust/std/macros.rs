@@ -174,14 +174,14 @@ macro_rules! writeb {
                     $(
                         match fmt.findn("{}", cur) {
                             Some(index) => {
-                                match fmt.substring( cur, cur + index) {
+                                match fmt.substring(cur, index) {
                                     Ok(s) => {
                                         let s = s.to_str();
                                         match $f.write_str(s, s.len()) {
                                             Ok(_) => {},
                                             Err(e) => err = e,
                                         }
-                                        cur += index + 2;
+                                        cur += index - cur + 2
                                     }
                                     Err(e) => err = e,
                                 }

@@ -381,7 +381,7 @@ impl<T> Vec<T> {
 				.checked_mul(self.elements)
 				.ok_or_else(|| Error::new(Overflow))?;
 			if offset > self.capacity * size {
-				return Err(Error::new(ArrayIndexOutOfBounds));
+				return Err(Error::new(OutOfBounds));
 			}
 			dest_ptr.add(offset)
 		};

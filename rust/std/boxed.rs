@@ -13,7 +13,9 @@ pub struct Box<T: ?Sized> {
 
 impl<T: Copy> AsRef<[u8]> for Box<T> {
 	fn as_ref(&self) -> &[u8] {
-		unsafe { from_raw_parts(self.as_ptr().raw() as *const u8, size_of::<T>()) }
+		let ptr = self.as_ptr().raw() as *const u8;
+		let size = size_of::<T>();
+		unsafe { from_raw_parts(ptr, size) }
 	}
 }
 

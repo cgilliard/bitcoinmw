@@ -3,7 +3,7 @@ use core::ops::{Index, IndexMut};
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
 use std::ffi::alloc;
-use std::misc::array_copy;
+use std::misc::{array_copy, subslice};
 use std::Ptr;
 
 pub struct CStr {
@@ -67,12 +67,8 @@ impl CStr {
 
 	pub fn len(&self) -> usize {
 		let mut len = 0;
-		unsafe {
-			let mut current = self.ptr.raw();
-			while *current != 0 {
-				len += 1;
-				current = current.add(1);
-			}
+		while self[len] != 0 {
+			len += 1;
 		}
 		len
 	}
@@ -97,9 +93,9 @@ impl CStr {
 	pub fn copy_to_slice(&self, slice: &mut [u8], offset: usize) -> Result<(), Error> {
 		let len = self.len();
 		if offset + slice.len() > len {
-			Err(Error::new(ArrayIndexOutOfBounds))
+			Err(Error::new(OutOfBounds))
 		} else {
-			let b = unsafe { from_raw_parts(self.ptr.raw().offset(offset as isize), len) };
+			let b = subslice(self.as_ref(), offset, len - offset)?;
 			array_copy(b, slice, len - offset)
 		}
 	}

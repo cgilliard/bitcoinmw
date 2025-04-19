@@ -17,6 +17,12 @@ macro_rules! define_errorkind_with_strings {
                 }
             }
         }
+
+        impl Display for ErrorKind {
+            fn format(&self, f: &mut Formatter) -> Result<(), Error> {
+                writeb!(f, "{}", match self { $( Self::$variant => stringify!($variant) ),*  })
+            }
+        }
     };
 }
 
@@ -25,10 +31,11 @@ define_errorkind_with_strings!(
 	Alloc,
 	IllegalArgument,
 	IllegalState,
+	Utf8Error,
 	Overflow,
 	IO,
 	Serialization,
-	ArrayIndexOutOfBounds,
+	OutOfBounds,
 	Todo
 );
 
@@ -62,6 +69,12 @@ impl Debug for Error {
 	}
 }
 
+impl Display for Error {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
+		writeb!(f, "Error:kind={}", self.kind)
+	}
+}
+
 #[cfg(test)]
 mod test {
 	use super::*;
@@ -77,7 +90,7 @@ mod test {
 		let e3 = Error::new(Alloc);
 		let e4 = Error::new(IllegalArgument);
 		let e5 = Error::new(IllegalState);
-		let e6 = Error::new(ArrayIndexOutOfBounds);
+		let e6 = Error::new(OutOfBounds);
 		let e7 = Error::new(Serialization);
 		let e8 = Error::new(IO);
 		assert_eq!(e1, e3);

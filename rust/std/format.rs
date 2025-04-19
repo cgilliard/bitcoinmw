@@ -256,7 +256,7 @@ mod test {
 		let init = unsafe { getalloccount() };
 		{
 			let mut f = Formatter::new();
-			assert!(writeb!(
+			writeb!(
 				&mut f,
 				"test {} {} {} {} {} {} {} end",
 				1,
@@ -267,7 +267,7 @@ mod test {
 				"ok",
 				String::new("xyz").unwrap()
 			)
-			.is_ok());
+			.unwrap();
 			assert_eq!(f.as_str(), "test 1 -2 3 4.50000 true ok xyz end");
 
 			let x = format!("this is a test {} {}", 7, 8).unwrap();
