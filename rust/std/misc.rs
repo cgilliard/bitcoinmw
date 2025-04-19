@@ -126,10 +126,9 @@ pub fn is_utf8_valid(bytes: &[u8]) -> Result<(), Error> {
 		if i + len > bytes.len() {
 			return Err(Error::new(ErrorKind::Utf8Error));
 		}
-
 		// Check continuation bytes
 		for j in 1..len {
-			if (bytes[i + j] & 0xC0) != 0x80 {
+			if i + j < bytes.len() && (bytes[i + j] & 0xC0) != 0x80 {
 				return Err(Error::new(ErrorKind::Utf8Error));
 			}
 		}
