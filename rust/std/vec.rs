@@ -1,12 +1,13 @@
-use core::convert::AsRef;
+use core::convert::{AsMut, AsRef};
 use core::marker::PhantomData;
 use core::mem::{needs_drop, size_of};
-use core::ops::{Index, IndexMut};
+use core::ops::{Deref, DerefMut, Index, IndexMut};
 use core::ptr;
-use core::ptr::{copy_nonoverlapping, drop_in_place, null_mut, write_bytes};
+use core::ptr::{drop_in_place, null_mut, write_bytes};
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
 use std::ffi::{alloc, release, resize};
+use std::misc::array_copy;
 
 pub struct Vec<T> {
 	value: Ptr<u8>,
@@ -19,6 +20,26 @@ pub struct Vec<T> {
 impl<T> AsRef<[T]> for Vec<T> {
 	fn as_ref(&self) -> &[T] {
 		self.as_slice()
+	}
+}
+
+impl<T> AsMut<[T]> for Vec<T> {
+	fn as_mut(&mut self) -> &mut [T] {
+		self.as_mut_slice()
+	}
+}
+
+impl<T> Deref for Vec<T> {
+	type Target = [T];
+
+	fn deref(&self) -> &Self::Target {
+		self.as_slice()
+	}
+}
+
+impl<T> DerefMut for Vec<T> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		self.as_mut_slice()
 	}
 }
 
@@ -341,7 +362,10 @@ impl<T> Vec<T> {
 		unsafe { from_raw_parts_mut(self.value.raw() as *mut T, self.elements) }
 	}
 
-	pub fn append(&mut self, v: &Vec<T>) -> Result<(), Error> {
+	pub fn append(&mut self, v: &Vec<T>) -> Result<(), Error>
+	where
+		T: Copy,
+	{
 		let len = v.len();
 		if self.elements + len > self.capacity {
 			if !self.resize_impl(self.elements + len) {
@@ -350,13 +374,20 @@ impl<T> Vec<T> {
 		}
 
 		let size = size_of::<T>();
-		let dest_ptr = self.value.raw() as *mut u8;
-		let dest_ptr = unsafe { dest_ptr.add(size * self.elements) };
-		let src_ptr = v.value.raw() as *const u8;
 
-		unsafe {
-			copy_nonoverlapping(src_ptr, dest_ptr, size * len);
-		}
+		let dest_ptr = self.value.raw() as *mut u8;
+		let dest_ptr = unsafe {
+			let offset = size
+				.checked_mul(self.elements)
+				.ok_or_else(|| Error::new(Overflow))?;
+			if offset > self.capacity * size {
+				return Err(Error::new(ArrayIndexOutOfBounds));
+			}
+			dest_ptr.add(offset)
+		};
+
+		let dest_slice = unsafe { from_raw_parts_mut(dest_ptr as *mut T, len) };
+		array_copy(v.as_ref(), dest_slice, len)?;
 
 		self.elements += len;
 		Ok(())
@@ -528,14 +559,28 @@ mod test {
 	fn test_vec_append() {
 		let initial = unsafe { getalloccount() };
 		{
-			let mut v1 = vec![1, 2, 3].unwrap();
-			let v2 = vec![4, 5, 6].unwrap();
+			let mut v1 = vec![1u64, 2, 3].unwrap();
+			let v2 = vec![4u64, 5, 6].unwrap();
+			assert!(v1.append(&v2).is_ok());
+			assert_eq!(v1.len(), 6);
+			assert_eq!(v2.len(), 3);
+
+			assert_eq!(v1, vec![1, 2, 3, 4, 5, 6].unwrap());
+			assert!(v1 != vec![1, 2, 3, 4, 6, 6].unwrap());
+			assert!(v1 == vec![1, 2, 3, 4, 5, 6].unwrap());
+			assert!(v1 != v2);
+
+			// try a u8 version
+			let mut v1 = vec![1u8, 2, 3].unwrap();
+			let v2 = vec![4u8, 5, 6].unwrap();
 			assert!(v1.append(&v2).is_ok());
 
 			assert_eq!(v1, vec![1, 2, 3, 4, 5, 6].unwrap());
 			assert!(v1 != vec![1, 2, 3, 4, 6, 6].unwrap());
 			assert!(v1 == vec![1, 2, 3, 4, 5, 6].unwrap());
 			assert!(v1 != v2);
+			assert_eq!(v1.len(), 6);
+			assert_eq!(v2.len(), 3);
 		}
 		unsafe {
 			assert_eq!(initial, getalloccount());
@@ -655,5 +700,12 @@ mod test {
 			i += 1;
 		}
 		assert_eq!(i, 6);
+	}
+
+	#[test]
+	fn test_as_ref() -> Result<(), Error> {
+		let mut v = vec![1, 2, 3]?;
+		assert_eq!(v.as_mut(), &mut [1, 2, 3]);
+		Ok(())
 	}
 }

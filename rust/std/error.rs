@@ -25,6 +25,7 @@ define_errorkind_with_strings!(
 	Alloc,
 	IllegalArgument,
 	IllegalState,
+	Overflow,
 	IO,
 	Serialization,
 	ArrayIndexOutOfBounds,

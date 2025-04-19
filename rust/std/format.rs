@@ -1,9 +1,7 @@
-use core::ptr::copy_nonoverlapping;
-use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
 use prelude::*;
 use std::ffi::f64_to_str;
-use std::misc::{i128_to_str, u128_to_str};
+use std::misc::{array_copy, i128_to_str, subslice, subslice_mut, u128_to_str};
 
 pub struct Formatter {
 	buffer: Vec<u8>,
@@ -24,10 +22,8 @@ impl Formatter {
 			Err(e) => return Err(e),
 		}
 
-		unsafe {
-			let ptr = (self.buffer.as_mut_ptr() as *mut u8).add(self.pos);
-			copy_nonoverlapping(bytes.as_ptr(), ptr, len);
-		}
+		let dest_slice = subslice_mut(&mut self.buffer, self.pos, len)?;
+		array_copy(bytes, dest_slice, len)?;
 		self.pos += len;
 
 		Ok(())
@@ -71,7 +67,7 @@ impl Display for char {
 		let mut buf = [0u8; 4];
 		let len = self.encode_utf8(&mut buf).len();
 		if len > 0 {
-			let buf = unsafe { from_raw_parts(buf.as_ptr(), len) };
+			let buf = subslice(&buf, 0, len)?;
 			let buf = unsafe { from_utf8_unchecked(&buf) };
 			f.write_str(buf, len)
 		} else {

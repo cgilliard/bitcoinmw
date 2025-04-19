@@ -2,11 +2,10 @@ use core::cmp::PartialEq;
 use core::convert::AsRef;
 use core::fmt::Debug;
 use core::fmt::Formatter as CoreFormatter;
-use core::ptr::copy_nonoverlapping;
 use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
 use prelude::*;
-use std::misc::strcmp;
+use std::misc::{array_copy, strcmp};
 
 pub struct String {
 	value: Option<Rc<Box<[u8]>>>,
@@ -60,10 +59,7 @@ impl String {
 		} else {
 			match try_box_slice!(0u8, end) {
 				Ok(mut value) => {
-					let valueptr = value.as_mut_ptr() as *mut u8;
-					unsafe {
-						copy_nonoverlapping(s.as_ptr(), valueptr, end);
-					}
+					array_copy(s.as_bytes(), &mut value, end)?;
 					match Rc::new(value) {
 						Ok(rc) => Ok(Self {
 							value: Some(rc),
@@ -86,10 +82,7 @@ impl String {
 		} else {
 			match try_box_slice!(0u8, end) {
 				Ok(mut value) => {
-					let valueptr = value.as_mut_ptr() as *mut u8;
-					unsafe {
-						copy_nonoverlapping(b.as_ptr(), valueptr, end);
-					}
+					array_copy(b, &mut value, end)?;
 					match Rc::new(value) {
 						Ok(rc) => Ok(Self {
 							value: Some(rc),

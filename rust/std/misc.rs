@@ -1,5 +1,22 @@
-use core::ptr::copy_nonoverlapping;
+use core::ptr::copy;
+use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
+
+pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
+	if len + off > n.len() {
+		Err(Error::new(ArrayIndexOutOfBounds))
+	} else {
+		Ok(unsafe { from_raw_parts(n.as_ptr().add(off), len) })
+	}
+}
+
+pub fn subslice_mut<N>(n: &mut [N], off: usize, len: usize) -> Result<&mut [N], Error> {
+	if len + off > n.len() {
+		Err(Error::new(ArrayIndexOutOfBounds))
+	} else {
+		Ok(unsafe { from_raw_parts_mut(n.as_mut_ptr().add(off), len) })
+	}
+}
 
 pub fn strcmp(a: &str, b: &str) -> i32 {
 	let len = if a.len() > b.len() { b.len() } else { a.len() };
@@ -79,7 +96,7 @@ pub fn array_copy<T: Copy>(src: &[T], dst: &mut [T], len: usize) -> Result<(), E
 	if dst.len() < len || src.len() < len {
 		Err(Error::new(ArrayIndexOutOfBounds))
 	} else {
-		unsafe { copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr(), len) }
+		unsafe { copy(src.as_ptr(), dst.as_mut_ptr(), len) }
 		Ok(())
 	}
 }
