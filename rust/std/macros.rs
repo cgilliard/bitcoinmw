@@ -2,7 +2,10 @@
 macro_rules! aadd {
 	($a:expr, $v:expr) => {{
 		use std::ffi::atomic_fetch_add_u64;
-		unsafe { atomic_fetch_add_u64($a, $v) }
+		#[allow(unused_unsafe)]
+		unsafe {
+			atomic_fetch_add_u64($a, $v)
+		}
 	}};
 }
 
@@ -10,7 +13,10 @@ macro_rules! aadd {
 macro_rules! asub {
 	($a:expr, $v:expr) => {{
 		use std::ffi::atomic_fetch_sub_u64;
-		unsafe { atomic_fetch_sub_u64($a, $v) }
+		#[allow(unused_unsafe)]
+		unsafe {
+			atomic_fetch_sub_u64($a, $v)
+		}
 	}};
 }
 
@@ -29,7 +35,10 @@ macro_rules! aload {
 macro_rules! astore {
 	($a:expr, $v:expr) => {{
 		use std::ffi::atomic_store_u64;
-		unsafe { atomic_store_u64($a, $v) }
+		#[allow(unused_unsafe)]
+		unsafe {
+			atomic_store_u64($a, $v)
+		}
 	}};
 }
 
@@ -84,6 +93,7 @@ macro_rules! box_slice {
 		let ptr = if total_size == 0 {
 			null_mut()
 		} else {
+			#[allow(unused_unsafe)]
 			unsafe {
 				let rptr = alloc(total_size) as *mut u8;
 				if rptr.is_null() {
@@ -97,6 +107,7 @@ macro_rules! box_slice {
 				rptr as *mut _
 			}
 		};
+		#[allow(unused_unsafe)]
 		unsafe {
 			Box {
 				ptr: Ptr::new(from_raw_parts_mut(ptr as *mut _, count)),
@@ -118,6 +129,7 @@ macro_rules! try_box_slice {
 		if total_size == 0 {
 			Err(Error::new(IllegalState))
 		} else {
+			#[allow(unused_unsafe)]
 			unsafe {
 				let rptr = alloc(total_size) as *mut u8;
 				if rptr.is_null() {
@@ -163,59 +175,61 @@ macro_rules! vec {
 
 #[macro_export]
 macro_rules! writef {
-        ($f:expr, $fmt:expr) => {{
-            writef!($f, "{}", $fmt)
-        }};
-        ($f:expr, $fmt:expr, $($t:expr),*) => {{
-            let mut err = Error::new(Unknown);
-            match String::new($fmt) {
-                Ok(fmt) => {
-                    let mut cur = 0;
-                    $(
-                        match fmt.findn("{}", cur) {
-                            Some(index) => {
-                                match fmt.substring(cur, index) {
-                                    Ok(s) => {
-                                        let s = s.to_str();
-                                        match $f.write_str(s, s.len()) {
-                                            Ok(_) => {},
-                                            Err(e) => err = e,
-                                        }
-                                        cur += index - cur + 2
-                                    }
+    ($f:expr, $fmt:expr) => {{
+        writef!($f, "{}", $fmt)
+    }};
+    ($f:expr, $fmt:expr, $($t:expr),*) => {{
+        use std::strext::StrExt;
+        use core::str::from_utf8_unchecked;
+        use std::misc::subslice;
+
+        let mut err = Error::new(ErrorKind::Unknown);
+        let fmt_str = $fmt;
+        let mut cur = 0;
+        $(
+            match fmt_str.findn("{}", cur) {
+                Some(index) => {
+                    if index > cur {
+                        match subslice(fmt_str.as_bytes(), cur, index - cur) {
+                            Ok(bytes) => {
+                                #[allow(unused_unsafe)]
+                                let s = unsafe { from_utf8_unchecked(bytes) };
+                                match $f.write_str(s, s.len()) {
+                                    Ok(_) => {},
                                     Err(e) => err = e,
                                 }
-                            },
-                            None => {
-                            },
-                        }
-                        match $t.format($f) {
-                            Ok(_) => {},
+                            }
                             Err(e) => err = e,
                         }
-                    )*
-
-                    match fmt.substring( cur, fmt.len()) {
-                        Ok(s) => {
-                            let s = s.to_str();
-                            match $f.write_str(s, s.len()) {
-                                Ok(_) =>{},
-                                Err(e) => err = e,
-                            }
-                        }
+                    }
+                    cur = index + 2;
+                    match $t.format($f) {
+                        Ok(_) => {},
+                        Err(e) => err = e,
+                    }
+                }
+                None => {},
+            }
+        )*
+        if cur < fmt_str.len() {
+            match subslice(fmt_str.as_bytes(), cur, fmt_str.len() - cur) {
+                Ok(bytes) => {
+                    #[allow(unused_unsafe)]
+                    let s = unsafe { from_utf8_unchecked(bytes) };
+                    match $f.write_str(s, s.len()) {
+                        Ok(_) => {},
                         Err(e) => err = e,
                     }
                 }
                 Err(e) => err = e,
             }
-
-
-            if err.kind == ErrorKind::Unknown {
-                Ok(())
-            } else {
-                Err(err)
-            }
-        }};
+        }
+        if err.kind == ErrorKind::Unknown {
+            Ok(())
+        } else {
+            Err(err)
+        }
+    }};
 }
 
 #[macro_export]

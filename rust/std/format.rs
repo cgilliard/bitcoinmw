@@ -12,6 +12,12 @@ impl Formatter {
 		Self { buffer: Vec::new() }
 	}
 
+	pub fn with_capacity(size: usize) -> Result<Self, Error> {
+		Ok(Self {
+			buffer: Vec::with_capacity(size)?,
+		})
+	}
+
 	pub fn write_str(&mut self, s: &str, len: usize) -> Result<(), Error> {
 		let bytes = s.as_bytes();
 		let start = self.buffer.len();
@@ -273,13 +279,17 @@ mod test {
 
 	#[test]
 	fn test_grow_formatter() -> Result<(), Error> {
-		let mut f = Formatter::new();
-		writef!(&mut f, "abc")?;
-		writef!(&mut f, "def")?;
-		let x = 101;
-		writef!(&mut f, "{}", x)?;
+		let init = unsafe { getalloccount() };
+		{
+			let mut f = Formatter::with_capacity(64)?;
+			writef!(&mut f, "abc")?;
+			writef!(&mut f, "def")?;
+			let x = 101;
+			writef!(&mut f, "{}", x)?;
 
-		assert_eq!(f.as_str(), "abcdef101");
+			assert_eq!(f.as_str(), "abcdef101");
+		}
+		assert_eq!(init, unsafe { getalloccount() });
 
 		Ok(())
 	}

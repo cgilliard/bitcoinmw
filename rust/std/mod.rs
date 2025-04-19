@@ -13,6 +13,7 @@ mod format;
 mod misc;
 mod ptr;
 mod rc;
+mod strext;
 mod string;
 mod vec;
 
