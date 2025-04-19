@@ -1,5 +1,7 @@
 // Internal
-pub use std::{Error, ErrorKind::*};
+pub use std::{
+	Box, Display, Error, ErrorKind, ErrorKind::*, Formatter, Ptr, Rc, String, TryClone, Vec,
+};
 
 // External
 pub use core::clone::Clone;

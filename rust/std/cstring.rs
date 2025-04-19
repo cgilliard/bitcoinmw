@@ -1,7 +1,10 @@
+use core::convert::AsRef;
 use core::ops::{Index, IndexMut};
 use core::ptr::copy_nonoverlapping;
+use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
 use std::ffi::alloc;
+use std::misc::array_copy;
 use std::Ptr;
 
 pub struct CStr {
@@ -39,7 +42,7 @@ impl CStr {
 			if ptr.is_null() {
 				return Err(Error::new(Alloc));
 			}
-			copy_nonoverlapping(s.as_ptr(), ptr, len);
+			array_copy(s.as_ref(), from_raw_parts_mut(ptr, len + 1), len)?;
 			*ptr.add(len) = 0u8;
 			let ptr = Ptr::new(ptr);
 
@@ -53,11 +56,9 @@ impl CStr {
 		Self { ptr }
 	}
 
-	/*
 	pub fn as_str(&self) -> Result<String, Error> {
-		unsafe { String::newb(from_raw_parts(self.ptr, self.len())) }
+		unsafe { String::newb(from_raw_parts(self.ptr.raw(), self.len())) }
 	}
-		*/
 
 	pub fn len(&self) -> usize {
 		let mut len = 0;
@@ -71,17 +72,15 @@ impl CStr {
 		len
 	}
 
-	/*
 	pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
 		let len = self.len();
 		let mut r = Vec::with_capacity(len)?;
 		unsafe {
-			copy_nonoverlapping(self.ptr, r.as_mut_ptr(), len);
+			copy_nonoverlapping(self.ptr.raw(), r.as_mut_ptr(), len);
 			r.set_len(len);
 		}
 		Ok(r)
 	}
-		*/
 
 	pub fn as_ptr(&self) -> *const u8 {
 		self.ptr.raw()
