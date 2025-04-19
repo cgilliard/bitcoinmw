@@ -72,7 +72,7 @@ impl Lmdb {
 				return Err(Error::new(LmdbBeginTxn));
 			}
 		}
-		Ok(LmdbTxn::new(txn, self.dbi, true))
+		LmdbTxn::new(txn, self.dbi, true)
 	}
 
 	pub fn read(&self) -> Result<LmdbTxn, Error> {
@@ -83,7 +83,7 @@ impl Lmdb {
 				return Err(Error::new(LmdbBeginTxn));
 			}
 		}
-		Ok(LmdbTxn::new(txn, self.dbi, false))
+		LmdbTxn::new(txn, self.dbi, false)
 	}
 
 	pub fn close(&mut self) {

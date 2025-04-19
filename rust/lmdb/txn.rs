@@ -12,8 +12,12 @@ use lmdb::types::{MDB_cursor, MDB_dbi, MDB_txn, MDB_val};
 use prelude::*;
 use std::cstring::CStr;
 
-pub struct LmdbTxn {
+struct LmdbTxnInner {
 	txn: *mut MDB_txn,
+}
+
+pub struct LmdbTxn {
+	txn: Rc<LmdbTxnInner>,
 	dbi: MDB_dbi,
 	write: bool,
 }
@@ -22,6 +26,16 @@ pub struct LmdbCursor {
 	cursor: *mut MDB_cursor,
 	prefix: CStr,
 	is_first: bool,
+}
+
+impl Clone for LmdbTxn {
+	fn clone(&self) -> Self {
+		Self {
+			txn: self.txn.clone(),
+			dbi: self.dbi,
+			write: self.write,
+		}
+	}
 }
 
 impl LmdbCursor {
@@ -151,14 +165,18 @@ impl Drop for LmdbCursor {
 }
 
 impl LmdbTxn {
-	pub fn new(txn: *mut MDB_txn, dbi: MDB_dbi, write: bool) -> Self {
-		Self { txn, dbi, write }
+	pub fn new(txn: *mut MDB_txn, dbi: MDB_dbi, write: bool) -> Result<Self, Error> {
+		Ok(Self {
+			txn: Rc::new(LmdbTxnInner { txn })?,
+			dbi,
+			write,
+		})
 	}
 
 	pub fn iter<K: AsRef<[u8]> + ?Sized>(&self, key: &K) -> Result<LmdbCursor, Error> {
 		unsafe {
 			let mut cursor: *mut MDB_cursor = null_mut();
-			let rc = mdb_cursor_open(self.txn, self.dbi, &mut cursor);
+			let rc = mdb_cursor_open(self.txn.txn, self.dbi, &mut cursor);
 			if rc != MDB_SUCCESS {
 				return Err(Error::new(IllegalState));
 			}
@@ -201,7 +219,7 @@ impl LmdbTxn {
 			mv_data: null_mut(),
 		};
 		unsafe {
-			let rc = mdb_get(self.txn, self.dbi, &mut key_val, &mut data_val);
+			let rc = mdb_get(self.txn.txn, self.dbi, &mut key_val, &mut data_val);
 			if rc == MDB_NOTFOUND {
 				return Ok(None);
 			}
@@ -230,12 +248,12 @@ impl LmdbTxn {
 			mv_data: value.as_ref().as_ptr() as *mut u8,
 		};
 		unsafe {
-			let r = mdb_put(self.txn, self.dbi, &mut key_val, &mut data_val, 0);
+			let r = mdb_put(self.txn.txn, self.dbi, &mut key_val, &mut data_val, 0);
 			if r == MDB_SUCCESS {
 				Ok(())
 			} else if r == MDB_MAP_FULL {
 				// set txn to null because drop should not abort in this case
-				self.txn = null_mut();
+				self.txn.txn = null_mut();
 				return Err(Error::new(LmdbFull));
 			} else {
 				return Err(Error::new(LmdbPut));
@@ -243,7 +261,7 @@ impl LmdbTxn {
 		}
 	}
 
-	pub fn del<K: AsRef<[u8]> + ?Sized>(&mut self, key: &K) -> Result<(), Error> {
+	pub fn del<K: AsRef<[u8]> + ?Sized>(&mut self, key: &K) -> Result<bool, Error> {
 		if !self.write {
 			return Err(Error::new(IllegalState));
 		}
@@ -252,12 +270,14 @@ impl LmdbTxn {
 			mv_data: key.as_ref().as_ptr() as *mut u8,
 		};
 		unsafe {
-			let r = mdb_del(self.txn, self.dbi, &mut key_val, null_mut());
+			let r = mdb_del(self.txn.txn, self.dbi, &mut key_val, null_mut());
 			if r == MDB_SUCCESS {
-				Ok(())
+				Ok(true)
+			} else if r == MDB_NOTFOUND {
+				Ok(false)
 			} else if r == MDB_MAP_FULL {
 				// set txn to null because drop should not abort in this case
-				self.txn = null_mut();
+				self.txn.txn = null_mut();
 				return Err(Error::new(LmdbFull));
 			} else {
 				return Err(Error::new(LmdbDel));
@@ -268,18 +288,18 @@ impl LmdbTxn {
 	pub fn commit(mut self) -> Result<(), Error> {
 		unsafe {
 			if self.write {
-				let r = mdb_txn_commit(self.txn);
+				let r = mdb_txn_commit(self.txn.txn);
 				if r != MDB_SUCCESS {
 					if r == MDB_MAP_FULL {
 						// set txn to null because drop should not abort in this case
-						self.txn = null_mut();
+						self.txn.txn = null_mut();
 						return Err(Error::new(LmdbFull));
 					} else {
 						return Err(Error::new(LmdbCommit));
 					}
 				}
 			} else {
-				mdb_txn_abort(self.txn);
+				mdb_txn_abort(self.txn.txn);
 			}
 		}
 		forget(self);
@@ -287,7 +307,7 @@ impl LmdbTxn {
 	}
 }
 
-impl Drop for LmdbTxn {
+impl Drop for LmdbTxnInner {
 	fn drop(&mut self) {
 		unsafe {
 			if !self.txn.is_null() {

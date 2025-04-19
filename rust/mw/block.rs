@@ -111,7 +111,7 @@ impl Block {
 				return Ok(hash);
 			}
 		}
-		Err(Error::new(BlockNotFound))
+		Err(Error::new(NotFound))
 	}
 
 	pub fn validate_hash(

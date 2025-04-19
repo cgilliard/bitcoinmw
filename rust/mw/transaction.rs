@@ -270,7 +270,7 @@ impl Transaction {
 
 	pub fn verify(&self, ctx: &mut Ctx, overage: u64) -> Result<(), Error> {
 		if self.kernels_rb.root().is_null() {
-			return Err(Error::new(KernelNotFound));
+			return Err(Error::new(NotFound));
 		}
 		if self.outputs.len() == 0 {
 			return Err(Error::new(InvalidTransaction));

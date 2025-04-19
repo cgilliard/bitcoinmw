@@ -480,6 +480,13 @@ impl MMR {
 		(pos | 1) + 1 // Parent of pos in MMR
 	}
 
+	fn children_pos(parent: u64, height: u32) -> (u64, u64) {
+		let tree_size = 1u64 << (height - 1); // Number of leaves in the parent's tree (2^(h-1))
+		let left_child = parent - tree_size - 1; // Left child is offset by the right subtree's leaves
+		let right_child = parent - 1; // Right child is the previous position
+		(left_child, right_child)
+	}
+
 	fn peak_height(peak_index: usize, size: u64) -> Result<u32, Error> {
 		if size == 0 {
 			return Err(Error::new(IllegalArgument)); // No peaks for empty MMR
