@@ -65,8 +65,6 @@ impl CStr {
 			while *current != 0 {
 				len += 1;
 				current = current.add(1);
-				// Safety: Assume ptr is valid and null-terminated (from new)
-				// No bound check; trust alloc(len + 1) in new
 			}
 		}
 		len

@@ -87,7 +87,7 @@ mod test {
 		assert!(e8.kind.as_str() == "IO");
 		assert!(e7.kind.as_str() == "Serialization");
 
-		//test_error_return()?;
+		test_error_return()?;
 
 		let res = match e3.kind {
 			_ => 1,
