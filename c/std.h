@@ -1,7 +1,7 @@
 #ifndef _STD_H__
 #define _STD_H__
 
-#include <stddef.h>
+typedef unsigned long size_t;
 
 void *malloc(unsigned long);
 void *realloc(void *ptr, unsigned long);
