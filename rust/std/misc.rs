@@ -3,7 +3,7 @@ use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
 
 pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
-	if len + off > n.len() {
+	if off > n.len() || len.checked_add(off).map_or(true, |end| end > n.len()) {
 		Err(Error::new(ArrayIndexOutOfBounds))
 	} else {
 		Ok(unsafe { from_raw_parts(n.as_ptr().add(off), len) })
@@ -11,7 +11,7 @@ pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
 }
 
 pub fn subslice_mut<N>(n: &mut [N], off: usize, len: usize) -> Result<&mut [N], Error> {
-	if len + off > n.len() {
+	if off > n.len() || len.checked_add(off).map_or(true, |end| end > n.len()) {
 		Err(Error::new(ArrayIndexOutOfBounds))
 	} else {
 		Ok(unsafe { from_raw_parts_mut(n.as_mut_ptr().add(off), len) })
