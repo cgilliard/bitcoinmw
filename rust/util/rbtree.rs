@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
-use core::ptr::null_mut;
 use prelude::*;
+use util::node::{Color, RbTreeNode};
 
 pub struct RbTree<V: Ord> {
 	root: Ptr<RbTreeNode<V>>,
@@ -17,18 +17,6 @@ pub struct RbNodePair<V: Ord> {
 	pub cur: Ptr<RbTreeNode<V>>,
 	pub parent: Ptr<RbTreeNode<V>>,
 	pub is_right: bool,
-}
-
-pub struct RbTreeNode<V: Ord> {
-	pub parent: Ptr<RbTreeNode<V>>,
-	pub right: Ptr<RbTreeNode<V>>,
-	pub left: Ptr<RbTreeNode<V>>,
-	pub value: V,
-}
-
-enum Color {
-	Black,
-	Red,
 }
 
 impl<'a, V: Ord> RbTreeIterator<'a, V> {
@@ -76,71 +64,6 @@ impl<'a, V: Ord> IntoIterator for &'a RbTree<V> {
 
 	fn into_iter(self) -> Self::IntoIter {
 		self.iter()
-	}
-}
-
-impl<V: Ord> Display for RbTreeNode<V> {
-	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
-		writef!(
-			f,
-			"Node: parent={},left={},right={},color={},bitcolor={}",
-			self.parent,
-			self.left,
-			self.right,
-			if self.is_red() { "red" } else { "black" },
-			if self.parent.get_bit() {
-				"red"
-			} else {
-				"black"
-			}
-		)
-	}
-}
-
-impl<V: Ord> RbTreeNode<V> {
-	pub fn new(value: V) -> Self {
-		Self {
-			parent: Ptr::new_bit_set(null_mut()),
-			right: Ptr::null(),
-			left: Ptr::null(),
-			value,
-		}
-	}
-
-	fn set_color(&mut self, color: Color) {
-		match color {
-			Color::Black => {
-				self.parent.set_bit(false);
-			}
-			Color::Red => {
-				self.parent.set_bit(true);
-			}
-		}
-	}
-
-	fn is_root(&self) -> bool {
-		self.parent.is_null()
-	}
-
-	fn is_red(&self) -> bool {
-		self.parent.get_bit()
-	}
-
-	fn is_black(&self) -> bool {
-		!self.is_red()
-	}
-
-	fn set_parent(&mut self, parent: Ptr<Self>) {
-		match self.is_black() {
-			true => {
-				self.parent = parent;
-				self.parent.set_bit(false);
-			}
-			false => {
-				self.parent = parent;
-				self.parent.set_bit(true);
-			}
-		}
 	}
 }
 

@@ -3,7 +3,7 @@ use core::iter::Iterator;
 use core::ptr::null_mut;
 use prelude::*;
 use std::ffi::rand_bytes;
-use util::node::Node;
+use util::node::HashtableNode;
 use util::Hasher128;
 
 pub struct Murmur3Hasher {
@@ -36,21 +36,21 @@ impl Murmur3Hasher {
 }
 
 pub struct Hashtable<K: PartialEq + Hash, V, S: BuildHasher + Default> {
-	arr: Vec<Ptr<Node<K, V>>>,
+	arr: Vec<Ptr<HashtableNode<K, V>>>,
 	hasher: S,
 	count: u64,
 }
 
 pub struct HashtableRefIterator<'a, K: PartialEq + Hash, V, S: BuildHasher + Default> {
 	hashtable: &'a Hashtable<K, V, S>,
-	cur: Ptr<Node<K, V>>,
+	cur: Ptr<HashtableNode<K, V>>,
 	index: usize,
 }
 
 impl<'a, K: PartialEq + Hash, V, S: BuildHasher + Default> Iterator
 	for HashtableRefIterator<'a, K, V, S>
 {
-	type Item = Ptr<Node<K, V>>;
+	type Item = Ptr<HashtableNode<K, V>>;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		while self.cur.is_null() && self.index < self.hashtable.arr.len() {
@@ -81,7 +81,7 @@ impl<'a, K: PartialEq + Hash, V, S: BuildHasher + Default> Iterator
 }
 
 impl<'a, K: Hash + PartialEq, V, S: BuildHasher + Default> IntoIterator for &'a Hashtable<K, V, S> {
-	type Item = Ptr<Node<K, V>>;
+	type Item = Ptr<HashtableNode<K, V>>;
 	type IntoIter = HashtableRefIterator<'a, K, V, S>;
 
 	fn into_iter(self) -> Self::IntoIter {
@@ -120,7 +120,7 @@ impl<K: PartialEq + Hash, V, S: BuildHasher + Default> Hashtable<K, V, S> {
 		}
 	}
 
-	pub fn insert(&mut self, mut node: Ptr<Node<K, V>>) -> Result<(), Error> {
+	pub fn insert(&mut self, mut node: Ptr<HashtableNode<K, V>>) -> Result<(), Error> {
 		(*node).next = Ptr::null();
 		let key = &(&*node).key;
 		let mut hasher = self.hasher.build_hasher();
@@ -159,7 +159,7 @@ impl<K: PartialEq + Hash, V, S: BuildHasher + Default> Hashtable<K, V, S> {
 		None
 	}
 
-	pub fn remove(&mut self, key: &K) -> Option<Ptr<Node<K, V>>> {
+	pub fn remove(&mut self, key: &K) -> Option<Ptr<HashtableNode<K, V>>> {
 		if self.arr.len() > 0 {
 			let mut hasher = self.hasher.build_hasher();
 			key.hash(&mut hasher);
@@ -203,14 +203,14 @@ impl<K: PartialEq + Hash, V, S: BuildHasher + Default> Hashtable<K, V, S> {
 mod test {
 	use prelude::*;
 	use std::ffi::getalloccount;
-	use util::{Hashtable, Murmur3Hasher, Node};
+	use util::{Hashtable, Murmur3Hasher, HashtableNode};
 
 	#[test]
 	fn test_hashtable1() -> Result<(), Error> {
 		let initial = unsafe { getalloccount() };
 		{
 			let mut hashtable: Hashtable<u64, i32> = Hashtable::new(1024)?;
-			let node = Ptr::alloc(Node::new(1, 2))?;
+			let node = Ptr::alloc(HashtableNode::new(1, 2))?;
 			assert!(hashtable.insert(node).is_ok());
 			let v = hashtable.find(&1).unwrap();
 			assert_eq!(*v, 2);
@@ -219,9 +219,9 @@ mod test {
 			assert_eq!(n.value, 2);
 			n.release();
 
-			let node = Ptr::alloc(Node::new(1, 2))?;
+			let node = Ptr::alloc(HashtableNode::new(1, 2))?;
 			assert!(hashtable.insert(node).is_ok());
-			let node = Ptr::alloc(Node::new(9, 9))?;
+			let node = Ptr::alloc(HashtableNode::new(9, 9))?;
 			assert!(hashtable.insert(node).is_ok());
 			let mut count = 0;
 			for n in &hashtable {
@@ -258,7 +258,7 @@ mod test {
 		{
 			let hasher = Murmur3Hasher { seed: 1234 };
 			let mut hash = Hashtable::with_hasher(1024, hasher).unwrap();
-			let node = Ptr::alloc(Node::new(101, TestValue { x: 1, y: 2 }))?;
+			let node = Ptr::alloc(HashtableNode::new(101, TestValue { x: 1, y: 2 }))?;
 			hash.insert(node)?;
 			let x = hash.find(&101).unwrap();
 			assert_eq!(x.x, 1);
@@ -282,13 +282,13 @@ mod test {
 	fn test_hashtable_collisions() {
 		let initial = unsafe { getalloccount() };
 
-		let v1 = Ptr::alloc(Node::new(1, TestValue { x: 1, y: 2 })).unwrap();
-		let v2 = Ptr::alloc(Node::new(2, TestValue { x: 2, y: 3 })).unwrap();
-		let v3 = Ptr::alloc(Node::new(3, TestValue { x: 3, y: 4 })).unwrap();
+		let v1 = Ptr::alloc(HashtableNode::new(1, TestValue { x: 1, y: 2 })).unwrap();
+		let v2 = Ptr::alloc(HashtableNode::new(2, TestValue { x: 2, y: 3 })).unwrap();
+		let v3 = Ptr::alloc(HashtableNode::new(3, TestValue { x: 3, y: 4 })).unwrap();
 
-		let v4 = Ptr::alloc(Node::new(1, TestValue { x: 1, y: 2 })).unwrap();
-		let v5 = Ptr::alloc(Node::new(2, TestValue { x: 2, y: 3 })).unwrap();
-		let v6 = Ptr::alloc(Node::new(3, TestValue { x: 3, y: 4 })).unwrap();
+		let v4 = Ptr::alloc(HashtableNode::new(1, TestValue { x: 1, y: 2 })).unwrap();
+		let v5 = Ptr::alloc(HashtableNode::new(2, TestValue { x: 2, y: 3 })).unwrap();
+		let v6 = Ptr::alloc(HashtableNode::new(3, TestValue { x: 3, y: 4 })).unwrap();
 
 		{
 			let mut hash: Hashtable<i32, TestValue> = Hashtable::new(1).unwrap();
@@ -350,7 +350,7 @@ mod test {
 			let hasher = Murmur3Hasher::new(105);
 			let mut hash = Hashtable::with_hasher(3, hasher)?;
 			for i in 0..10 {
-				let v = Ptr::alloc(Node::new(i, TestValue { x: i, y: i + 1 })).unwrap();
+				let v = Ptr::alloc(HashtableNode::new(i, TestValue { x: i, y: i + 1 })).unwrap();
 				hash.insert(v)?;
 			}
 
