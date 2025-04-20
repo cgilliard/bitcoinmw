@@ -1,5 +1,6 @@
 mod hashtable;
 mod murmur;
+mod node;
 mod rbtree;
 
 pub use util::hashtable::{Murmur3Hasher, Node};

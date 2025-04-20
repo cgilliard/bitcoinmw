@@ -20,6 +20,7 @@ extern "C" {
 	pub fn getmicros() -> u64;
 	pub fn sleep_millis(ms: u64) -> i32;
 	pub fn sched_yield() -> i32;
+	pub fn rand_bytes(buf: *mut u8, len: usize) -> i32;
 
 	// atomic
 	pub fn atomic_store_u64(ptr: *mut u64, value: u64);

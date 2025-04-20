@@ -4,9 +4,9 @@ use core::ops::{Deref, DerefMut};
 use core::option::Option as CoreOption;
 use core::ptr::null_mut;
 use prelude::*;
+use std::ffi::rand_bytes;
 use util::Hasher128;
 
-#[derive(Default)]
 pub struct Murmur3Hasher {
 	seed: u32,
 }
@@ -14,6 +14,19 @@ impl BuildHasher for Murmur3Hasher {
 	type Hasher = Hasher128;
 	fn build_hasher(&self) -> Hasher128 {
 		Hasher128::with_seed(self.seed)
+	}
+}
+
+impl Default for Murmur3Hasher {
+	fn default() -> Self {
+		let mut seed = 0;
+		if unsafe { rand_bytes(&mut seed as *mut u32 as *mut u8, 4) } != 0 {
+			// note: for murmur hash, we're not using this for cryptographic hashing.
+			// We can continue with the default seed.
+			println!("Could not obtain needed entropy to setup Murmur3Hash! Using default value.");
+			seed = 0;
+		}
+		Self { seed }
 	}
 }
 
