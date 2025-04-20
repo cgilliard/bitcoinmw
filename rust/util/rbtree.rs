@@ -1,7 +1,16 @@
-use core::clone::Clone;
 use core::ops::FnMut;
 use core::ptr::null_mut;
 use prelude::*;
+
+pub struct RbTree<V: Ord> {
+	root: Ptr<RbTreeNode<V>>,
+	count: usize,
+}
+
+pub struct RbTreeIterator<V: Ord> {
+	stack: [Option<Ptr<RbTreeNode<V>>>; 80], // Fixed-size stack
+	stack_top: usize,
+}
 
 pub struct RbNodePair<V: Ord> {
 	pub cur: Ptr<RbTreeNode<V>>,
@@ -9,7 +18,7 @@ pub struct RbNodePair<V: Ord> {
 	pub is_right: bool,
 }
 
-type RbTreeSearch<V> = dyn FnMut(Ptr<RbTreeNode<V>>, Ptr<RbTreeNode<V>>) -> RbNodePair<V>;
+pub type RbTreeSearch<V> = dyn FnMut(Ptr<RbTreeNode<V>>, Ptr<RbTreeNode<V>>) -> RbNodePair<V>;
 
 pub struct RbTreeNode<V: Ord> {
 	pub parent: Ptr<RbTreeNode<V>>,
@@ -21,11 +30,6 @@ pub struct RbTreeNode<V: Ord> {
 enum Color {
 	Black,
 	Red,
-}
-
-pub struct RbTreeIterator<V: Ord> {
-	stack: [Option<Ptr<RbTreeNode<V>>>; 80], // Fixed-size stack
-	stack_top: usize,
 }
 
 impl<V: Ord> RbTreeIterator<V> {
@@ -122,11 +126,6 @@ impl<V: Ord> RbTreeNode<V> {
 			}
 		}
 	}
-}
-
-pub struct RbTree<V: Ord> {
-	root: Ptr<RbTreeNode<V>>,
-	count: usize,
 }
 
 impl<T: Clone + Ord> TryClone for RbTree<T> {
@@ -585,8 +584,15 @@ impl<V: Ord> RbTree<V> {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use core::mem::size_of;
+	use core::slice::from_raw_parts;
 	use std::ffi::getalloccount;
-	use util::murmur32::murmur3_32_of_u64;
+	use util::murmurhash3_x64_128;
+
+	fn murmur3_32_of_u64(source: u64, seed: u32) -> u32 {
+		let slice = unsafe { from_raw_parts(&source as *const u64 as *const u8, size_of::<u64>()) };
+		murmurhash3_x64_128(slice, seed).0 as u32
+	}
 
 	fn validate_node(
 		node: Ptr<RbTreeNode<u64>>,
