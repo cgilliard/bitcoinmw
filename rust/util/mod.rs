@@ -1,6 +1,8 @@
+mod hashtable;
 mod murmur;
 mod rbtree;
 
+pub use util::hashtable::{Hashtable, Murmur3Hasher};
 pub use util::murmur::hash128::{murmurhash3_x64_128, Hasher128};
 pub use util::murmur::hash32::{murmurhash3_x86_32, Hasher32};
 pub use util::rbtree::RbTree;
