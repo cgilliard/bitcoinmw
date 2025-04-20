@@ -36,6 +36,9 @@ define_errorkind_with_strings!(
 	IO,
 	Serialization,
 	OutOfBounds,
+	ThreadCreate,
+	ThreadDetach,
+	ThreadJoin,
 	Todo
 );
 

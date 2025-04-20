@@ -18,6 +18,8 @@ extern "C" {
 	pub fn exit(code: i32);
 	pub fn f64_to_str(d: f64, buf: *mut u8, capacity: u64) -> i32;
 	pub fn getmicros() -> u64;
+	pub fn sleep_millis(ms: u64) -> i32;
+	pub fn sched_yield() -> i32;
 
 	// atomic
 	pub fn atomic_store_u64(ptr: *mut u64, value: u64);
@@ -25,4 +27,15 @@ extern "C" {
 	pub fn atomic_fetch_add_u64(ptr: *mut u64, value: u64) -> u64;
 	pub fn atomic_fetch_sub_u64(ptr: *mut u64, value: u64) -> u64;
 	pub fn cas_release(ptr: *mut u64, expect: *const u64, desired: u64) -> bool;
+
+	// thread
+	pub fn thread_create(start_routine: extern "C" fn(*mut u8), arg: *mut u8) -> i32;
+	pub fn thread_create_joinable(
+		handle: *const u8,
+		start_routine: extern "C" fn(*mut u8),
+		arg: *mut u8,
+	) -> i32;
+	pub fn thread_join(handle: *const u8) -> i32;
+	pub fn thread_detach(handle: *const u8) -> i32;
+	pub fn thread_handle_size() -> usize;
 }

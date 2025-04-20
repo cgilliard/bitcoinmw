@@ -1,11 +1,13 @@
 // Internal
 pub use std::{
-	Box, Display, Error, ErrorKind, ErrorKind::*, Formatter, Ptr, Rc, String, TryClone, Vec,
+	Box, Display, Error, ErrorKind, ErrorKind::*, Formatter, Lock, LockBox, Ptr, Rc, String,
+	TryClone, Vec,
 };
 
 // External
 pub use core::clone::Clone;
 pub use core::cmp::PartialEq;
+pub use core::convert::Into;
 pub use core::fmt::{Debug, Error as FmtError};
 pub use core::iter::{IntoIterator, Iterator};
 pub use core::marker::{Copy, Sized};
