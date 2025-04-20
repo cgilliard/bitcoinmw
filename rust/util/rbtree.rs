@@ -1,5 +1,4 @@
 use core::marker::PhantomData;
-use core::ops::FnMut;
 use core::ptr::null_mut;
 use prelude::*;
 
@@ -19,8 +18,6 @@ pub struct RbNodePair<V: Ord> {
 	pub parent: Ptr<RbTreeNode<V>>,
 	pub is_right: bool,
 }
-
-pub type RbTreeSearch<V> = dyn FnMut(Ptr<RbTreeNode<V>>, Ptr<RbTreeNode<V>>) -> RbNodePair<V>;
 
 pub struct RbTreeNode<V: Ord> {
 	pub parent: Ptr<RbTreeNode<V>>,
@@ -165,35 +162,8 @@ impl<V: Ord> RbTree<V> {
 		ptr: Ptr<RbTreeNode<T>>,
 		n: &mut RbTree<T>,
 	) -> Result<(), Error> {
-		let mut search = move |base: Ptr<RbTreeNode<T>>, value: Ptr<RbTreeNode<T>>| {
-			let mut is_right = false;
-			let mut cur = base;
-			let mut parent = Ptr::null();
-
-			while !cur.is_null() {
-				let cmp = (*value).value.cmp(&(*cur).value);
-				if cmp == Ordering::Equal {
-					break;
-				} else if cmp == Ordering::Less {
-					parent = cur;
-					is_right = false;
-					cur = cur.left;
-				} else {
-					parent = cur;
-					is_right = true;
-					cur = cur.right;
-				}
-			}
-
-			RbNodePair {
-				cur,
-				parent,
-				is_right,
-			}
-		};
-
 		let nval = Ptr::alloc(RbTreeNode::new(ptr.value.clone()))?;
-		n.insert(nval, &mut search);
+		n.insert(nval);
 
 		if !ptr.right.is_null() {
 			self.insert_children(ptr.right, n)?;
@@ -214,12 +184,8 @@ impl<V: Ord> RbTree<V> {
 		self.root
 	}
 
-	pub fn insert(
-		&mut self,
-		n: Ptr<RbTreeNode<V>>,
-		search: &mut RbTreeSearch<V>,
-	) -> Option<Ptr<RbTreeNode<V>>> {
-		let pair = search(self.root, n);
+	pub fn insert(&mut self, n: Ptr<RbTreeNode<V>>) -> Option<Ptr<RbTreeNode<V>>> {
+		let pair = self.search(self.root, n);
 		let ret = self.insert_impl(n, pair);
 		if ret.is_none() {
 			self.count += 1;
@@ -228,12 +194,8 @@ impl<V: Ord> RbTree<V> {
 		ret
 	}
 
-	pub fn remove(
-		&mut self,
-		n: Ptr<RbTreeNode<V>>,
-		search: &mut RbTreeSearch<V>,
-	) -> Option<Ptr<RbTreeNode<V>>> {
-		let pair = search(self.root, n);
+	pub fn remove(&mut self, n: Ptr<RbTreeNode<V>>) -> Option<Ptr<RbTreeNode<V>>> {
+		let pair = self.search(self.root, n);
 		if pair.cur.is_null() {
 			return None;
 		}
@@ -247,8 +209,6 @@ impl<V: Ord> RbTree<V> {
 		self.count
 	}
 
-	// note: iter uses standard ordering. If the custom search function is much different
-	// it might not work.
 	pub fn iter(&self) -> RbTreeIterator<'_, V> {
 		let mut iter = RbTreeIterator {
 			stack: [None; 80],
@@ -259,15 +219,37 @@ impl<V: Ord> RbTree<V> {
 		iter
 	}
 
-	pub fn remove_by_value(
-		&mut self,
-		value: V,
-		search: &mut RbTreeSearch<V>,
-	) -> Result<Option<Ptr<RbTreeNode<V>>>, Error> {
-		let ptr = Ptr::alloc(RbTreeNode::new(value))?;
-		let res = self.remove(ptr, search);
-		ptr.release();
-		Ok(res)
+	pub fn remove_by_value(&mut self, value: V) -> Option<Ptr<RbTreeNode<V>>> {
+		let node = RbTreeNode::new(value);
+		let ptr = Ptr::new(&node as *const RbTreeNode<V>);
+		self.remove(ptr)
+	}
+
+	pub fn search(&self, base: Ptr<RbTreeNode<V>>, value: Ptr<RbTreeNode<V>>) -> RbNodePair<V> {
+		let mut is_right = false;
+		let mut cur = base;
+		let mut parent = Ptr::null();
+
+		while !cur.is_null() {
+			let cmp = (*value).value.cmp(&(*cur).value);
+			if cmp == Ordering::Equal {
+				break;
+			} else if cmp == Ordering::Less {
+				parent = cur;
+				is_right = false;
+				cur = cur.left;
+			} else {
+				parent = cur;
+				is_right = true;
+				cur = cur.right;
+			}
+		}
+
+		RbNodePair {
+			cur,
+			parent,
+			is_right,
+		}
 	}
 
 	fn remove_impl(&mut self, pair: RbNodePair<V>) {
@@ -696,33 +678,6 @@ mod test {
 	fn test_rbtree1() {
 		let mut tree = RbTree::new();
 
-		let mut search = move |base: Ptr<RbTreeNode<u64>>, value: Ptr<RbTreeNode<u64>>| {
-			let mut is_right = false;
-			let mut cur = base;
-			let mut parent = Ptr::null();
-
-			while !cur.is_null() {
-				let cmp = (*value).value.cmp(&(*cur).value);
-				if cmp == Ordering::Equal {
-					break;
-				} else if cmp == Ordering::Less {
-					parent = cur;
-					is_right = false;
-					cur = cur.left;
-				} else {
-					parent = cur;
-					is_right = true;
-					cur = cur.right;
-				}
-			}
-
-			RbNodePair {
-				cur,
-				parent,
-				is_right,
-			}
-		};
-
 		let size = 100;
 		let initial = unsafe { getalloccount() };
 		for x in 0..5 {
@@ -730,14 +685,14 @@ mod test {
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				assert!(tree.insert(next, &mut search).is_none());
+				assert!(tree.insert(next).is_none());
 				validate_tree(tree.root());
 			}
 
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = search(tree.root(), ptr);
+				let res = tree.search(tree.root(), ptr);
 				assert!(!res.cur.is_null());
 				assert_eq!((*(res.cur)).value, v as u64);
 				ptr.release();
@@ -746,10 +701,10 @@ mod test {
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove(ptr, &mut search);
+				let res = tree.remove(ptr);
 				validate_tree(tree.root());
 				res.unwrap().release();
-				let res = search(tree.root(), ptr);
+				let res = tree.search(tree.root(), ptr);
 				assert!(res.cur.is_null());
 				ptr.release();
 			}
@@ -759,14 +714,14 @@ mod test {
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				assert!(tree.insert(next, &mut search).is_none());
+				assert!(tree.insert(next).is_none());
 				validate_tree(tree.root());
 			}
 
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = search(tree.root(), ptr);
+				let res = tree.search(tree.root(), ptr);
 				assert!(!res.cur.is_null());
 				assert_eq!((*(res.cur)).value, v as u64);
 				ptr.release();
@@ -778,10 +733,10 @@ mod test {
 				c += 1;
 				let v = murmur3_32_of_u64(i, seed);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove(ptr, &mut search);
+				let res = tree.remove(ptr);
 				validate_tree(tree.root());
 				res.unwrap().release();
-				let res = search(tree.root(), ptr);
+				let res = tree.search(tree.root(), ptr);
 				assert!(res.cur.is_null());
 				ptr.release();
 			}
@@ -791,14 +746,14 @@ mod test {
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				assert!(tree.insert(next, &mut search).is_none());
+				assert!(tree.insert(next).is_none());
 				validate_tree(tree.root());
 			}
 
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = search(tree.root(), ptr);
+				let res = tree.search(tree.root(), ptr);
 				assert!(!res.cur.is_null());
 				assert_eq!((*(res.cur)).value, v as u64);
 				ptr.release();
@@ -807,10 +762,10 @@ mod test {
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove(ptr, &mut search);
+				let res = tree.remove(ptr);
 				validate_tree(tree.root());
 				res.unwrap().release();
-				let res = search(tree.root(), ptr);
+				let res = tree.search(tree.root(), ptr);
 				assert!(res.cur.is_null());
 				ptr.release();
 			}
@@ -820,10 +775,10 @@ mod test {
 				c += 1;
 				let v = murmur3_32_of_u64(i, seed);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove(ptr, &mut search);
+				let res = tree.remove(ptr);
 				validate_tree(tree.root());
 				res.unwrap().release();
-				let res = tree.remove(ptr, &mut search);
+				let res = tree.remove(ptr);
 				assert!(res.is_none());
 				ptr.release();
 			}
@@ -848,48 +803,20 @@ mod test {
 	fn test_transplant() {
 		let mut tree = RbTree::new();
 
-		let mut search = move |base: Ptr<RbTreeNode<TestTransplant>>,
-		                       value: Ptr<RbTreeNode<TestTransplant>>| {
-			let mut is_right = false;
-			let mut cur = base;
-			let mut parent = Ptr::null();
-
-			while !cur.is_null() {
-				let cmp = (*value).value.cmp(&(*cur).value);
-				if cmp == Ordering::Equal {
-					break;
-				} else if cmp == Ordering::Less {
-					parent = cur;
-					is_right = false;
-					cur = cur.left;
-				} else {
-					parent = cur;
-					is_right = true;
-					cur = cur.right;
-				}
-			}
-
-			RbNodePair {
-				cur,
-				parent,
-				is_right,
-			}
-		};
-
 		let initial = unsafe { getalloccount() };
 		{
 			let size = 3;
 			for i in 0..size {
 				let v = TestTransplant { x: i, y: i };
 				let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-				let res = tree.insert(next, &mut search);
+				let res = tree.insert(next);
 				assert!(res.is_none());
 			}
 
 			for i in 0..size {
 				let v = TestTransplant { x: i, y: i };
 				let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
-				let res = search(tree.root(), ptr);
+				let res = tree.search(tree.root(), ptr);
 				assert!(!res.cur.is_null());
 				assert_eq!((*(res.cur)).value, v);
 				ptr.release();
@@ -898,7 +825,7 @@ mod test {
 			for i in 0..size {
 				let v = TestTransplant { x: i, y: i + 1 };
 				let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-				let res = tree.insert(next, &mut search);
+				let res = tree.insert(next);
 				assert!(res.is_some());
 				res.unwrap().release();
 			}
@@ -906,7 +833,7 @@ mod test {
 			for i in 0..size {
 				let v = TestTransplant { x: i, y: i + 1 };
 				let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
-				let res = search(tree.root(), ptr);
+				let res = tree.search(tree.root(), ptr);
 				assert!(!res.cur.is_null());
 				assert_eq!((*(res.cur)).value, v);
 				ptr.release();
@@ -915,9 +842,9 @@ mod test {
 			for i in 0..size {
 				let v = TestTransplant { x: i, y: i + 91 };
 				let ptr = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-				let res = tree.remove(ptr, &mut search);
+				let res = tree.remove(ptr);
 				res.unwrap().release();
-				let res = search(tree.root(), ptr);
+				let res = tree.search(tree.root(), ptr);
 				assert!(res.cur.is_null());
 				ptr.release();
 			}
@@ -925,14 +852,14 @@ mod test {
 			for i in 0..size {
 				let v = TestTransplant { x: i, y: i + 10 };
 				let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-				let res = tree.insert(next, &mut search);
+				let res = tree.insert(next);
 				assert!(res.is_none());
 			}
 
 			for i in 0..size {
 				let v = TestTransplant { x: i, y: i + 10 };
 				let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
-				let res = search(tree.root(), ptr);
+				let res = tree.search(tree.root(), ptr);
 				assert!(!res.cur.is_null());
 				assert_eq!((*(res.cur)).value, v);
 				ptr.release();
@@ -941,9 +868,9 @@ mod test {
 			for i in 0..size {
 				let v = TestTransplant { x: i, y: i + 91 };
 				let ptr = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-				let res = tree.remove(ptr, &mut search);
+				let res = tree.remove(ptr);
 				res.unwrap().release();
-				let res = search(tree.root(), ptr);
+				let res = tree.search(tree.root(), ptr);
 				assert!(res.cur.is_null());
 				ptr.release();
 			}
@@ -955,33 +882,6 @@ mod test {
 	fn test_rbtree_iter() -> Result<(), Error> {
 		let mut tree = RbTree::new();
 
-		let mut search = move |base: Ptr<RbTreeNode<u64>>, value: Ptr<RbTreeNode<u64>>| {
-			let mut is_right = false;
-			let mut cur = base;
-			let mut parent = Ptr::null();
-
-			while !cur.is_null() {
-				let cmp = (*value).value.cmp(&(*cur).value);
-				if cmp == Ordering::Equal {
-					break;
-				} else if cmp == Ordering::Less {
-					parent = cur;
-					is_right = false;
-					cur = cur.left;
-				} else {
-					parent = cur;
-					is_right = true;
-					cur = cur.right;
-				}
-			}
-
-			RbNodePair {
-				cur,
-				parent,
-				is_right,
-			}
-		};
-
 		let size = 100;
 		let initial = unsafe { getalloccount() };
 		for x in 0..5 {
@@ -989,14 +889,14 @@ mod test {
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				assert!(tree.insert(next, &mut search).is_none());
+				assert!(tree.insert(next).is_none());
 				validate_tree(tree.root());
 			}
 
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = search(tree.root(), ptr);
+				let res = tree.search(tree.root(), ptr);
 				assert!(!res.cur.is_null());
 				assert_eq!((*(res.cur)).value, v as u64);
 				ptr.release();
@@ -1014,10 +914,10 @@ mod test {
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove(ptr, &mut search);
+				let res = tree.remove(ptr);
 				validate_tree(tree.root());
 				res.unwrap().release();
-				let res = search(tree.root(), ptr);
+				let res = tree.search(tree.root(), ptr);
 				assert!(res.cur.is_null());
 				ptr.release();
 			}
@@ -1032,39 +932,12 @@ mod test {
 	fn test_three_rbtree_iters() -> Result<(), Error> {
 		let mut tree = RbTree::new();
 
-		let mut search = move |base: Ptr<RbTreeNode<u64>>, value: Ptr<RbTreeNode<u64>>| {
-			let mut is_right = false;
-			let mut cur = base;
-			let mut parent = Ptr::null();
-
-			while !cur.is_null() {
-				let cmp = (*value).value.cmp(&(*cur).value);
-				if cmp == Ordering::Equal {
-					break;
-				} else if cmp == Ordering::Less {
-					parent = cur;
-					is_right = false;
-					cur = cur.left;
-				} else {
-					parent = cur;
-					is_right = true;
-					cur = cur.right;
-				}
-			}
-
-			RbNodePair {
-				cur,
-				parent,
-				is_right,
-			}
-		};
-
 		let initial = unsafe { getalloccount() };
 		{
 			let size = 100;
 			for i in 0..size {
 				let next = Ptr::alloc(RbTreeNode::new(i as u64))?;
-				assert!(tree.insert(next, &mut search).is_none());
+				assert!(tree.insert(next).is_none());
 				validate_tree(tree.root());
 			}
 
@@ -1084,7 +957,7 @@ mod test {
 
 			assert_eq!(tree.len(), size as usize);
 			for i in 0..size {
-				tree.remove_by_value(i, &mut search)?.unwrap().release();
+				tree.remove_by_value(i).unwrap().release();
 			}
 			assert_eq!(tree.len(), 0);
 		}
@@ -1095,7 +968,7 @@ mod test {
 			let size = 100;
 			for i in 0..size {
 				let next = Ptr::alloc(RbTreeNode::new(i as u64))?;
-				assert!(tree.insert(next, &mut search).is_none());
+				assert!(tree.insert(next).is_none());
 				validate_tree(tree.root());
 			}
 
@@ -1115,16 +988,16 @@ mod test {
 
 			assert_eq!(tree.len(), size as usize);
 
-			let mut ptr = Ptr::alloc(RbTreeNode::new(0 as u64))?;
+			let ptr_target = RbTreeNode::new(0u64);
+			let mut ptr = Ptr::new(&ptr_target as *const RbTreeNode<u64>);
 			for i in 0..size {
 				ptr.value = i;
-				let res = tree.remove(ptr, &mut search).unwrap();
+				let res = tree.remove(ptr).unwrap();
 				validate_tree(tree.root());
 				res.release();
-				let res = search(tree.root(), ptr);
+				let res = tree.search(tree.root(), ptr);
 				assert!(res.cur.is_null());
 			}
-			ptr.release();
 
 			assert_eq!(tree.len(), 0);
 		}
