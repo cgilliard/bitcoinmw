@@ -259,6 +259,17 @@ impl<V: Ord> RbTree<V> {
 		iter
 	}
 
+	pub fn remove_by_value(
+		&mut self,
+		value: V,
+		search: &mut RbTreeSearch<V>,
+	) -> Result<Option<Ptr<RbTreeNode<V>>>, Error> {
+		let ptr = Ptr::alloc(RbTreeNode::new(value))?;
+		let res = self.remove(ptr, search);
+		ptr.release();
+		Ok(res)
+	}
+
 	fn remove_impl(&mut self, pair: RbNodePair<V>) {
 		let node_to_delete = pair.cur;
 		let mut do_fixup = node_to_delete.is_black();
@@ -1019,37 +1030,37 @@ mod test {
 
 	#[test]
 	fn test_three_rbtree_iters() -> Result<(), Error> {
+		let mut tree = RbTree::new();
+
+		let mut search = move |base: Ptr<RbTreeNode<u64>>, value: Ptr<RbTreeNode<u64>>| {
+			let mut is_right = false;
+			let mut cur = base;
+			let mut parent = Ptr::null();
+
+			while !cur.is_null() {
+				let cmp = (*value).value.cmp(&(*cur).value);
+				if cmp == Ordering::Equal {
+					break;
+				} else if cmp == Ordering::Less {
+					parent = cur;
+					is_right = false;
+					cur = cur.left;
+				} else {
+					parent = cur;
+					is_right = true;
+					cur = cur.right;
+				}
+			}
+
+			RbNodePair {
+				cur,
+				parent,
+				is_right,
+			}
+		};
+
 		let initial = unsafe { getalloccount() };
 		{
-			let mut tree = RbTree::new();
-
-			let mut search = move |base: Ptr<RbTreeNode<u64>>, value: Ptr<RbTreeNode<u64>>| {
-				let mut is_right = false;
-				let mut cur = base;
-				let mut parent = Ptr::null();
-
-				while !cur.is_null() {
-					let cmp = (*value).value.cmp(&(*cur).value);
-					if cmp == Ordering::Equal {
-						break;
-					} else if cmp == Ordering::Less {
-						parent = cur;
-						is_right = false;
-						cur = cur.left;
-					} else {
-						parent = cur;
-						is_right = true;
-						cur = cur.right;
-					}
-				}
-
-				RbNodePair {
-					cur,
-					parent,
-					is_right,
-				}
-			};
-
 			let size = 100;
 			for i in 0..size {
 				let next = Ptr::alloc(RbTreeNode::new(i as u64))?;
@@ -1071,6 +1082,39 @@ mod test {
 			}
 			assert_eq!(i, size);
 
+			assert_eq!(tree.len(), size as usize);
+			for i in 0..size {
+				tree.remove_by_value(i, &mut search)?.unwrap().release();
+			}
+			assert_eq!(tree.len(), 0);
+		}
+		assert_eq!(initial, unsafe { getalloccount() });
+
+		let initial = unsafe { getalloccount() };
+		{
+			let size = 100;
+			for i in 0..size {
+				let next = Ptr::alloc(RbTreeNode::new(i as u64))?;
+				assert!(tree.insert(next, &mut search).is_none());
+				validate_tree(tree.root());
+			}
+
+			let mut i = 0;
+			for v in tree.iter() {
+				assert_eq!(*v, i);
+				i += 1;
+			}
+			assert_eq!(i, size);
+
+			i = 0;
+			for v in &tree {
+				assert_eq!(*v, i);
+				i += 1;
+			}
+			assert_eq!(i, size);
+
+			assert_eq!(tree.len(), size as usize);
+
 			let mut ptr = Ptr::alloc(RbTreeNode::new(0 as u64))?;
 			for i in 0..size {
 				ptr.value = i;
@@ -1081,6 +1125,8 @@ mod test {
 				assert!(res.cur.is_null());
 			}
 			ptr.release();
+
+			assert_eq!(tree.len(), 0);
 		}
 		assert_eq!(initial, unsafe { getalloccount() });
 
