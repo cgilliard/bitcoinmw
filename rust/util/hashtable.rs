@@ -41,6 +41,54 @@ pub struct Hashtable<K: PartialEq + Hash, V, S: BuildHasher + Default> {
 	count: u64,
 }
 
+pub struct HashtableRefIterator<'a, K: PartialEq + Hash, V, S: BuildHasher + Default> {
+	hashtable: &'a Hashtable<K, V, S>,
+	cur: Ptr<Node<K, V>>,
+	index: usize,
+}
+
+impl<'a, K: PartialEq + Hash, V, S: BuildHasher + Default> Iterator
+	for HashtableRefIterator<'a, K, V, S>
+{
+	type Item = Ptr<Node<K, V>>;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		while self.cur.is_null() && self.index < self.hashtable.arr.len() {
+			self.cur = self.hashtable.arr[self.index];
+			if !self.cur.is_null() {
+				break;
+			}
+			self.index += 1;
+		}
+
+		match self.cur.is_null() {
+			true => None,
+			false => match self.cur.next.is_null() {
+				true => {
+					self.index += 1;
+					let ret = self.cur;
+					self.cur = Ptr::null();
+					Some(ret)
+				}
+				false => {
+					let ret = self.cur;
+					self.cur = self.cur.next;
+					Some(ret)
+				}
+			},
+		}
+	}
+}
+
+impl<'a, K: Hash + PartialEq, V, S: BuildHasher + Default> IntoIterator for &'a Hashtable<K, V, S> {
+	type Item = Ptr<Node<K, V>>;
+	type IntoIter = HashtableRefIterator<'a, K, V, S>;
+
+	fn into_iter(self) -> Self::IntoIter {
+		self.iter()
+	}
+}
+
 impl<K: PartialEq + Hash, V, S: BuildHasher + Default> Hashtable<K, V, S> {
 	pub fn new(size: usize) -> Result<Self, Error> {
 		if size == 0 {
@@ -153,92 +201,6 @@ impl<K: PartialEq + Hash, V, S: BuildHasher + Default> Hashtable<K, V, S> {
 		}
 	}
 }
-
-pub struct HashtableRefIterator<'a, K: PartialEq + Hash, V, S: BuildHasher + Default> {
-	hashtable: &'a Hashtable<K, V, S>,
-	cur: Ptr<Node<K, V>>,
-	index: usize,
-}
-
-impl<'a, K: PartialEq + Hash, V, S: BuildHasher + Default> Iterator
-	for HashtableRefIterator<'a, K, V, S>
-{
-	type Item = Ptr<Node<K, V>>;
-
-	fn next(&mut self) -> Option<Self::Item> {
-		while self.cur.is_null() && self.index < self.hashtable.arr.len() {
-			self.cur = self.hashtable.arr[self.index];
-			if !self.cur.is_null() {
-				break;
-			}
-			self.index += 1;
-		}
-
-		match self.cur.is_null() {
-			true => None,
-			false => match self.cur.next.is_null() {
-				true => {
-					self.index += 1;
-					let ret = self.cur;
-					self.cur = Ptr::null();
-					Some(ret)
-				}
-				false => {
-					let ret = self.cur;
-					self.cur = self.cur.next;
-					Some(ret)
-				}
-			},
-		}
-	}
-}
-
-impl<'a, K: Hash + PartialEq, V, S: BuildHasher + Default> IntoIterator for &'a Hashtable<K, V, S> {
-	type Item = Ptr<Node<K, V>>;
-	type IntoIter = HashtableRefIterator<'a, K, V, S>;
-
-	fn into_iter(self) -> Self::IntoIter {
-		self.iter()
-	}
-}
-
-/*
-
-pub struct HashtableRefIterator<'a, K: PartialEq + Hash, V, S: BuildHasher + Default> {
-	hashtable: &'a Hashtable<K, V, S>,
-	cur: Ptr<Node<K, V>>,
-	index: usize,
-}
-
-impl<'a, K: Hash + PartialEq, V, S: BuildHasher + Default> Iterator
-	for HashtableRefIterator<'a, K, V, S>
-{
-	type Item = (&'a K, &'a V);
-
-	fn next(&mut self) -> Option<Self::Item> {
-		// Traverse current bucket’s linked list
-		if !self.cur.is_null() {
-			self.cur = self.cur.next;
-			let node = unsafe { self.cur.as_ref() };
-			let result = (&node.k, &node.v);
-			return Some(result);
-		}
-
-		// Move to the next non-empty bucket
-		while self.index < self.hashtable.arr.len() {
-			self.cur = self.hashtable.arr[self.index];
-			self.index += 1;
-			if !self.cur.is_null() {
-				self.cur = self.cur.next;
-				let node = unsafe { self.cur.as_ref() };
-				let result = (&node.k, &node.v);
-				return Some(result);
-			}
-		}
-		None
-	}
-}
-*/
 
 #[cfg(test)]
 mod test {
