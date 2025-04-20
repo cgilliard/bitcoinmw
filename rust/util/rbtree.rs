@@ -141,7 +141,7 @@ impl<V: Ord> RbTreeNode<V> {
 	}
 }
 
-impl<T: Clone + Ord> TryClone for RbTree<T> {
+impl<T: TryClone + Ord> TryClone for RbTree<T> {
 	fn try_clone(&self) -> Result<Self, Error>
 	where
 		Self: Sized,
@@ -157,22 +157,6 @@ impl<T: Clone + Ord> TryClone for RbTree<T> {
 }
 
 impl<V: Ord> RbTree<V> {
-	fn insert_children<T: Clone + Ord>(
-		&self,
-		ptr: Ptr<RbTreeNode<T>>,
-		n: &mut RbTree<T>,
-	) -> Result<(), Error> {
-		let nval = Ptr::alloc(RbTreeNode::new(ptr.value.clone()))?;
-		n.insert(nval);
-
-		if !ptr.right.is_null() {
-			self.insert_children(ptr.right, n)?;
-		}
-		if !ptr.left.is_null() {
-			self.insert_children(ptr.left, n)?;
-		}
-		Ok(())
-	}
 	pub fn new() -> Self {
 		Self {
 			root: Ptr::null(),
@@ -250,6 +234,23 @@ impl<V: Ord> RbTree<V> {
 			parent,
 			is_right,
 		}
+	}
+
+	fn insert_children<T: TryClone + Ord>(
+		&self,
+		ptr: Ptr<RbTreeNode<T>>,
+		n: &mut RbTree<T>,
+	) -> Result<(), Error> {
+		let nval = Ptr::alloc(RbTreeNode::new(ptr.value.try_clone()?))?;
+		n.insert(nval);
+
+		if !ptr.right.is_null() {
+			self.insert_children(ptr.right, n)?;
+		}
+		if !ptr.left.is_null() {
+			self.insert_children(ptr.left, n)?;
+		}
+		Ok(())
 	}
 
 	fn remove_impl(&mut self, pair: RbNodePair<V>) {
