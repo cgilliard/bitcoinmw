@@ -1,3 +1,4 @@
+use core::marker::PhantomData;
 use core::ops::FnMut;
 use core::ptr::null_mut;
 use prelude::*;
@@ -7,9 +8,10 @@ pub struct RbTree<V: Ord> {
 	count: usize,
 }
 
-pub struct RbTreeIterator<V: Ord> {
+pub struct RbTreeIterator<'a, V: Ord> {
 	stack: [Option<Ptr<RbTreeNode<V>>>; 80], // Fixed-size stack
 	stack_top: usize,
+	_phantom: PhantomData<&'a V>, // For lifetime tracking
 }
 
 pub struct RbNodePair<V: Ord> {
@@ -32,7 +34,7 @@ enum Color {
 	Red,
 }
 
-impl<V: Ord> RbTreeIterator<V> {
+impl<'a, V: Ord> RbTreeIterator<'a, V> {
 	// Push all left children starting from a node
 	fn push_leftmost(&mut self, mut node: Ptr<RbTreeNode<V>>) {
 		while !node.is_null() {
@@ -46,20 +48,34 @@ impl<V: Ord> RbTreeIterator<V> {
 		}
 	}
 }
-
-impl<V: Ord + Clone> Iterator for RbTreeIterator<V> {
-	type Item = V;
+impl<'a, V: Ord> Iterator for RbTreeIterator<'a, V> {
+	type Item = &'a V;
 
 	fn next(&mut self) -> Option<Self::Item> {
 		if self.stack_top > 0 && self.stack_top < self.stack.len() {
 			self.stack_top -= 1;
 			let node = self.stack[self.stack_top].take()?;
-			let node_ref = &*node;
+			// Get the raw pointer
+			let raw = node.raw();
+			if raw.is_null() {
+				return None;
+			}
+			// Convert raw pointer to reference with lifetime 'a
+			let node_ref = unsafe { &*raw };
 			self.push_leftmost(node_ref.right);
-			Some((*node).value.clone())
+			Some(&node_ref.value)
 		} else {
 			None
 		}
+	}
+}
+
+impl<'a, V: Ord> IntoIterator for &'a RbTree<V> {
+	type Item = &'a V;
+	type IntoIter = RbTreeIterator<'a, V>;
+
+	fn into_iter(self) -> Self::IntoIter {
+		self.iter()
 	}
 }
 
@@ -233,10 +249,11 @@ impl<V: Ord> RbTree<V> {
 
 	// note: iter uses standard ordering. If the custom search function is much different
 	// it might not work.
-	pub fn iter(&self) -> RbTreeIterator<V> {
+	pub fn iter(&self) -> RbTreeIterator<'_, V> {
 		let mut iter = RbTreeIterator {
 			stack: [None; 80],
 			stack_top: 0,
+			_phantom: PhantomData,
 		};
 		iter.push_leftmost(self.root);
 		iter
@@ -978,8 +995,8 @@ mod test {
 			let mut last = 0;
 			for v in tree.iter() {
 				i += 1;
-				assert!(last < v);
-				last = v;
+				assert!(last < *v);
+				last = *v;
 			}
 			assert_eq!(i, size);
 
@@ -995,6 +1012,76 @@ mod test {
 			}
 		}
 
+		assert_eq!(initial, unsafe { getalloccount() });
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_three_rbtree_iters() -> Result<(), Error> {
+		let initial = unsafe { getalloccount() };
+		{
+			let mut tree = RbTree::new();
+
+			let mut search = move |base: Ptr<RbTreeNode<u64>>, value: Ptr<RbTreeNode<u64>>| {
+				let mut is_right = false;
+				let mut cur = base;
+				let mut parent = Ptr::null();
+
+				while !cur.is_null() {
+					let cmp = (*value).value.cmp(&(*cur).value);
+					if cmp == Ordering::Equal {
+						break;
+					} else if cmp == Ordering::Less {
+						parent = cur;
+						is_right = false;
+						cur = cur.left;
+					} else {
+						parent = cur;
+						is_right = true;
+						cur = cur.right;
+					}
+				}
+
+				RbNodePair {
+					cur,
+					parent,
+					is_right,
+				}
+			};
+
+			let size = 100;
+			for i in 0..size {
+				let next = Ptr::alloc(RbTreeNode::new(i as u64))?;
+				assert!(tree.insert(next, &mut search).is_none());
+				validate_tree(tree.root());
+			}
+
+			let mut i = 0;
+			for v in tree.iter() {
+				assert_eq!(*v, i);
+				i += 1;
+			}
+			assert_eq!(i, size);
+
+			i = 0;
+			for v in &tree {
+				assert_eq!(*v, i);
+				i += 1;
+			}
+			assert_eq!(i, size);
+
+			let mut ptr = Ptr::alloc(RbTreeNode::new(0 as u64))?;
+			for i in 0..size {
+				ptr.value = i;
+				let res = tree.remove(ptr, &mut search).unwrap();
+				validate_tree(tree.root());
+				res.release();
+				let res = search(tree.root(), ptr);
+				assert!(res.cur.is_null());
+			}
+			ptr.release();
+		}
 		assert_eq!(initial, unsafe { getalloccount() });
 
 		Ok(())
