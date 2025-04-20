@@ -56,7 +56,10 @@ macro_rules! cas {
 #[macro_export]
 macro_rules! box_dyn {
 	($value:expr, $trait:path) => {{
-		let mut boxed = Box::new($value).unwrap();
+		let mut boxed = match Box::new($value) {
+			Ok(b) => b,
+			Err(e) => exit!("box_dyn failed due to error: {}", e),
+		};
 		let ptr = boxed.ptr.raw();
 		boxed.leak();
 		Box {
@@ -97,7 +100,7 @@ macro_rules! box_slice {
 			unsafe {
 				let rptr = alloc(total_size) as *mut u8;
 				if rptr.is_null() {
-					exit!("Allocation failed");
+					exit!("box_slice failed due to allocation failure!");
 				}
 				let mut write_ptr = rptr;
 				for _ in 0..count {

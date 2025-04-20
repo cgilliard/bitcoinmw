@@ -18,6 +18,10 @@ impl Formatter {
 		})
 	}
 
+	pub fn clear(&mut self) -> Result<(), Error> {
+		self.buffer.clear()
+	}
+
 	pub fn write_str(&mut self, s: &str, len: usize) -> Result<(), Error> {
 		let bytes = s.as_bytes();
 		let start = self.buffer.len();

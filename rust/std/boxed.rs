@@ -34,9 +34,12 @@ impl<T: ?Sized> Drop for Box<T> {
 	}
 }
 
-impl<T: ?Sized + Clone> Clone for Box<T> {
-	fn clone(&self) -> Box<T> {
-		Box::new(self.as_ref().clone()).unwrap()
+impl<T: TryClone> TryClone for Box<T> {
+	fn try_clone(&self) -> Result<Self, Error>
+	where
+		Self: Sized,
+	{
+		Box::new(self.as_ref().try_clone()?)
 	}
 }
 
@@ -162,7 +165,7 @@ mod test {
 			let z = x.as_mut();
 			*z = 10;
 			assert_eq!(*z, 10);
-			let a = x.clone();
+			let a = x.try_clone().unwrap();
 			let b = a.as_ref();
 			assert_eq!(*b, 10);
 		}
@@ -351,15 +354,16 @@ mod test {
 		}
 	}
 	#[test]
-	fn test_clone_box() {
+	fn test_clone_box() -> Result<(), Error> {
 		{
 			let x = CloneBox { x: 10 };
 			let y = Box::new(x).unwrap();
-			let z = Box::clone(&y);
+			let z = y.try_clone()?;
 			assert_eq!(*z, *y);
 			assert_eq!(unsafe { CLONE_DROP_COUNT }, 0);
 		}
 		assert_eq!(unsafe { CLONE_DROP_COUNT }, 2);
+		Ok(())
 	}
 
 	#[test]

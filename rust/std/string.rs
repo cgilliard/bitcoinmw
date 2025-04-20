@@ -2,6 +2,7 @@ use core::cmp::PartialEq;
 use core::convert::AsRef;
 use core::fmt::Debug;
 use core::fmt::Formatter as CoreFormatter;
+use core::ptr::null;
 use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
 use prelude::*;
@@ -104,6 +105,13 @@ impl String {
 			value: None,
 			start: 0,
 			end: 0,
+		}
+	}
+
+	pub fn as_ptr(&self) -> *const u8 {
+		match &self.value {
+			Some(value) => value.get().as_ptr().raw() as *const u8,
+			None => null(),
 		}
 	}
 
