@@ -146,9 +146,6 @@ impl<K: PartialEq + Hash, V, S: BuildHasher + Default> Hashtable<K, V, S> {
 	}
 
 	pub fn find(&self, key: &K) -> Option<&mut V> {
-		if self.arr.is_empty() {
-			return None;
-		}
 		let mut hasher = self.hasher.build_hasher();
 		key.hash(&mut hasher);
 		let mut ptr = self.arr[hasher.finish() as usize % self.arr.len()];
@@ -358,11 +355,17 @@ mod test {
 			}
 
 			let mut check: Vec<u32> = vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0]?;
+			for mut x in &hash {
+				check[x.value.x as usize] += 1;
+				x.value.y += 1;
+			}
+
 			for x in &hash {
 				check[x.value.x as usize] += 1;
+				assert_eq!(x.value.y, x.value.x + 2);
 			}
 			for i in 0..10 {
-				assert_eq!(check[i], 1);
+				assert_eq!(check[i], 2);
 			}
 
 			for i in 0..10 {
