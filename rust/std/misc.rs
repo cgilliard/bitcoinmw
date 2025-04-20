@@ -138,6 +138,21 @@ pub fn is_utf8_valid(bytes: &[u8]) -> Result<(), Error> {
 	Ok(())
 }
 
+pub fn from_le_bytes_u64(bytes: &[u8]) -> Result<u64, Error> {
+	if bytes.len() >= 8 {
+		Ok((bytes[0] as u64)
+			| ((bytes[1] as u64) << 8)
+			| ((bytes[2] as u64) << 16)
+			| ((bytes[3] as u64) << 24)
+			| ((bytes[4] as u64) << 32)
+			| ((bytes[5] as u64) << 40)
+			| ((bytes[6] as u64) << 48)
+			| ((bytes[7] as u64) << 56))
+	} else {
+		Err(Error::new(IllegalArgument))
+	}
+}
+
 #[cfg(test)]
 mod test {
 	use super::*;

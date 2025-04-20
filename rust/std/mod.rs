@@ -9,21 +9,22 @@ mod constants;
 mod cstring;
 mod display;
 mod error;
-mod ffi;
 mod format;
 mod lock;
-mod misc;
 mod ptr;
 mod rc;
-mod strext;
 mod string;
 mod thread;
 mod vec;
 
+pub(crate) mod ffi;
+pub(crate) mod misc;
+pub(crate) mod strext;
+
 pub use std::boxed::Box;
 pub use std::channel::{channel, Receiver, Sender};
 pub use std::clone::TryClone;
-pub use std::cmp::Ord;
+pub use std::cmp::{Ord, Ordering};
 pub use std::cstring::CStr;
 pub use std::display::Display;
 pub use std::error::{Error, ErrorKind};

@@ -1,7 +1,7 @@
 // Internal
 pub use std::{
-	spawn, spawnj, Box, Display, Error, ErrorKind, ErrorKind::*, Formatter, Lock, LockBox, Ptr, Rc,
-	String, TryClone, Vec,
+	spawn, spawnj, Box, Display, Error, ErrorKind, ErrorKind::*, Formatter, Lock, LockBox, Ord,
+	Ordering, Ptr, Rc, String, TryClone, Vec,
 };
 
 // External
