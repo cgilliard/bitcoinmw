@@ -1,10 +1,9 @@
 use core::iter::IntoIterator;
 use core::iter::Iterator;
-use core::ops::{Deref, DerefMut};
-use core::option::Option as CoreOption;
 use core::ptr::null_mut;
 use prelude::*;
 use std::ffi::rand_bytes;
+use util::node::Node;
 use util::Hasher128;
 
 pub struct Murmur3Hasher {
@@ -36,172 +35,48 @@ impl Murmur3Hasher {
 	}
 }
 
-pub struct Node<V: PartialEq> {
-	next: Ptr<Node<V>>,
-	pub value: V,
-}
-
-impl<V: PartialEq> PartialEq for Node<V> {
-	fn eq(&self, other: &Node<V>) -> bool {
-		self.value == other.value
-	}
-}
-
-impl<V: PartialEq> Deref for Node<V> {
-	type Target = V;
-
-	fn deref(&self) -> &Self::Target {
-		&self.value
-	}
-}
-
-impl<V: PartialEq> DerefMut for Node<V> {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		&mut self.value
-	}
-}
-
-impl<V: PartialEq> Node<V> {
-	pub fn new(value: V) -> Self {
-		Self {
-			next: Ptr::new(null_mut()),
-			value,
-		}
-	}
-}
-
-pub struct Hashtable<V: PartialEq + Hash, S: BuildHasher + Default> {
-	arr: Vec<Ptr<Node<V>>>,
+pub struct Hashtable<K: PartialEq + Hash, V, S: BuildHasher + Default> {
+	arr: Vec<Ptr<Node<K, V>>>,
 	hasher: S,
+	count: u64,
 }
 
-pub struct HashtableIterator<V: PartialEq + Hash, S: BuildHasher + Default> {
-	hashtable: Hashtable<V, S>,
-	cur: Ptr<Node<V>>,
-	index: usize,
-}
-
-pub struct HashtableRefIterator<'a, V: PartialEq + Hash, S: BuildHasher + Default> {
-	hashtable: &'a Hashtable<V, S>,
-	cur: Ptr<Node<V>>,
-	index: usize,
-}
-
-impl<'a, V: PartialEq + Hash, S: BuildHasher + Default> Iterator
-	for HashtableRefIterator<'a, V, S>
-{
-	type Item = Ptr<Node<V>>;
-
-	fn next(&mut self) -> CoreOption<Self::Item> {
-		while self.cur.is_null() && self.index < self.hashtable.arr.len() {
-			self.cur = self.hashtable.arr[self.index];
-			if !self.cur.is_null() {
-				break;
-			}
-			self.index += 1;
-		}
-
-		match self.cur.is_null() {
-			true => CoreOption::None,
-			false => match self.cur.next.is_null() {
-				true => {
-					self.index += 1;
-					let ret = self.cur;
-					self.cur = Ptr::null();
-					CoreOption::Some(ret)
-				}
-				false => {
-					let ret = self.cur;
-					self.cur = self.cur.next;
-					CoreOption::Some(ret)
-				}
-			},
-		}
-	}
-}
-
-impl<V: PartialEq + Hash, S: BuildHasher + Default> Iterator for HashtableIterator<V, S> {
-	type Item = Ptr<Node<V>>;
-	fn next(&mut self) -> CoreOption<Self::Item> {
-		while self.cur.is_null() && self.index < self.hashtable.arr.len() {
-			self.cur = self.hashtable.arr[self.index];
-			if !self.cur.is_null() {
-				break;
-			}
-			self.index += 1;
-		}
-
-		match self.cur.is_null() {
-			true => CoreOption::None,
-			false => match self.cur.next.is_null() {
-				true => {
-					self.index += 1;
-					let ret = self.cur;
-					self.cur = Ptr::null();
-					CoreOption::Some(ret)
-				}
-				false => {
-					let ret = self.cur;
-					self.cur = self.cur.next;
-					CoreOption::Some(ret)
-				}
-			},
-		}
-	}
-}
-
-impl<V: PartialEq + Hash, S: BuildHasher + Default> IntoIterator for Hashtable<V, S> {
-	type Item = Ptr<Node<V>>;
-	type IntoIter = HashtableIterator<V, S>;
-
-	fn into_iter(self) -> Self::IntoIter {
-		let cur = self.arr[0];
-		HashtableIterator {
-			hashtable: self,
-			cur,
-			index: 0,
-		}
-	}
-}
-
-impl<'a, V: PartialEq + Hash, S: BuildHasher + Default> IntoIterator for &'a Hashtable<V, S> {
-	type Item = Ptr<Node<V>>;
-	type IntoIter = HashtableRefIterator<'a, V, S>;
-
-	fn into_iter(self) -> Self::IntoIter {
-		HashtableRefIterator {
-			hashtable: self,
-			cur: self.arr[0],
-			index: 0,
-		}
-	}
-}
-
-impl<V: PartialEq + Hash, S: BuildHasher + Default> Hashtable<V, S> {
+impl<K: PartialEq + Hash, V, S: BuildHasher + Default> Hashtable<K, V, S> {
 	pub fn new(size: usize) -> Result<Self, Error> {
+		if size == 0 {
+			return Err(Error::new(IllegalArgument));
+		}
 		let mut arr = Vec::new();
 		let hasher = S::default();
 		match arr.resize(size) {
-			Ok(_) => Ok(Self { arr, hasher }),
+			Ok(_) => Ok(Self {
+				arr,
+				hasher,
+				count: 0,
+			}),
 			Err(e) => Err(e),
 		}
 	}
 	pub fn with_hasher(size: usize, hasher: S) -> Result<Self, Error> {
+		if size == 0 {
+			return Err(Error::new(IllegalArgument));
+		}
 		let mut arr = Vec::new();
 		match arr.resize(size) {
-			Ok(_) => Ok(Self { arr, hasher }),
+			Ok(_) => Ok(Self {
+				arr,
+				hasher,
+				count: 0,
+			}),
 			Err(e) => Err(e),
 		}
 	}
 
-	pub fn insert(&mut self, mut node: Ptr<Node<V>>) -> bool {
+	pub fn insert(&mut self, mut node: Ptr<Node<K, V>>) -> Result<(), Error> {
 		(*node).next = Ptr::null();
-		let value = &*node;
-		if self.arr.len() == 0 {
-			return false;
-		}
+		let key = &(&*node).k;
 		let mut hasher = self.hasher.build_hasher();
-		value.hash(&mut hasher);
+		key.hash(&mut hasher);
 		let index = hasher.finish() as usize % self.arr.len();
 		let mut ptr = self.arr[index];
 		if ptr.is_null() {
@@ -209,8 +84,8 @@ impl<V: PartialEq + Hash, S: BuildHasher + Default> Hashtable<V, S> {
 		} else {
 			let mut prev = Ptr::new(null_mut());
 			while !ptr.is_null() {
-				if *ptr == *value {
-					return false;
+				if *ptr == *node {
+					return Err(Error::new(Duplicate));
 				}
 				prev = ptr;
 				ptr = (*ptr).next;
@@ -218,41 +93,45 @@ impl<V: PartialEq + Hash, S: BuildHasher + Default> Hashtable<V, S> {
 
 			(*prev).next = node;
 		}
-		true
+		self.count += 1;
+		Ok(())
 	}
 
-	pub fn find(&self, value: &V) -> Option<Ptr<Node<V>>> {
-		if self.arr.len() == 0 {
+	pub fn find(&self, key: &K) -> Option<&V> {
+		if self.arr.is_empty() {
 			return None;
 		}
 		let mut hasher = self.hasher.build_hasher();
-		value.hash(&mut hasher);
+		key.hash(&mut hasher);
 		let mut ptr = self.arr[hasher.finish() as usize % self.arr.len()];
 		while !ptr.is_null() {
-			if &ptr.value == value {
-				return Some(Ptr::new(ptr.raw()));
+			let node = ptr.as_ref();
+			if &node.k == key {
+				return Some(unsafe { &(*ptr.raw()).v });
 			}
-			ptr = (ptr.as_ref()).next;
+			ptr = node.next;
 		}
 		None
 	}
 
-	pub fn remove(&mut self, value: &V) -> Option<Ptr<Node<V>>> {
+	pub fn remove(&mut self, key: &K) -> Option<Ptr<Node<K, V>>> {
 		if self.arr.len() > 0 {
 			let mut hasher = self.hasher.build_hasher();
-			value.hash(&mut hasher);
+			key.hash(&mut hasher);
 			let index = hasher.finish() as usize % self.arr.len();
 			let mut ptr = self.arr[index];
 
-			if !ptr.is_null() && (*ptr).value == *value {
+			if !ptr.is_null() && (*ptr).k == *key {
 				self.arr[index] = (*ptr).next;
+				self.count -= 1;
 				return Some(Ptr::new(ptr.raw()));
 			}
 			let mut prev = self.arr[index];
 
 			while !ptr.is_null() {
-				if (*ptr).value == *value {
+				if (*ptr).k == *key {
 					(*prev).next = (*ptr).next;
+					self.count -= 1;
 					return Some(Ptr::new(ptr.raw()));
 				}
 				prev = ptr;
@@ -261,11 +140,155 @@ impl<V: PartialEq + Hash, S: BuildHasher + Default> Hashtable<V, S> {
 		}
 		None
 	}
+
+	pub fn len(&self) -> u64 {
+		self.count
+	}
+
+	pub fn iter<'a>(&'a self) -> HashtableRefIterator<'a, K, V, S> {
+		HashtableRefIterator {
+			hashtable: self,
+			cur: self.arr[0],
+			index: 0,
+		}
+	}
 }
+
+pub struct HashtableRefIterator<'a, K: PartialEq + Hash, V, S: BuildHasher + Default> {
+	hashtable: &'a Hashtable<K, V, S>,
+	cur: Ptr<Node<K, V>>,
+	index: usize,
+}
+
+impl<'a, K: PartialEq + Hash, V, S: BuildHasher + Default> Iterator
+	for HashtableRefIterator<'a, K, V, S>
+{
+	type Item = Ptr<Node<K, V>>;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		while self.cur.is_null() && self.index < self.hashtable.arr.len() {
+			self.cur = self.hashtable.arr[self.index];
+			if !self.cur.is_null() {
+				break;
+			}
+			self.index += 1;
+		}
+
+		match self.cur.is_null() {
+			true => None,
+			false => match self.cur.next.is_null() {
+				true => {
+					self.index += 1;
+					let ret = self.cur;
+					self.cur = Ptr::null();
+					Some(ret)
+				}
+				false => {
+					let ret = self.cur;
+					self.cur = self.cur.next;
+					Some(ret)
+				}
+			},
+		}
+	}
+}
+
+impl<'a, K: Hash + PartialEq, V, S: BuildHasher + Default> IntoIterator for &'a Hashtable<K, V, S> {
+	type Item = Ptr<Node<K, V>>;
+	type IntoIter = HashtableRefIterator<'a, K, V, S>;
+
+	fn into_iter(self) -> Self::IntoIter {
+		self.iter()
+	}
+}
+
+/*
+
+pub struct HashtableRefIterator<'a, K: PartialEq + Hash, V, S: BuildHasher + Default> {
+	hashtable: &'a Hashtable<K, V, S>,
+	cur: Ptr<Node<K, V>>,
+	index: usize,
+}
+
+impl<'a, K: Hash + PartialEq, V, S: BuildHasher + Default> Iterator
+	for HashtableRefIterator<'a, K, V, S>
+{
+	type Item = (&'a K, &'a V);
+
+	fn next(&mut self) -> Option<Self::Item> {
+		// Traverse current bucket’s linked list
+		if !self.cur.is_null() {
+			self.cur = self.cur.next;
+			let node = unsafe { self.cur.as_ref() };
+			let result = (&node.k, &node.v);
+			return Some(result);
+		}
+
+		// Move to the next non-empty bucket
+		while self.index < self.hashtable.arr.len() {
+			self.cur = self.hashtable.arr[self.index];
+			self.index += 1;
+			if !self.cur.is_null() {
+				self.cur = self.cur.next;
+				let node = unsafe { self.cur.as_ref() };
+				let result = (&node.k, &node.v);
+				return Some(result);
+			}
+		}
+		None
+	}
+}
+*/
 
 #[cfg(test)]
 mod test {
-	use super::*;
+	use prelude::*;
+	use std::ffi::getalloccount;
+	use util::{Hashtable, Node};
+
+	#[test]
+	fn test_hashtable1() -> Result<(), Error> {
+		let initial = unsafe { getalloccount() };
+		{
+			let mut hashtable: Hashtable<u64, i32> = Hashtable::new(1024)?;
+			let node = Ptr::alloc(Node::new(1, 2))?;
+			assert!(hashtable.insert(node).is_ok());
+			let v = hashtable.find(&1).unwrap();
+			assert_eq!(*v, 2);
+			let n = hashtable.remove(&1).unwrap();
+			assert_eq!(n.k, 1);
+			assert_eq!(n.v, 2);
+			n.release();
+
+			let node = Ptr::alloc(Node::new(1, 2))?;
+			assert!(hashtable.insert(node).is_ok());
+			let node = Ptr::alloc(Node::new(9, 9))?;
+			assert!(hashtable.insert(node).is_ok());
+			let mut count = 0;
+			for n in &hashtable {
+				if n.k == 9 {
+					assert_eq!(n.v, 9);
+					count += 1;
+				} else if n.k == 1 {
+					assert_eq!(n.v, 2);
+					count += 1;
+				} else {
+					return Err(Error::new(IllegalState));
+				}
+			}
+
+			assert_eq!(hashtable.len(), 2);
+			assert_eq!(count, 2);
+			hashtable.remove(&1).unwrap().release();
+			hashtable.remove(&9).unwrap().release();
+			assert_eq!(hashtable.len(), 0);
+		}
+		assert_eq!(initial, unsafe { getalloccount() });
+
+		Ok(())
+	}
+
+	/*
 	use core::mem::size_of;
 	use std::ffi::{alloc, getalloccount};
 
@@ -408,4 +431,5 @@ mod test {
 
 		Ok(())
 	}
+		*/
 }

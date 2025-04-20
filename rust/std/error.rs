@@ -34,6 +34,7 @@ define_errorkind_with_strings!(
 	Utf8Error,
 	Overflow,
 	IO,
+	Duplicate,
 	Serialization,
 	OutOfBounds,
 	ThreadCreate,
