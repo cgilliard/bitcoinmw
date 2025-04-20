@@ -37,6 +37,9 @@ impl<'a, V: Ord> RbTreeIterator<'a, V> {
 		while !node.is_null() {
 			if self.stack_top >= self.stack.len() {
 				// Stack overflow; tree is too deep
+				// 80 depth for RBTree 2 log(n) worst case
+				// depth means at least 2^40 nodes
+				// or over 1 trillion nodes before this occurs.
 				return;
 			}
 			self.stack[self.stack_top] = Some(node);
@@ -178,7 +181,7 @@ impl<V: Ord> RbTree<V> {
 		ret
 	}
 
-	pub fn remove(&mut self, n: Ptr<RbTreeNode<V>>) -> Option<Ptr<RbTreeNode<V>>> {
+	pub fn remove_ptr(&mut self, n: Ptr<RbTreeNode<V>>) -> Option<Ptr<RbTreeNode<V>>> {
 		let pair = self.search(self.root, n);
 		if pair.cur.is_null() {
 			return None;
@@ -203,10 +206,10 @@ impl<V: Ord> RbTree<V> {
 		iter
 	}
 
-	pub fn remove_by_value(&mut self, value: V) -> Option<Ptr<RbTreeNode<V>>> {
+	pub fn remove(&mut self, value: V) -> Option<Ptr<RbTreeNode<V>>> {
 		let node = RbTreeNode::new(value);
 		let ptr = Ptr::new(&node as *const RbTreeNode<V>);
-		self.remove(ptr)
+		self.remove_ptr(ptr)
 	}
 
 	pub fn search(&self, base: Ptr<RbTreeNode<V>>, value: Ptr<RbTreeNode<V>>) -> RbNodePair<V> {
@@ -702,7 +705,7 @@ mod test {
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove(ptr);
+				let res = tree.remove_ptr(ptr);
 				validate_tree(tree.root());
 				res.unwrap().release();
 				let res = tree.search(tree.root(), ptr);
@@ -734,7 +737,7 @@ mod test {
 				c += 1;
 				let v = murmur3_32_of_u64(i, seed);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove(ptr);
+				let res = tree.remove_ptr(ptr);
 				validate_tree(tree.root());
 				res.unwrap().release();
 				let res = tree.search(tree.root(), ptr);
@@ -763,7 +766,7 @@ mod test {
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove(ptr);
+				let res = tree.remove_ptr(ptr);
 				validate_tree(tree.root());
 				res.unwrap().release();
 				let res = tree.search(tree.root(), ptr);
@@ -776,10 +779,10 @@ mod test {
 				c += 1;
 				let v = murmur3_32_of_u64(i, seed);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove(ptr);
+				let res = tree.remove_ptr(ptr);
 				validate_tree(tree.root());
 				res.unwrap().release();
-				let res = tree.remove(ptr);
+				let res = tree.remove_ptr(ptr);
 				assert!(res.is_none());
 				ptr.release();
 			}
@@ -843,7 +846,7 @@ mod test {
 			for i in 0..size {
 				let v = TestTransplant { x: i, y: i + 91 };
 				let ptr = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-				let res = tree.remove(ptr);
+				let res = tree.remove_ptr(ptr);
 				res.unwrap().release();
 				let res = tree.search(tree.root(), ptr);
 				assert!(res.cur.is_null());
@@ -869,7 +872,7 @@ mod test {
 			for i in 0..size {
 				let v = TestTransplant { x: i, y: i + 91 };
 				let ptr = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-				let res = tree.remove(ptr);
+				let res = tree.remove_ptr(ptr);
 				res.unwrap().release();
 				let res = tree.search(tree.root(), ptr);
 				assert!(res.cur.is_null());
@@ -915,7 +918,7 @@ mod test {
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove(ptr);
+				let res = tree.remove_ptr(ptr);
 				validate_tree(tree.root());
 				res.unwrap().release();
 				let res = tree.search(tree.root(), ptr);
@@ -958,7 +961,7 @@ mod test {
 
 			assert_eq!(tree.len(), size as usize);
 			for i in 0..size {
-				tree.remove_by_value(i).unwrap().release();
+				tree.remove(i).unwrap().release();
 			}
 			assert_eq!(tree.len(), 0);
 		}
@@ -993,7 +996,7 @@ mod test {
 			let mut ptr = Ptr::new(&ptr_target as *const RbTreeNode<u64>);
 			for i in 0..size {
 				ptr.value = i;
-				let res = tree.remove(ptr).unwrap();
+				let res = tree.remove_ptr(ptr).unwrap();
 				validate_tree(tree.root());
 				res.release();
 				let res = tree.search(tree.root(), ptr);
