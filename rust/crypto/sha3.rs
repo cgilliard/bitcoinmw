@@ -1,6 +1,6 @@
 use core::ptr::null;
 use core::slice::from_raw_parts;
-use crypto::ffi::{sha3_context_size, sha3_finalize, sha3_init256, sha3_setflags, sha3_update};
+use crypto::ffi::{sha3_context_size, sha3_finalize, sha3_init256, sha3_update};
 use crypto::types::Sha3Context;
 use prelude::*;
 use std::ffi::{alloc, release};
@@ -35,8 +35,6 @@ impl Sha3_256 {
 				unsafe { release(ctx as *const u8) };
 				Err(Error::new(IllegalState))
 			} else {
-				// set flags to none (NIST sha3)
-				unsafe { sha3_setflags(ctx, 0) };
 				Ok(Self { ctx })
 			}
 		}
