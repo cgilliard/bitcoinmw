@@ -39,6 +39,8 @@ define_errorkind_with_strings!(
 	ThreadCreate,
 	ThreadDetach,
 	ThreadJoin,
+	ChannelInit,
+	ChannelSend,
 	Todo
 );
 

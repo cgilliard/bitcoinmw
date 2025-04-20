@@ -2,6 +2,7 @@
 mod macros;
 
 mod boxed;
+mod channel;
 mod clone;
 mod cmp;
 mod constants;
@@ -20,6 +21,7 @@ mod thread;
 mod vec;
 
 pub use std::boxed::Box;
+pub use std::channel::{channel, Receiver, Sender};
 pub use std::clone::TryClone;
 pub use std::cmp::Ord;
 pub use std::cstring::CStr;
@@ -30,6 +32,7 @@ pub use std::lock::{Lock, LockBox};
 pub use std::ptr::Ptr;
 pub use std::rc::Rc;
 pub use std::string::String;
+pub use std::thread::{spawn, spawnj};
 pub use std::vec::Vec;
 
 #[cfg(test)]

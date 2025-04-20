@@ -1,13 +1,11 @@
 #ifndef _STD_H__
 #define _STD_H__
 
-typedef unsigned long size_t;
-
 void *malloc(unsigned long);
 void *realloc(void *ptr, unsigned long);
 void free(void *);
 int getentropy(void *buf, unsigned long long length);
-int snprintf(char *s, size_t n, const char *format, ...);
+int snprintf(char *s, unsigned long n, const char *format, ...);
 
 void *alloc(unsigned long size);
 void release(void *ptr);
