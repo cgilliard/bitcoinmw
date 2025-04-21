@@ -74,6 +74,7 @@ static int is_full_rank(const uint16_t matrix[64][64]) {
 
 // Generates a 64x64 matrix of 4-bit values with full rank over GF(2^4)
 void generate_matrix(uint16_t matrix[64][64], struct AESContext* aes) {
+	memset(matrix, 0, 64 * 64 * sizeof(uint16_t));
 	do {
 		for (int i = 0; i < 64; ++i) {
 			for (int j = 0; j < 64; j += 16) {
@@ -98,3 +99,4 @@ void generate_matrix(uint16_t matrix[64][64], struct AESContext* aes) {
 		}
 	} while (!is_full_rank(matrix));
 }
+
