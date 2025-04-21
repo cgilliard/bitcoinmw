@@ -1,11 +1,11 @@
 use core::ptr::null;
 use crypto::ffi::{aes_context_size, aes_ctr_xcrypt_buffer, aes_init, aes_set_iv};
-use crypto::types::AESContext;
+use crypto::types::AesContext;
 use prelude::*;
 use std::ffi::{alloc, release};
 
 pub struct Aes256 {
-	ctx: *const AESContext,
+	ctx: *const AesContext,
 }
 
 impl Drop for Aes256 {
@@ -22,7 +22,7 @@ impl Drop for Aes256 {
 impl Aes256 {
 	pub fn new(key: [u8; 32], iv: [u8; 16]) -> Result<Self, Error> {
 		let size = unsafe { aes_context_size() };
-		let ctx = unsafe { alloc(size) } as *const AESContext;
+		let ctx = unsafe { alloc(size) } as *const AesContext;
 		if ctx.is_null() {
 			return Err(Error::new(Alloc));
 		} else {
@@ -45,7 +45,7 @@ impl Aes256 {
 		}
 	}
 
-	pub fn as_ptr(&self) -> *const AESContext {
+	pub fn as_ptr(&self) -> *const AesContext {
 		self.ctx
 	}
 }

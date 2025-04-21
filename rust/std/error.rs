@@ -36,6 +36,7 @@ define_errorkind_with_strings!(
 	IO,
 	Duplicate,
 	InsufficientEntropy,
+	OperationFailed,
 	Serialization,
 	OutOfBounds,
 	ThreadCreate,
