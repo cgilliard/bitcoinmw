@@ -1,25 +1,32 @@
 use core::mem::size_of;
 use core::ptr::{null, null_mut};
 use crypto::constants::{
-	BLIND_SUM_MAX_KEYS, GENERATOR_G, GENERATOR_H, SECP256K1_START_SIGN, SECP256K1_START_VERIFY,
+	BLIND_SUM_MAX_KEYS, GENERATOR_G, GENERATOR_H, MAX_GENERATORS, MAX_PROOF_SIZE,
+	SCRATCH_SPACE_SIZE, SECP256K1_START_SIGN, SECP256K1_START_VERIFY,
 };
 use crypto::cpsrng::Cpsrng;
 use crypto::ffi::{
 	secp256k1_aggsig_add_signatures_single, secp256k1_aggsig_sign_single,
-	secp256k1_aggsig_verify_single, secp256k1_context_create, secp256k1_pedersen_blind_sum,
+	secp256k1_aggsig_verify_single, secp256k1_bulletproof_generators_create,
+	secp256k1_bulletproof_generators_destroy, secp256k1_bulletproof_rangeproof_prove,
+	secp256k1_bulletproof_rangeproof_rewind, secp256k1_bulletproof_rangeproof_verify,
+	secp256k1_context_create, secp256k1_context_destroy, secp256k1_pedersen_blind_sum,
 	secp256k1_pedersen_commit, secp256k1_pedersen_commitment_serialize,
-	secp256k1_pedersen_verify_tally,
+	secp256k1_pedersen_verify_tally, secp256k1_scratch_space_create,
+	secp256k1_scratch_space_destroy,
 };
-use crypto::keys::{PublicKey, SecretKey};
+use crypto::keys::{PublicKey, PublicKeyUncompressed, SecretKey};
 use crypto::pedersen::{Commitment, CommitmentUncompressed};
+use crypto::range_proof::RangeProof;
 use crypto::signature::{Message, Signature};
-use crypto::types::Secp256k1Context;
+use crypto::types::{BulletproofGenerators, Secp256k1Context};
 use prelude::*;
 use std::ffi::{alloc, release};
 
 pub struct Ctx {
 	secp: *const Secp256k1Context,
 	rng: Cpsrng,
+	gens: *mut BulletproofGenerators,
 }
 
 impl AsRaw<Secp256k1Context> for Ctx {
@@ -31,6 +38,21 @@ impl AsRaw<Secp256k1Context> for Ctx {
 	}
 }
 
+impl Drop for Ctx {
+	fn drop(&mut self) {
+		unsafe {
+			if !self.secp.is_null() {
+				secp256k1_context_destroy(self.secp);
+				self.secp = null_mut();
+			}
+			if !self.gens.is_null() {
+				secp256k1_bulletproof_generators_destroy(self.secp, self.gens);
+				self.gens = null_mut();
+			}
+		}
+	}
+}
+
 impl Ctx {
 	pub fn new() -> Result<Self, Error> {
 		let rng = Cpsrng::new()?;
@@ -39,7 +61,20 @@ impl Ctx {
 		if secp == null_mut() {
 			Err(Error::new(Alloc))
 		} else {
-			Ok(Self { secp, rng })
+			let gens = unsafe {
+				secp256k1_bulletproof_generators_create(
+					secp,
+					&GENERATOR_G as *const PublicKeyUncompressed,
+					MAX_GENERATORS,
+				)
+			};
+			if gens.is_null() {
+				unsafe {
+					secp256k1_context_destroy(secp);
+				}
+				return Err(Error::new(Alloc));
+			}
+			Ok(Self { secp, rng, gens })
 		}
 	}
 
@@ -51,7 +86,20 @@ impl Ctx {
 		if secp == null_mut() {
 			Err(Error::new(Alloc))
 		} else {
-			Ok(Self { secp, rng })
+			let gens = unsafe {
+				secp256k1_bulletproof_generators_create(
+					secp,
+					&GENERATOR_G as *const PublicKeyUncompressed,
+					MAX_GENERATORS,
+				)
+			};
+			if gens.is_null() {
+				unsafe {
+					secp256k1_context_destroy(secp);
+				}
+				return Err(Error::new(Alloc));
+			}
+			Ok(Self { secp, rng, gens })
 		}
 	}
 
@@ -374,6 +422,148 @@ impl Ctx {
 			}
 		}
 	}
+
+	pub fn range_proof(&self, value: u64, blind: &SecretKey) -> Result<RangeProof, Error> {
+		let mut proof = [0; MAX_PROOF_SIZE];
+		let mut plen = MAX_PROOF_SIZE;
+		let n_bits = 64;
+		let extra_data_len = 0;
+		let extra_data = null();
+		let tau_x = null_mut();
+		let t_one = null_mut();
+		let t_two = null_mut();
+		let commits = null_mut();
+		let message_ptr = null();
+
+		let rewind_nonce = blind.clone();
+		let private_nonce = SecretKey::gen(self);
+
+		let mut blind_vec = Vec::new();
+		blind_vec.push(blind.as_ptr())?;
+
+		unsafe {
+			let scratch = secp256k1_scratch_space_create(self.secp, SCRATCH_SPACE_SIZE);
+			if scratch.is_null() {
+				return Err(Error::new(Alloc));
+			}
+			let res = secp256k1_bulletproof_rangeproof_prove(
+				self.secp,
+				scratch,
+				self.gens,
+				proof.as_mut_ptr(),
+				&mut plen,
+				tau_x,
+				t_one,
+				t_two,
+				&value,
+				null(), // min_values: NULL for all-zeroes
+				blind_vec.as_ptr(),
+				commits,
+				1,
+				GENERATOR_H.as_ptr(),
+				n_bits,
+				rewind_nonce.as_ptr(),
+				private_nonce.as_ptr(),
+				extra_data,
+				extra_data_len,
+				message_ptr,
+			);
+			secp256k1_scratch_space_destroy(scratch);
+
+			if res == 0 {
+				Err(Error::new(OperationFailed))
+			} else if plen > MAX_PROOF_SIZE {
+				Err(Error::new(IllegalState))
+			} else {
+				Ok(RangeProof { proof, plen })
+			}
+		}
+	}
+
+	pub fn verify_range_proof(&self, commit: &Commitment, proof: &RangeProof) -> Result<(), Error> {
+		if proof.plen > MAX_PROOF_SIZE {
+			return Err(Error::new(IllegalArgument));
+		}
+
+		let n_bits = 64;
+		let extra_data_len = 0;
+		let extra_data = null();
+
+		let commit = commit.decompress(self)?;
+
+		unsafe {
+			let scratch = secp256k1_scratch_space_create(self.secp, SCRATCH_SPACE_SIZE);
+			if scratch.is_null() {
+				return Err(Error::new(Alloc));
+			}
+			let result = secp256k1_bulletproof_rangeproof_verify(
+				self.secp,
+				scratch,
+				self.gens,
+				proof.proof.as_ptr(),
+				proof.plen,
+				null(), // min_values: NULL for all-zeroes
+				commit.as_ptr(),
+				1,
+				n_bits,
+				GENERATOR_H.as_ptr(),
+				extra_data,
+				extra_data_len,
+			);
+
+			secp256k1_scratch_space_destroy(scratch);
+
+			if result != 1 {
+				Err(Error::new(OperationFailed))
+			} else {
+				Ok(())
+			}
+		}
+	}
+
+	pub fn rewind_range_proof(
+		&self,
+		commit: &Commitment,
+		blind: &SecretKey,
+		proof: &RangeProof,
+	) -> Result<u64, Error> {
+		let extra_data_len = 0;
+		let extra_data = null();
+
+		let mut blind_out = [0u8; 32];
+		let mut value_out = 0;
+		let mut message_out = [0u8; 20];
+
+		let commit = commit.decompress(self)?;
+
+		unsafe {
+			let scratch = secp256k1_scratch_space_create(self.secp, SCRATCH_SPACE_SIZE);
+			if scratch.is_null() {
+				return Err(Error::new(Alloc));
+			}
+			let result = secp256k1_bulletproof_rangeproof_rewind(
+				self.secp,
+				&mut value_out,
+				blind_out.as_mut_ptr(),
+				proof.proof.as_ptr(),
+				proof.plen,
+				0,
+				commit.as_ptr(),
+				GENERATOR_H.as_ptr(),
+				blind.as_ptr(),
+				extra_data,
+				extra_data_len,
+				message_out.as_mut_ptr(),
+			);
+			secp256k1_scratch_space_destroy(scratch);
+
+			if result == 0 {
+				Err(Error::new(OperationFailed))
+			} else {
+				Ok(value_out)
+			}
+		}
+	}
 }
 
 #[cfg(test)]
@@ -405,7 +595,7 @@ mod test {
 
 	#[test]
 	fn test_aggregation_simple() -> Result<(), Error> {
-		let mut secp = Ctx::new().unwrap();
+		let mut secp = Ctx::new()?;
 		let msg = Message::new([10u8; 32]);
 
 		// Signer 1
@@ -462,27 +652,28 @@ mod test {
 	}
 
 	#[test]
-	fn test_balance_tx() {
-		let mut secp = Ctx::new().unwrap();
+	fn test_balance_tx() -> Result<(), Error> {
+		let mut secp = Ctx::new()?;
 
 		let blind1 = SecretKey::gen(&mut secp);
-		let input1 = secp.commit(3000, &blind1).unwrap();
+		let input1 = secp.commit(3000, &blind1)?;
 		let blind2 = SecretKey::gen(&mut secp);
-		let change = secp.commit(1000, &blind2).unwrap();
+		let change = secp.commit(1000, &blind2)?;
 		let blind3 = SecretKey::gen(&mut secp);
-		let output1 = secp.commit(2000, &blind3).unwrap();
+		let output1 = secp.commit(2000, &blind3)?;
 
-		let excess_blind = secp.blind_sum(&[&blind1], &[&blind2, &blind3]).unwrap();
-		let excess = secp.commit(0, &excess_blind).unwrap();
+		let excess_blind = secp.blind_sum(&[&blind1], &[&blind2, &blind3])?;
+		let excess = secp.commit(0, &excess_blind)?;
 
-		secp.verify_balance(&[&input1], &[&change, &output1, &excess], 0)
-			.unwrap();
+		secp.verify_balance(&[&input1], &[&change, &output1, &excess], 0)?;
 
-		let output1 = secp.commit(2001, &blind3).unwrap();
+		let output1 = secp.commit(2001, &blind3)?;
 
 		assert!(secp
 			.verify_balance(&[&input1], &[&change, &output1, &excess], 0)
 			.is_err());
+
+		Ok(())
 	}
 
 	#[test]
@@ -573,6 +764,25 @@ mod test {
 				false
 			)
 			.is_ok());
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_range_proofs() -> Result<(), Error> {
+		let mut ctx = Ctx::new()?;
+		let blind = SecretKey::gen(&mut ctx);
+		let proof = ctx.range_proof(100, &blind)?;
+		let commit = ctx.commit(100, &blind)?;
+		ctx.verify_range_proof(&commit, &proof)?;
+
+		assert_eq!(ctx.rewind_range_proof(&commit, &blind, &proof)?, 100);
+
+		let other_commit = ctx.commit(101, &blind)?;
+		assert!(ctx.verify_range_proof(&other_commit, &proof).is_err());
+		assert!(ctx
+			.rewind_range_proof(&other_commit, &blind, &proof)
+			.is_err());
 
 		Ok(())
 	}

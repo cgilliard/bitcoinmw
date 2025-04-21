@@ -25,8 +25,8 @@ extern "C" {
 	pub fn aes_ctr_xcrypt_buffer(ctx: *const AesContext, buf: *mut u8, len: usize);
 
 	// Secp256k1
-	pub fn secp256k1_context_create(flags: u32) -> *mut Secp256k1Context;
-	pub fn secp256k1_context_destroy(ctx: *mut Secp256k1Context);
+	pub fn secp256k1_context_create(flags: u32) -> *const Secp256k1Context;
+	pub fn secp256k1_context_destroy(ctx: *const Secp256k1Context);
 
 	pub fn secp256k1_ec_seckey_verify(cx: *const Secp256k1Context, sk: *const SecretKey) -> i32;
 	pub fn secp256k1_ec_pubkey_create(
@@ -135,7 +135,7 @@ extern "C" {
 		pubkey: *const PublicKeyUncompressed,
 	) -> i32;
 	pub fn secp256k1_scratch_space_create(
-		cx: *mut Secp256k1Context,
+		cx: *const Secp256k1Context,
 		max_size: usize,
 	) -> *mut ScratchSpace;
 	pub fn secp256k1_scratch_space_destroy(sp: *mut ScratchSpace);
