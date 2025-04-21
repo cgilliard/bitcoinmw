@@ -91,7 +91,7 @@ static void keccakf(unsigned long long s[25]) {
 /* *************************** Public Inteface ************************ */
 
 sha3_return_t sha3_Squeeze(void *priv, void *out, unsigned outBytes) {
-	sha3_context *ctx = (sha3_context *)priv;
+	Sha3Context *ctx = (Sha3Context *)priv;
 	unsigned char *output = (unsigned char *)out;
 	unsigned bytesGenerated = 0;
 
@@ -118,11 +118,11 @@ sha3_return_t sha3_Squeeze(void *priv, void *out, unsigned outBytes) {
 	return SHA3_RETURN_OK;
 }
 
-unsigned long long sha3_context_size() { return sizeof(sha3_context); }
+unsigned long long sha3_context_size() { return sizeof(Sha3Context); }
 
 /* For Init or Reset call these: */
 sha3_return_t sha3_init(void *priv, unsigned bitSize) {
-	sha3_context *ctx = (sha3_context *)priv;
+	Sha3Context *ctx = (Sha3Context *)priv;
 	if (bitSize != 256 && bitSize != 384 && bitSize != 512)
 		return SHA3_RETURN_BAD_PARAMS;
 	set_bytes((byte *)ctx, 0, sizeof(*ctx));
@@ -137,7 +137,7 @@ void sha3_init384(void *priv) { sha3_init(priv, 384); }
 void sha3_init512(void *priv) { sha3_init(priv, 512); }
 
 enum SHA3_FLAGS sha3_setflags(void *priv, enum SHA3_FLAGS flags) {
-	sha3_context *ctx = (sha3_context *)priv;
+	Sha3Context *ctx = (Sha3Context *)priv;
 	flags &= SHA3_FLAGS_KECCAK;
 	ctx->capacityWords |=
 	    (flags == SHA3_FLAGS_KECCAK ? SHA3_USE_KECCAK_FLAG : 0);
@@ -145,7 +145,7 @@ enum SHA3_FLAGS sha3_setflags(void *priv, enum SHA3_FLAGS flags) {
 }
 
 void sha3_update(void *priv, void const *bufIn, unsigned long long len) {
-	sha3_context *ctx = (sha3_context *)priv;
+	Sha3Context *ctx = (Sha3Context *)priv;
 
 	/* 0...7 -- how much is needed to have a word */
 	unsigned old_tail = (8 - ctx->byteIndex) & 7;
@@ -242,7 +242,7 @@ void sha3_update(void *priv, void const *bufIn, unsigned long long len) {
  * bytes are always present, but they can be the same byte.
  */
 void const *sha3_finalize(void *priv) {
-	sha3_context *ctx = (sha3_context *)priv;
+	Sha3Context *ctx = (Sha3Context *)priv;
 
 	SHA3_TRACE("called with %d bytes in the buffer", ctx->byteIndex);
 
@@ -301,7 +301,7 @@ sha3_return_t sha3_HashBuffer(unsigned bitSize, enum SHA3_FLAGS flags,
 			      const void *in, unsigned inBytes, void *out,
 			      unsigned outBytes) {
 	sha3_return_t err;
-	sha3_context c;
+	Sha3Context c;
 
 	err = sha3_init(&c, bitSize);
 	if (err != SHA3_RETURN_OK) return err;
@@ -319,7 +319,7 @@ sha3_return_t sha3_HashBuffer(unsigned bitSize, enum SHA3_FLAGS flags,
 sha3_return_t sha3_HashBuffer_sq(unsigned bitSize, enum SHA3_FLAGS flags,
 				 const void *in, unsigned inBytes, void *out,
 				 unsigned outBytes) {
-	sha3_context ctx;
+	Sha3Context ctx;
 	if (sha3_init(&ctx, bitSize) != SHA3_RETURN_OK) {
 		return SHA3_RETURN_BAD_PARAMS;
 	}

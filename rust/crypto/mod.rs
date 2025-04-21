@@ -1,3 +1,5 @@
+mod aes;
+mod cpsrng;
 mod ffi;
 mod sha3;
 mod types;

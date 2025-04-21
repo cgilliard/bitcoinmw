@@ -24,7 +24,7 @@
 /* 'Words' here refers to unsigned long long */
 #define SHA3_KECCAK_SPONGE_WORDS \
 	(((1600) / 8 /*bits to byte*/) / sizeof(unsigned long long))
-typedef struct sha3_context_ {
+typedef struct Sha3Context_ {
 	unsigned long long saved; /* the portion of the input message that we
 				   * didn't consume yet */
 	union {			  /* Keccak's state */
@@ -37,13 +37,13 @@ typedef struct sha3_context_ {
 				 * (starts from 0) */
 	unsigned capacityWords; /* the double size of the hash output in
 				 * words (e.g. 16 for Keccak 512) */
-} sha3_context;
+} Sha3Context;
 
 enum SHA3_FLAGS { SHA3_FLAGS_NONE = 0, SHA3_FLAGS_KECCAK = 1 };
 enum SHA3_RETURN { SHA3_RETURN_OK = 0, SHA3_RETURN_BAD_PARAMS = 1 };
 typedef enum SHA3_RETURN sha3_return_t;
 
-// Return size of the sha3_context (for allocation purposes)
+// Return size of the Sha3Context (for allocation purposes)
 unsigned long long sha3_context_size();
 
 // For Init or Reset call this function
