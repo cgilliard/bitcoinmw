@@ -10,6 +10,7 @@ if [ ! -f "./configure" ]; then
 		--enable-experimental \
 		--enable-module-aggsig \
 		--enable-module-commitment \
+		--enable-module-ecdh \
 		CC=${CC} || exit 1;
 fi
 make || exit 1;

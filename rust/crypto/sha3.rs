@@ -996,7 +996,7 @@ mod test {
 				generate_matrix(matrix.as_mut_ptr(), aes.as_ptr());
 				heavyhash(matrix.as_ptr(), pdata.as_ptr(), 32, hash_out.as_mut_ptr());
 			}
-			println!("hash_out={}", hash_out);
+			//println!("hash_out={}", hash_out);
 		}
 
 		Ok(())
