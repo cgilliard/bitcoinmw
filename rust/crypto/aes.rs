@@ -44,6 +44,10 @@ impl Aes256 {
 			aes_ctr_xcrypt_buffer(self.ctx, buf.as_mut_ptr(), buf.len());
 		}
 	}
+
+	pub fn as_ptr(&self) -> *const AESContext {
+		self.ctx
+	}
 }
 
 #[cfg(test)]
