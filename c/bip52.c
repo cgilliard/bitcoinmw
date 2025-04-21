@@ -26,6 +26,8 @@ void heavyhash(const uint16_t matrix[64][64], void* pdata, size_t pdata_len,
 	sha3_384(hash_first, pdata, pdata_len);
 
 	// Use first 32 bytes of hash_first for 64 nibbles
+	// note: truncate the sha384 output from 48 bytes -> 32 bytes
+	// so we maintain the heavyhash matrix algorithm (designed for sha3_256)
 	for (int i = 0; i < 32; ++i) {
 		vector[2 * i] = (hash_first[i] >> 4);
 		vector[2 * i + 1] = hash_first[i] & 0xF;
