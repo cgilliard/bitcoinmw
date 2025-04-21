@@ -1,6 +1,7 @@
 #[macro_use]
 mod macros;
 
+mod as_raw;
 mod boxed;
 mod channel;
 mod clone;
@@ -21,6 +22,7 @@ pub(crate) mod ffi;
 pub(crate) mod misc;
 pub(crate) mod strext;
 
+pub use std::as_raw::AsRaw;
 pub use std::boxed::Box;
 pub use std::channel::{channel, Receiver, Sender};
 pub use std::clone::TryClone;

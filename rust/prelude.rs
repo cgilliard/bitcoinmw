@@ -1,12 +1,13 @@
 // Internal
 pub use std::{
-	spawn, spawnj, Box, Display, Error, ErrorKind, ErrorKind::*, Formatter, Lock, LockBox, Ord,
-	Ordering, Ptr, Rc, String, TryClone, Vec,
+	spawn, spawnj, AsRaw, Box, Display, Error, ErrorKind, ErrorKind::*, Formatter, Lock, LockBox,
+	Ord, Ordering, Ptr, Rc, String, TryClone, Vec,
 };
 
 // External
 pub use core::clone::Clone;
 pub use core::cmp::PartialEq;
+pub use core::convert::AsRef;
 pub use core::convert::{From, Into};
 pub use core::default::Default;
 pub use core::fmt::{Debug, Error as FmtError};

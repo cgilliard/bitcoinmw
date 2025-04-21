@@ -19,6 +19,15 @@ impl Drop for Aes256 {
 	}
 }
 
+impl AsRaw<AesContext> for Aes256 {
+	fn as_ptr(&self) -> *const AesContext {
+		self.ctx
+	}
+	fn as_mut_ptr(&mut self) -> *mut AesContext {
+		self.ctx as *mut AesContext
+	}
+}
+
 impl Aes256 {
 	pub fn new(key: [u8; 32], iv: [u8; 16]) -> Result<Self, Error> {
 		let size = unsafe { aes_context_size() };
@@ -43,10 +52,6 @@ impl Aes256 {
 		unsafe {
 			aes_ctr_xcrypt_buffer(self.ctx, buf.as_mut_ptr(), buf.len());
 		}
-	}
-
-	pub fn as_ptr(&self) -> *const AesContext {
-		self.ctx
 	}
 }
 

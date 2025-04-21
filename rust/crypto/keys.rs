@@ -4,8 +4,8 @@ use core::sync::atomic::Ordering::SeqCst;
 use crypto::constants::SECP256K1_EC_COMPRESSED;
 use crypto::ctx::Ctx;
 use crypto::ffi::{
-	secp256k1_ec_privkey_negate, secp256k1_ec_pubkey_create, secp256k1_ec_pubkey_serialize,
-	secp256k1_ec_seckey_verify,
+	secp256k1_ec_privkey_negate, secp256k1_ec_pubkey_combine, secp256k1_ec_pubkey_create,
+	secp256k1_ec_pubkey_parse, secp256k1_ec_pubkey_serialize, secp256k1_ec_seckey_verify,
 };
 use prelude::*;
 
@@ -39,6 +39,15 @@ impl Drop for SecretKey {
 	}
 }
 
+impl AsRaw<Self> for SecretKey {
+	fn as_ptr(&self) -> *const Self {
+		self.0.as_ptr() as *const Self
+	}
+	fn as_mut_ptr(&mut self) -> *mut Self {
+		self.0.as_mut_ptr() as *mut Self
+	}
+}
+
 impl SecretKey {
 	pub fn zero() -> Self {
 		Self([0u8; 32])
@@ -69,20 +78,14 @@ impl SecretKey {
 		}
 	}
 
-	pub fn as_mut_ptr(&mut self) -> *mut SecretKey {
-		self.0.as_mut_ptr() as *mut SecretKey
-	}
-
-	pub fn as_ptr(&self) -> *const SecretKey {
-		self.0.as_ptr() as *const SecretKey
-	}
-
-	pub fn as_ref(&self) -> &[u8; 32] {
-		&self.0
-	}
-
-	pub fn as_mut_ref(&mut self) -> &mut [u8; 32] {
-		&mut self.0
+	pub fn validate(&self, ctx: &Ctx) -> Result<(), Error> {
+		unsafe {
+			if secp256k1_ec_seckey_verify(ctx.as_ptr(), self.as_ptr()) != 1 {
+				Err(Error::new(OperationFailed))
+			} else {
+				Ok(())
+			}
+		}
 	}
 }
 
@@ -98,17 +101,18 @@ impl PartialEq for PublicKeyUncompressed {
 	}
 }
 
+impl AsRaw<Self> for PublicKeyUncompressed {
+	fn as_ptr(&self) -> *const Self {
+		self.0.as_ptr() as *const Self
+	}
+	fn as_mut_ptr(&mut self) -> *mut Self {
+		self.0.as_mut_ptr() as *mut Self
+	}
+}
+
 impl PublicKeyUncompressed {
 	pub const fn new(v: [u8; 64]) -> Self {
 		Self(v)
-	}
-
-	pub fn as_mut_ptr(&mut self) -> *mut PublicKeyUncompressed {
-		self.0.as_mut_ptr() as *mut PublicKeyUncompressed
-	}
-
-	pub fn as_ptr(&self) -> *const PublicKeyUncompressed {
-		self.0.as_ptr() as *const PublicKeyUncompressed
 	}
 }
 
@@ -121,6 +125,15 @@ impl PartialEq for PublicKey {
 			}
 		}
 		true
+	}
+}
+
+impl AsRaw<Self> for PublicKey {
+	fn as_ptr(&self) -> *const Self {
+		self.0.as_ptr() as *const Self
+	}
+	fn as_mut_ptr(&mut self) -> *mut Self {
+		self.0.as_mut_ptr() as *mut Self
 	}
 }
 
@@ -165,18 +178,79 @@ impl PublicKey {
 			)
 		};
 		if serialize_result == 0 {
-			Err(Error::new(Serialization))
+			Err(Error::new(OperationFailed))
 		} else {
 			Ok(v)
 		}
 	}
 
-	pub fn as_ptr(&self) -> *const PublicKey {
-		self.0.as_ptr() as *const PublicKey
+	pub fn decompress(&self, ctx: &Ctx) -> Result<PublicKeyUncompressed, Error> {
+		let mut ret = PublicKeyUncompressed([0u8; 64]);
+		unsafe {
+			if secp256k1_ec_pubkey_parse(
+				ctx.as_ptr(),
+				ret.as_mut_ptr(),
+				self.as_ptr(),
+				self.0.len(),
+			) != 1
+			{
+				return Err(Error::new(OperationFailed));
+			}
+		}
+		Ok(ret)
 	}
 
-	pub fn as_mut_ptr(&mut self) -> *mut PublicKey {
-		self.0.as_mut_ptr() as *mut PublicKey
+	pub fn combine(&self, ctx: &Ctx, other: &PublicKey) -> Result<Self, Error> {
+		let mut result = PublicKeyUncompressed([0u8; 64]);
+		let mut uncomp_self = PublicKeyUncompressed([0u8; 64]);
+		let mut uncomp_other = PublicKeyUncompressed([0u8; 64]);
+
+		unsafe {
+			// Uncompress self
+			if secp256k1_ec_pubkey_parse(
+				ctx.as_ptr(),
+				uncomp_self.as_mut_ptr(),
+				self.as_ptr(),
+				self.0.len(),
+			) != 1
+			{
+				return Err(Error::new(IllegalArgument));
+			}
+
+			// Uncompress other
+			if secp256k1_ec_pubkey_parse(
+				ctx.as_ptr(),
+				uncomp_other.as_mut_ptr(),
+				other.as_ptr(),
+				other.0.len(),
+			) != 1
+			{
+				return Err(Error::new(IllegalArgument));
+			}
+
+			// Combine uncompressed keys
+			let pubkeys = [uncomp_self.as_ptr(), uncomp_other.as_ptr()];
+			if secp256k1_ec_pubkey_combine(ctx.as_ptr(), result.as_mut_ptr(), pubkeys.as_ptr(), 2)
+				!= 1
+			{
+				return Err(Error::new(OperationFailed));
+			}
+
+			// Recompress result
+			let mut compressed = Self([0u8; 33]);
+			let mut len = 33usize;
+			if secp256k1_ec_pubkey_serialize(
+				ctx.as_ptr(),
+				compressed.as_mut_ptr(),
+				&mut len,
+				result.as_ptr(),
+				SECP256K1_EC_COMPRESSED,
+			) != 1
+			{
+				return Err(Error::new(Serialization));
+			}
+			Ok(compressed)
+		}
 	}
 }
 
