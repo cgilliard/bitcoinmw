@@ -10,7 +10,7 @@ use lmdb::constants::{
 use lmdb::ffi::*;
 use lmdb::types::{MDB_cursor, MDB_dbi, MDB_txn, MDB_val};
 use prelude::*;
-use std::CStr;
+use std::CString;
 
 struct LmdbTxnInner {
 	txn: *mut MDB_txn,
@@ -24,7 +24,7 @@ pub struct LmdbTxn {
 
 pub struct LmdbCursor {
 	cursor: *mut MDB_cursor,
-	prefix: CStr,
+	prefix: CString,
 	is_first: bool,
 }
 
@@ -50,7 +50,7 @@ impl Drop for LmdbCursor {
 }
 
 impl Iterator for LmdbCursor {
-	type Item = (CStr, CStr);
+	type Item = (CString, CString);
 
 	fn next(&mut self) -> Option<Self::Item> {
 		unsafe {
@@ -78,7 +78,7 @@ impl Iterator for LmdbCursor {
 			}
 
 			let key_slice = from_raw_parts(key_val.mv_data, key_val.mv_size);
-			let key_cstr = match CStr::from_slice(key_slice) {
+			let key_cstr = match CString::from_slice(key_slice) {
 				Ok(s) => s,
 				Err(_) => return None,
 			};
@@ -94,7 +94,7 @@ impl Iterator for LmdbCursor {
 			}
 
 			let data_slice = from_raw_parts(data_val.mv_data, data_val.mv_size);
-			let data_cstr = match CStr::from_slice(data_slice) {
+			let data_cstr = match CString::from_slice(data_slice) {
 				Ok(ds) => ds,
 				Err(_) => return None,
 			};
@@ -174,7 +174,7 @@ impl LmdbTxn {
 			// Position cursor at key or next
 			let key_bytes = key.as_ref();
 			let prefix_cstr = match from_utf8(key_bytes) {
-				Ok(s) => CStr::new(s)?,
+				Ok(s) => CString::new(s)?,
 				Err(_) => return Err(Error::new(IllegalState)),
 			};
 			let mut key_val = MDB_val {
@@ -316,7 +316,7 @@ pub mod test {
 
 	pub fn make_lmdb_test_dir(s: &str) -> Result<(), Error> {
 		remove_lmdb_test_dir(s)?;
-		let cstr = CStr::new(s)?;
+		let cstr = CString::new(s)?;
 		unsafe {
 			mkdir(cstr.as_ptr(), 0o700);
 		}
@@ -326,9 +326,9 @@ pub mod test {
 	pub fn remove_lmdb_test_dir(s: &str) -> Result<(), Error> {
 		let data_file = format!("{}/data.mdb", s)?;
 		let lock_file = format!("{}/lock.mdb", s)?;
-		let dir = CStr::new(s)?;
-		let data = CStr::new(data_file.to_str())?;
-		let lock = CStr::new(lock_file.to_str())?;
+		let dir = CString::new(s)?;
+		let data = CString::new(data_file.to_str())?;
+		let lock = CString::new(lock_file.to_str())?;
 
 		unsafe {
 			unlink(data.as_ptr());

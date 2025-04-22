@@ -6,11 +6,11 @@ use std::ffi::alloc;
 use std::misc::{array_copy, subslice};
 use std::Ptr;
 
-pub struct CStr {
+pub struct CString {
 	ptr: Ptr<u8>,
 }
 
-impl Drop for CStr {
+impl Drop for CString {
 	fn drop(&mut self) {
 		if !self.ptr.is_null() && !self.ptr.get_bit() {
 			self.ptr.release();
@@ -19,7 +19,7 @@ impl Drop for CStr {
 	}
 }
 
-impl Index<usize> for CStr {
+impl Index<usize> for CString {
 	type Output = u8;
 
 	fn index(&self, index: usize) -> &Self::Output {
@@ -27,19 +27,19 @@ impl Index<usize> for CStr {
 	}
 }
 
-impl IndexMut<usize> for CStr {
+impl IndexMut<usize> for CString {
 	fn index_mut(&mut self, index: usize) -> &mut Self::Output {
 		unsafe { &mut *(self.ptr.raw().offset(index as isize) as *mut u8) }
 	}
 }
 
-impl AsRef<[u8]> for CStr {
+impl AsRef<[u8]> for CString {
 	fn as_ref(&self) -> &[u8] {
 		unsafe { from_raw_parts(self.ptr.raw(), self.len()) }
 	}
 }
 
-impl CStr {
+impl CString {
 	pub fn new(s: &str) -> Result<Self, Error> {
 		let len = s.len();
 		unsafe {
@@ -121,7 +121,7 @@ mod test {
 	use super::*;
 	#[test]
 	fn test_cstr() -> Result<(), Error> {
-		let c1 = CStr::new("mystr")?;
+		let c1 = CString::new("mystr")?;
 		assert_eq!(c1.as_str()?, String::new("mystr")?);
 
 		let ptr = c1.as_ptr();
@@ -156,8 +156,8 @@ mod test {
 		let init = unsafe { getalloccount() };
 		{
 			let x1 = unsafe { alloc(100) };
-			let _c1 = CStr::from_ptr(x1, true);
-			let _c2 = CStr::from_ptr(x1, false);
+			let _c1 = CString::from_ptr(x1, true);
+			let _c2 = CString::from_ptr(x1, false);
 		}
 		assert_eq!(unsafe { getalloccount() }, init);
 
@@ -166,7 +166,7 @@ mod test {
 
 	#[test]
 	fn test_as_bytes() -> Result<(), Error> {
-		let str = CStr::new("abc")?;
+		let str = CString::new("abc")?;
 		assert_eq!(str.as_bytes()?, vec![b'a', b'b', b'c']?);
 		Ok(())
 	}

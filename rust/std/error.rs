@@ -1,6 +1,6 @@
 use core::fmt::Formatter as CoreFormatter;
 use prelude::*;
-use std::cstring::CStr;
+use std::cstring::CString;
 use std::ffi::{format_err, write};
 
 macro_rules! define_errorkind_with_strings {
@@ -75,9 +75,9 @@ impl Debug for Error {
 		// There doesn't seem to be a way to call formatter in no_std so we print to stdout
 		// instead
 		let kind_str = self.kind.as_str();
-		match CStr::new(kind_str) {
+		match CString::new(kind_str) {
 			Ok(cstr) => unsafe {
-				let value = CStr::from_ptr(format_err(cstr.as_ptr(), cstr.len()), false);
+				let value = CString::from_ptr(format_err(cstr.as_ptr(), cstr.len()), false);
 				write(2, "\n".as_ptr(), 1);
 				write(2, value.as_ptr(), value.len());
 				write(2, "\n".as_ptr(), 1);
@@ -91,9 +91,9 @@ impl Debug for Error {
 impl Display for Error {
 	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		let kind_str = self.kind.as_str();
-		match CStr::new(kind_str) {
+		match CString::new(kind_str) {
 			Ok(cstr) => unsafe {
-				let value = CStr::from_ptr(format_err(cstr.as_ptr(), cstr.len()), false);
+				let value = CString::from_ptr(format_err(cstr.as_ptr(), cstr.len()), false);
 				let value = value.as_str()?;
 				writef!(f, "{}", value)
 			},

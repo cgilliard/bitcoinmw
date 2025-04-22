@@ -4,7 +4,7 @@ use lmdb::ffi::*;
 use lmdb::txn::LmdbTxn;
 use lmdb::types::{MDB_dbi, MDB_env, MDB_txn};
 use prelude::*;
-use std::CStr;
+use std::CString;
 
 struct LmdbEnv {
 	env: *mut MDB_env,
@@ -27,8 +27,8 @@ impl TryClone for Lmdb {
 		Self: Sized,
 	{
 		let env = self.env.clone();
-		let c_path = CStr::new(self.c_path.as_str()?.to_str())?;
-		let c_name = CStr::new(self.c_name.as_str()?.to_str())?;
+		let c_path = CString::new(self.c_path.as_str()?.to_str())?;
+		let c_name = CString::new(self.c_name.as_str()?.to_str())?;
 		Ok(Self {
 			env,
 			dbi: self.dbi,
@@ -43,15 +43,15 @@ pub struct Lmdb {
 	env: Rc<LmdbEnv>,
 	dbi: MDB_dbi,
 	map_size: usize,
-	c_path: CStr,
-	c_name: CStr,
+	c_path: CString,
+	c_name: CString,
 }
 
 impl Lmdb {
 	pub fn new(path: &str, name: &str, map_size: usize) -> Result<Self, Error> {
 		let env = Rc::new(LmdbEnv { env: null_mut() })?;
-		let c_path = CStr::new(path)?;
-		let c_name = CStr::new(name)?;
+		let c_path = CString::new(path)?;
+		let c_name = CString::new(name)?;
 		let dbi = MDB_dbi(0);
 		let mut lmdb = Lmdb {
 			env,

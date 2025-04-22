@@ -27,7 +27,7 @@ pub use std::boxed::Box;
 pub use std::channel::{channel, Receiver, Sender};
 pub use std::clone::TryClone;
 pub use std::cmp::{Ord, Ordering};
-pub use std::cstring::CStr;
+pub use std::cstring::CString;
 pub use std::display::Display;
 pub use std::error::{Error, ErrorKind};
 pub use std::format::Formatter;
