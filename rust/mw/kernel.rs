@@ -43,31 +43,31 @@ impl Kernel {
 	}
 
 	pub fn validate(&self, ctx: &Ctx) -> Result<(), Error> {
-		let msg = self.message()?;
+		let msg = self.message();
 		let excess = self.excess.to_pubkey(ctx)?.decompress(ctx)?;
 
-		unsafe {
-			let res = secp256k1_schnorrsig_verify(
+		let res = unsafe {
+			secp256k1_schnorrsig_verify(
 				ctx.as_ptr(),
 				self.signature.as_ptr(),
 				msg.as_ptr(),
 				excess.as_ptr(),
-			);
+			)
+		};
 
-			if res == 1 {
-				Ok(())
-			} else {
-				Err(Error::new(ValidationFailed))
-			}
+		if res == 1 {
+			Ok(())
+		} else {
+			Err(Error::new(ValidationFailed))
 		}
 	}
 
-	pub fn message(&self) -> Result<Message, Error> {
+	pub fn message(&self) -> Message {
 		Self::message_for(self.excess(), self.fee(), self.features())
 	}
 
-	pub fn message_for(excess: &Commitment, fee: u64, features: u8) -> Result<Message, Error> {
-		let sha3 = Sha3_256::new()?;
+	pub fn message_for(excess: &Commitment, fee: u64, features: u8) -> Message {
+		let sha3 = Sha3_256::new();
 
 		// exccess
 		sha3.update(excess.as_ref());
@@ -82,7 +82,7 @@ impl Kernel {
 		sha3.update(&[features]);
 
 		// finalize
-		Ok(Message::new(sha3.finalize()))
+		Message::new(sha3.finalize())
 	}
 }
 
@@ -98,7 +98,7 @@ mod test {
 		let features = 0;
 		let blind = SecretKey::gen(&ctx);
 		let excess = ctx.commit(0, &blind)?;
-		let message = Kernel::message_for(&excess, fee, features)?;
+		let message = Kernel::message_for(&excess, fee, features);
 		let secnonce = SecretKey::gen(&ctx);
 		let pubnonce = PublicKey::from(&ctx, &secnonce)?;
 		let pubkey = excess.to_pubkey(&ctx)?;

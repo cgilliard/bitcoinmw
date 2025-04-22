@@ -13,7 +13,7 @@ pub struct Sha3_256 {
 }
 
 impl Sha3_256 {
-	pub fn new() -> Result<Self, Error> {
+	pub fn new() -> Self {
 		// get size of context
 		let size = unsafe { sha3_context_size() };
 		if size != SHA3_256_CONTEXT_SIZE {
@@ -27,7 +27,7 @@ impl Sha3_256 {
 		unsafe {
 			sha3_init256(&data as *const u8 as *const Sha3Context);
 		}
-		Ok(Self { data })
+		Self { data }
 	}
 
 	#[inline]
@@ -602,7 +602,7 @@ mod test {
 	#[test]
 	fn test_sha3_256_str_vectors() -> Result<(), Error> {
 		let mut output_buffer = [0u8; 4096];
-		let sha3 = Sha3_256::new()?;
+		let sha3 = Sha3_256::new();
 		let mut i = 0;
 		loop {
 			sha3.reset();
