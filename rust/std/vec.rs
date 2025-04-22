@@ -1,4 +1,5 @@
 use core::convert::{AsMut, AsRef};
+use core::fmt::Formatter as CoreFormatter;
 use core::marker::PhantomData;
 use core::mem::{drop, needs_drop, size_of};
 use core::ops::{Deref, DerefMut, Index, IndexMut};
@@ -15,6 +16,14 @@ pub struct Vec<T> {
 	capacity: usize,
 	elements: usize,
 	_marker: PhantomData<T>,
+}
+
+impl<T: Debug> Debug for Vec<T> {
+	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
+		#[cfg(test)]
+		write!(_f, "{:?}", self.as_ref())?;
+		Ok(())
+	}
 }
 
 impl<T> AsRef<[T]> for Vec<T> {
@@ -519,7 +528,6 @@ mod test {
 	#![allow(unused_mut)]
 
 	use super::*;
-	use core::fmt::Formatter as CoreFormatter;
 	use std::ffi::getalloccount;
 
 	#[test]
@@ -563,12 +571,6 @@ mod test {
 		}
 		unsafe {
 			assert_eq!(initial, getalloccount());
-		}
-	}
-
-	impl<T: Debug> Debug for Vec<T> {
-		fn fmt(&self, f: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
-			write!(f, "{:?}", self.as_ref())
 		}
 	}
 
@@ -808,6 +810,7 @@ mod test {
 			i += 1;
 		}
 		assert_eq!(i, 5);
+
 		Ok(())
 	}
 }

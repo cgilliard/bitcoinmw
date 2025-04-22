@@ -6,7 +6,7 @@ use core::ptr::null;
 use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
 use prelude::*;
-use std::misc::{slice_copy, is_utf8_valid, strcmp, subslice};
+use std::misc::{is_utf8_valid, slice_copy, strcmp, subslice};
 
 pub struct String {
 	value: Option<Rc<Box<[u8]>>>,
@@ -15,7 +15,10 @@ pub struct String {
 }
 
 impl Debug for String {
-	fn fmt(&self, _: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
+	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
+		// no_std compatiibility (cannot write but works for tests)
+		#[cfg(test)]
+		write!(_f, "{}", self.to_str())?;
 		Ok(())
 	}
 }

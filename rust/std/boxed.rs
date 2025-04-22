@@ -1,4 +1,6 @@
 use core::convert::AsRef;
+use core::fmt::Error as FormatError;
+use core::fmt::Formatter as CoreFormatter;
 use core::marker::Sized;
 use core::mem::size_of;
 use core::ops::{Deref, DerefMut, Index, IndexMut};
@@ -9,6 +11,20 @@ use std::ffi::{alloc, release};
 
 pub struct Box<T: ?Sized> {
 	ptr: Ptr<T>,
+}
+
+impl<T: PartialEq> PartialEq for Box<T> {
+	fn eq(&self, other: &Box<T>) -> bool {
+		self.as_ref() == other.as_ref()
+	}
+}
+
+impl<T: Debug> Debug for Box<T> {
+	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> Result<(), FormatError> {
+		#[cfg(test)]
+		write!(_f, "Box[{:?}]", self.as_ref())?;
+		Ok(())
+	}
 }
 
 impl<T: Copy> AsRef<[u8]> for Box<T> {
@@ -367,7 +383,7 @@ mod test {
 	}
 
 	#[test]
-	fn test_box_index() {
+	fn test_box_index() -> Result<(), Error> {
 		let mut mybox: Box<[u64]> = box_slice!(0u64, 3);
 		mybox[0] = 1;
 		mybox[1] = 2;
@@ -375,5 +391,10 @@ mod test {
 		assert_eq!(mybox[0], 1);
 		assert_eq!(mybox[1], 2);
 		assert_eq!(mybox[2], 3);
+
+		assert_eq!(Box::new(1)?, Box::new(1)?);
+		assert_eq!(Box::new(1), Box::new(1));
+
+		Ok(())
 	}
 }
