@@ -1,6 +1,8 @@
 #![no_std]
 #![no_implicit_prelude]
 
+extern crate bitcoinmw_macros;
+
 #[macro_use]
 pub mod std;
 

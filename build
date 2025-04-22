@@ -4,6 +4,17 @@ export CC="${CC:-clang}"
 export OUTPUT="${OUTPUT:-../mrustc/output}"
 export MRUSTC="${MRUSTC:-mrustc}"
 
+OS=$(uname -s)
+if [ "$OS" = "Linux" ]; then
+    MACRO_EXT=.so
+elif [ "$OS" = "Darwin" ]; then
+    MACRO_EXT=.dylib
+else
+    echo "Unsupported platform: $OS"
+    exit 1
+fi
+
+
 CCFLAGS=-O3
 
 # Detect OS and set linker flags
@@ -44,12 +55,19 @@ elif [ "mrustc" = "$1" ]; then
         fi
     done
     cd ..
+
+    # build macros
+    cd macros
+    ${MRUSTC} -C panic=abort --crate-type proc-macro -L../${OUTPUT} --cfg mrustc -o ../.obj/libbitcoinmw_macros.rlib lib.rs || exit 1
+    cd ..
+
     ${MRUSTC} -C panic=abort \
         -O \
         --crate-type=lib \
         -L${OUTPUT} \
         --cfg mrustc \
         -o .obj/rust \
+	--extern bitcoinmw_macros=.obj/libbitcoinmw_macros.rlib \
         rust/mod.rs || exit 1
     ${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1} || exit 1
 else
@@ -64,11 +82,19 @@ else
         fi
     done
     cd ..
+
+    # build macros
+    cd macros
+    rustc --crate-type=proc-macro --edition=2021 lib.rs -o ../.obj/libbitcoinmw_macros${MACRO_EXT}
+    cd ..
+
+
     rustc -C panic=abort \
         -C opt-level=3 \
         --emit=obj \
         --crate-type=lib \
         -o .obj/rust.o \
+	--extern bitcoinmw_macros=.obj/libbitcoinmw_macros${MACRO_EXT} \
         rust/mod.rs || exit 1
     ${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1} || exit 1
 fi

@@ -4,6 +4,9 @@ pub use std::{
 	Ptr, Rc, String, TryClone, Vec,
 };
 
+// macros
+pub use bitcoinmw_macros::Dummy;
+
 // External
 pub use core::clone::Clone;
 pub use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};

@@ -2,6 +2,16 @@
 
 export CC="${CC:-clang}"
 
+OS=$(uname -s)
+if [ "$OS" = "Linux" ]; then
+    MACRO_EXT=.so
+elif [ "$OS" = "Darwin" ]; then
+    MACRO_EXT=.dylib
+else
+    echo "Unsupported platform: $OS"
+    exit 1
+fi
+
 CCFLAGS=-DTEST
 RUSTFLAGS=
 FILTER=$1
@@ -20,11 +30,20 @@ do
 done
 cd ..
 ar rcs .obj/libtest.a .obj/*.o || exit 1;
+
+# build macros
+cd macros
+rustc --crate-type=proc-macro --edition=2021 lib.rs -o ../.obj/libbitcoinmw_macros${MACRO_EXT}
+cd ..
+
+# build tests
 rustc -C debuginfo=2 --test rust/mod.rs \
 	-o bin/test_bmw \
 	-L .obj \
 	-l static=test \
 	-l static=secp256k1 \
 	-l static=gmp \
-	${RUSTFLAGS} ||  exit 1;
+	--extern bitcoinmw_macros=.obj/libbitcoinmw_macros${MACRO_EXT} \
+	${RUSTFLAGS} --verbose ||  exit 1;
 ./bin/test_bmw ${FILTER} --test-threads=1 || exit 1;
+
