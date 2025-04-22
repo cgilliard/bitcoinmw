@@ -5,7 +5,7 @@ use std::ffi::{format_err, write};
 
 macro_rules! define_errorkind_with_strings {
     ( $( $variant:ident ),* ) => {
-        #[derive(PartialEq)]
+        #[derive(PartialEq, Ord, PartialOrd, Eq)]
         pub enum ErrorKind {
             $( $variant ),*
         }

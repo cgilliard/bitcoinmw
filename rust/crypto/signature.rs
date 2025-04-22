@@ -8,6 +8,20 @@ pub struct Signature([u8; 64]);
 #[repr(C)]
 pub struct Message([u8; 32]);
 
+impl Ord for Signature {
+	fn cmp(&self, other: &Self) -> Ordering {
+		let len = self.0.len();
+		for i in 0..len {
+			if self.0[i] < other.0[i] {
+				return Ordering::Less;
+			} else if self.0[i] > other.0[i] {
+				return Ordering::Greater;
+			}
+		}
+		Ordering::Equal
+	}
+}
+
 impl Display for Signature {
 	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		let b = bytes_to_hex_64(&self.0);
