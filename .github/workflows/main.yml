@@ -102,12 +102,11 @@ jobs:
           export LIBRARY_PATH="$(brew --prefix gmp)/lib:$LIBRARY_PATH"
           export CXX=/opt/homebrew/bin/g++-13
           export CC=/opt/homebrew/bin/gcc-13
-          wget https://github.com/cgilliard/famc/releases/download/0.1.0/macos_output.tar.gz
-          gzip -dc macos_output.tar.gz | tar xvf -
+          git clone https://github.com/cgilliard/rust-bins ../rust-bins
           ./build clean
-          export MRUSTC=./famc/bin/mrustc
-          export OUTPUT=./famc/output
-          ./build mrustc
+          export MRUSTC=../rust-bins/macos/mrustc
+          export OUTPUT=../rust-bins/macos/output
+          ./build mrustc || exit 1;
           ./bin/bmw || exit 1;
       - name: macos tests
         run: |
