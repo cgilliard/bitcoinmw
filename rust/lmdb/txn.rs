@@ -3,7 +3,6 @@ use core::iter::Iterator;
 use core::mem::forget;
 use core::ptr::null_mut;
 use core::slice::from_raw_parts;
-use core::str::from_utf8;
 use lmdb::constants::{
 	MDB_GET_CURRENT, MDB_MAP_FULL, MDB_NEXT, MDB_NOTFOUND, MDB_SET_RANGE, MDB_SUCCESS,
 };
@@ -191,15 +190,14 @@ impl LmdbTxn {
 			let mut cursor: *mut MDB_cursor = null_mut();
 			let rc = mdb_cursor_open(self.txn.txn, self.dbi, &mut cursor);
 			if rc != MDB_SUCCESS {
-				return Err(Error::new(IllegalState));
+				return Err(Error::new(LmdbCursor));
 			}
 
-			// Position cursor at key or next
+			// Create prefix from raw bytes, supporting binary data
 			let key_bytes = key.as_ref();
-			let prefix_cstr = match from_utf8(key_bytes) {
-				Ok(s) => CString::new(s)?,
-				Err(_) => return Err(Error::new(IllegalState)),
-			};
+			let prefix_cstr = CString::from_slice(key_bytes)?;
+
+			// Position cursor at key or next
 			let mut key_val = MDB_val {
 				mv_size: key_bytes.len(),
 				mv_data: key_bytes.as_ptr() as *mut u8,
@@ -211,7 +209,7 @@ impl LmdbTxn {
 			let rc = mdb_cursor_get(cursor, &mut key_val, &mut data_val, MDB_SET_RANGE);
 			if rc != MDB_SUCCESS && rc != MDB_NOTFOUND {
 				mdb_cursor_close(cursor);
-				return Err(Error::new(IllegalState));
+				return Err(Error::new(LmdbCursor));
 			}
 
 			Ok(LmdbCursor {
