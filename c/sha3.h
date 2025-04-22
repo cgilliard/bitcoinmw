@@ -48,9 +48,9 @@ unsigned long long sha3_context_size();
 
 // For Init or Reset call this function
 sha3_return_t sha3_init(void *priv, unsigned bitSize);
-sha3_return_t sha3_init256(void *priv);
-sha3_return_t sha3_init384(void *priv);
-sha3_return_t sha3_init512(void *priv);
+void sha3_init256(void *priv);
+void sha3_init384(void *priv);
+void sha3_init512(void *priv);
 
 // Set flags (keccak or none = NIST)
 enum SHA3_FLAGS sha3_setflags(void *priv, enum SHA3_FLAGS);

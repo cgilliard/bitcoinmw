@@ -130,11 +130,11 @@ sha3_return_t sha3_init(void *priv, unsigned bitSize) {
 	return SHA3_RETURN_OK;
 }
 
-sha3_return_t sha3_init256(void *priv) { return sha3_init(priv, 256); }
+void sha3_init256(void *priv) { sha3_init(priv, 256); }
 
-sha3_return_t sha3_init384(void *priv) { return sha3_init(priv, 384); }
+void sha3_init384(void *priv) { sha3_init(priv, 384); }
 
-sha3_return_t sha3_init512(void *priv) { return sha3_init(priv, 512); }
+void sha3_init512(void *priv) { sha3_init(priv, 512); }
 
 enum SHA3_FLAGS sha3_setflags(void *priv, enum SHA3_FLAGS flags) {
 	Sha3Context *ctx = (Sha3Context *)priv;

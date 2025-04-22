@@ -30,13 +30,8 @@ impl Sha3_256 {
 		if ctx.is_null() {
 			Err(Error::new(Alloc))
 		} else {
-			let res = unsafe { sha3_init256(ctx) };
-			if res != 0 {
-				unsafe { release(ctx as *const u8) };
-				Err(Error::new(IllegalState))
-			} else {
-				Ok(Self { ctx })
-			}
+			unsafe { sha3_init256(ctx) };
+			Ok(Self { ctx })
 		}
 	}
 
@@ -91,13 +86,8 @@ impl Sha3_384 {
 		if ctx.is_null() {
 			Err(Error::new(Alloc))
 		} else {
-			let res = unsafe { sha3_init384(ctx) };
-			if res != 0 {
-				unsafe { release(ctx as *const u8) };
-				Err(Error::new(IllegalState))
-			} else {
-				Ok(Self { ctx })
-			}
+			unsafe { sha3_init384(ctx) };
+			Ok(Self { ctx })
 		}
 	}
 
