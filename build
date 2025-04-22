@@ -1,8 +1,8 @@
 #!/bin/sh
 
 export CC="${CC:-clang}"
-export OUTPUT="${OUTPUT:-../rust-bins/output}"
-export MRUSTC="${MRUSTC:-mrustc}"
+export OUTPUT="${OUTPUT:-../rust-bins/macos/output}"
+export MRUSTC="${MRUSTC:-../rust-bins/macos/mrustc}"
 
 OS=$(uname -s)
 if [ "$OS" = "Linux" ]; then
@@ -56,10 +56,12 @@ elif [ "mrustc" = "$1" ]; then
     done
     cd ..
 
+    echo "Building macros";
     # build macros
     cd macros
     ../${MRUSTC} -C panic=abort --crate-type proc-macro -L../${OUTPUT} --cfg mrustc -o ../.obj/libbitcoinmw_macros.rlib lib.rs || exit 1
     cd ..
+    echo "Macros complete";
 
     ${MRUSTC} -C panic=abort \
         -O \
@@ -83,14 +85,17 @@ else
     done
     cd ..
 
+    echo "Building macros";
     # build macros
     cd macros
-    rustc --crate-type=proc-macro --edition=2021 lib.rs -o ../.obj/libbitcoinmw_macros${MACRO_EXT} || exit 1;
+    rustc -L..${OUTPUT} --crate-type=proc-macro --edition=2021 lib.rs -o ../.obj/libbitcoinmw_macros${MACRO_EXT} || exit 1;
     cd ..
+    echo "Macros complete";
 
 
     rustc -C panic=abort \
         -C opt-level=3 \
+	-L${OUTPUT} \
         --emit=obj \
         --crate-type=lib \
         -o .obj/rust.o \
