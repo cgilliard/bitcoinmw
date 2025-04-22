@@ -7,8 +7,7 @@ pub use std::{
 // External
 pub use core::clone::Clone;
 pub use core::cmp::PartialEq;
-pub use core::convert::AsRef;
-pub use core::convert::{From, Into};
+pub use core::convert::{AsRef, From, Into, TryFrom};
 pub use core::default::Default;
 pub use core::fmt::{Debug, Error as FmtError};
 pub use core::hash::{BuildHasher, Hash, Hasher};

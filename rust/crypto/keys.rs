@@ -1,4 +1,4 @@
-use core::ptr::write_volatile;
+use core::ptr::write_bytes;
 use core::sync::atomic::compiler_fence;
 use core::sync::atomic::Ordering::SeqCst;
 use crypto::constants::SECP256K1_EC_COMPRESSED;
@@ -8,6 +8,11 @@ use crypto::ffi::{
 	secp256k1_ec_pubkey_parse, secp256k1_ec_pubkey_serialize, secp256k1_ec_seckey_verify,
 };
 use prelude::*;
+
+#[cfg(test)]
+use core::fmt::Error as CoreError;
+#[cfg(test)]
+use core::fmt::Formatter as CoreFormatter;
 
 #[repr(C)]
 #[derive(Clone)]
@@ -23,19 +28,17 @@ pub struct PublicKeyUncompressed([u8; 64]);
 // in tests to do assertions
 #[cfg(test)]
 impl Debug for SecretKey {
-	fn fmt(&self, f: &mut crate::core::fmt::Formatter<'_>) -> Result<(), crate::core::fmt::Error> {
-		write!(f, "{:?}", self.0)
+	fn fmt(&self, f: &mut CoreFormatter<'_>) -> Result<(), CoreError> {
+		write!(f, "SecretKey[..]")
 	}
 }
 
 impl Drop for SecretKey {
 	fn drop(&mut self) {
-		for b in self.0.iter_mut() {
-			unsafe {
-				write_volatile(b, 0);
-			}
+		unsafe {
+			write_bytes(self.0.as_mut_ptr(), 0, 32);
+			compiler_fence(SeqCst);
 		}
-		compiler_fence(SeqCst);
 	}
 }
 
@@ -54,37 +57,29 @@ impl SecretKey {
 	}
 
 	pub fn gen(ctx: &Ctx) -> Self {
-		let mut v = [0u8; 32];
+		let mut v = Self::zero();
 		loop {
-			unsafe {
-				ctx.gen(&mut v);
-				let valid =
-					secp256k1_ec_seckey_verify(ctx.as_ptr(), v.as_ptr() as *const SecretKey);
-				if valid == 1 {
-					break;
-				}
+			ctx.gen(&mut v.0);
+			if unsafe { secp256k1_ec_seckey_verify(ctx.as_ptr(), v.as_ptr()) == 1 } {
+				break;
 			}
 		}
-		Self(v)
+		v
 	}
 
 	pub fn negate(&mut self, ctx: &Ctx) -> Result<(), Error> {
-		unsafe {
-			if secp256k1_ec_privkey_negate(ctx.as_ptr(), self.as_mut_ptr()) == 0 {
-				Err(Error::new(OperationFailed))
-			} else {
-				Ok(())
-			}
+		if unsafe { secp256k1_ec_privkey_negate(ctx.as_ptr(), self.as_mut_ptr()) == 0 } {
+			Err(Error::new(OperationFailed))
+		} else {
+			Ok(())
 		}
 	}
 
 	pub fn validate(&self, ctx: &Ctx) -> Result<(), Error> {
-		unsafe {
-			if secp256k1_ec_seckey_verify(ctx.as_ptr(), self.as_ptr()) != 1 {
-				Err(Error::new(OperationFailed))
-			} else {
-				Ok(())
-			}
+		if unsafe { secp256k1_ec_seckey_verify(ctx.as_ptr(), self.as_ptr()) != 1 } {
+			Err(Error::new(OperationFailed))
+		} else {
+			Ok(())
 		}
 	}
 }
@@ -178,7 +173,7 @@ impl PublicKey {
 			)
 		};
 		if serialize_result == 0 {
-			Err(Error::new(OperationFailed))
+			Err(Error::new(Serialization))
 		} else {
 			Ok(v)
 		}

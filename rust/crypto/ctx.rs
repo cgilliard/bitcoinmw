@@ -1,8 +1,8 @@
 use core::mem::size_of;
 use core::ptr::{null, null_mut};
 use crypto::constants::{
-	BLIND_SUM_MAX_KEYS, GENERATOR_G, GENERATOR_H, MAX_GENERATORS, MAX_PROOF_SIZE,
-	SCRATCH_SPACE_SIZE, SECP256K1_START_SIGN, SECP256K1_START_VERIFY,
+	BLIND_SUM_MAX_KEYS, GENERATOR_G, GENERATOR_H, MAX_AGGREGATE_SIGNATURES, MAX_GENERATORS,
+	MAX_PROOF_SIZE, SCRATCH_SPACE_SIZE, SECP256K1_START_SIGN, SECP256K1_START_VERIFY,
 };
 use crypto::cpsrng::Cpsrng;
 use crypto::ffi::{
@@ -41,13 +41,13 @@ impl AsRaw<Secp256k1Context> for Ctx {
 impl Drop for Ctx {
 	fn drop(&mut self) {
 		unsafe {
-			if !self.secp.is_null() {
-				secp256k1_context_destroy(self.secp);
-				self.secp = null_mut();
-			}
 			if !self.gens.is_null() {
 				secp256k1_bulletproof_generators_destroy(self.secp, self.gens);
 				self.gens = null_mut();
+			}
+			if !self.secp.is_null() {
+				secp256k1_context_destroy(self.secp);
+				self.secp = null_mut();
 			}
 		}
 	}
@@ -219,7 +219,7 @@ impl Ctx {
 		let nonce_sum = nonce_sum.decompress(self)?;
 		let mut sig = Signature::new();
 		let num_sigs = partial_sigs.len();
-		if num_sigs > 16 {
+		if num_sigs > MAX_AGGREGATE_SIGNATURES {
 			return Err(Error::new(IllegalArgument));
 		}
 		let mut sig_ptrs = [null(); 16];
@@ -427,56 +427,51 @@ impl Ctx {
 		let mut proof = [0; MAX_PROOF_SIZE];
 		let mut plen = MAX_PROOF_SIZE;
 		let n_bits = 64;
-		let extra_data_len = 0;
-		let extra_data = null();
-		let tau_x = null_mut();
-		let t_one = null_mut();
-		let t_two = null_mut();
-		let commits = null_mut();
-		let message_ptr = null();
-
-		let rewind_nonce = blind.clone();
 		let private_nonce = SecretKey::gen(self);
 
-		let mut blind_vec = Vec::new();
-		blind_vec.push(blind.as_ptr())?;
+		// Create a stack-allocated array containing the pointer to blind
+		let blind_ptr = blind.as_ptr();
+		let blind_array = [blind_ptr]; // Array of one pointer
 
 		unsafe {
 			let scratch = secp256k1_scratch_space_create(self.secp, SCRATCH_SPACE_SIZE);
 			if scratch.is_null() {
 				return Err(Error::new(Alloc));
 			}
+
 			let res = secp256k1_bulletproof_rangeproof_prove(
 				self.secp,
 				scratch,
 				self.gens,
 				proof.as_mut_ptr(),
 				&mut plen,
-				tau_x,
-				t_one,
-				t_two,
+				null_mut(), // tau_x
+				null_mut(), // t_one
+				null_mut(), // t_two
 				&value,
-				null(), // min_values: NULL for all-zeroes
-				blind_vec.as_ptr(),
-				commits,
-				1,
+				null(),               // min_values
+				blind_array.as_ptr(), // Pass pointer to array of blind pointers
+				null_mut(),           // commits
+				1,                    // Number of commitments
 				GENERATOR_H.as_ptr(),
 				n_bits,
-				rewind_nonce.as_ptr(),
+				blind.as_ptr(), // rewind_nonce
 				private_nonce.as_ptr(),
-				extra_data,
-				extra_data_len,
-				message_ptr,
+				null(), // extra_data
+				0,      // extra_data_len
+				null(), // message_ptr
 			);
+
 			secp256k1_scratch_space_destroy(scratch);
 
 			if res == 0 {
-				Err(Error::new(OperationFailed))
-			} else if plen > MAX_PROOF_SIZE {
-				Err(Error::new(IllegalState))
-			} else {
-				Ok(RangeProof { proof, plen })
+				return Err(Error::new(OperationFailed));
 			}
+			if plen > MAX_PROOF_SIZE {
+				return Err(Error::new(IllegalState));
+			}
+
+			Ok(RangeProof { proof, plen })
 		}
 	}
 
@@ -527,6 +522,10 @@ impl Ctx {
 		blind: &SecretKey,
 		proof: &RangeProof,
 	) -> Result<u64, Error> {
+		if proof.plen > MAX_PROOF_SIZE || proof.plen == 0 {
+			return Err(Error::new(IllegalArgument));
+		}
+
 		let extra_data_len = 0;
 		let extra_data = null();
 
@@ -541,13 +540,14 @@ impl Ctx {
 			if scratch.is_null() {
 				return Err(Error::new(Alloc));
 			}
+
 			let result = secp256k1_bulletproof_rangeproof_rewind(
 				self.secp,
 				&mut value_out,
 				blind_out.as_mut_ptr(),
 				proof.proof.as_ptr(),
 				proof.plen,
-				0,
+				0, // min_value
 				commit.as_ptr(),
 				GENERATOR_H.as_ptr(),
 				blind.as_ptr(),
@@ -555,13 +555,14 @@ impl Ctx {
 				extra_data_len,
 				message_out.as_mut_ptr(),
 			);
+
 			secp256k1_scratch_space_destroy(scratch);
 
 			if result == 0 {
-				Err(Error::new(OperationFailed))
-			} else {
-				Ok(value_out)
+				return Err(Error::new(OperationFailed));
 			}
+
+			Ok(value_out)
 		}
 	}
 }

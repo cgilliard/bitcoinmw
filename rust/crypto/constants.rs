@@ -1,7 +1,7 @@
 use crypto::keys::PublicKeyUncompressed;
 
 pub const BLIND_SUM_MAX_KEYS: usize = 64;
-
+pub const MAX_AGGREGATE_SIGNATURES: usize = 16;
 pub const MAX_PROOF_SIZE: usize = 675;
 pub const MAX_GENERATORS: usize = 256;
 

@@ -1,4 +1,6 @@
-use core::ptr::write_volatile;
+use core::ptr::write_bytes;
+use core::sync::atomic::compiler_fence;
+use core::sync::atomic::Ordering::SeqCst;
 use crypto::aes::Aes256;
 use prelude::*;
 use std::ffi::rand_bytes;
@@ -28,16 +30,11 @@ impl Cpsrng {
 		}
 		let res = Aes256::new(key, iv)?;
 
-		// zeroize key/iv
-		for b in key.iter_mut() {
-			unsafe {
-				write_volatile(b, 0);
-			}
-		}
-		for b in iv.iter_mut() {
-			unsafe {
-				write_volatile(b, 0);
-			}
+		// Zeroize key and IV to prevent leaks
+		unsafe {
+			write_bytes(key.as_mut_ptr(), 0, 32);
+			write_bytes(iv.as_mut_ptr(), 0, 16);
+			compiler_fence(SeqCst);
 		}
 		Ok(res)
 	}
