@@ -6,6 +6,11 @@ extern "C" {
 	pub fn release(ptr: *const u8);
 	pub fn resize(ptr: *const u8, bytes: usize) -> *const u8;
 
+	// basic file ops for directory management
+	pub fn mkdir(path: *const u8, mode: i32) -> i32;
+	pub fn rmdir(path: *const u8) -> i32;
+	pub fn unlink(path: *const u8) -> i32;
+
 	// formatting errors
 	pub fn format_err(kind: *const u8, len: usize) -> *mut u8;
 

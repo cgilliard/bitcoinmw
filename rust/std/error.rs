@@ -46,6 +46,15 @@ define_errorkind_with_strings!(
 	ThreadJoin,
 	ChannelInit,
 	ChannelSend,
+	LmdbBeginTxn,
+	LmdbCreate,
+	LmdbOpen,
+	LmdbCommit,
+	LmdbFull,
+	LmdbGet,
+	LmdbPut,
+	LmdbDel,
+	LmdbCursor,
 	Todo
 );
 

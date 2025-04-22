@@ -55,6 +55,21 @@ impl CStr {
 		}
 	}
 
+	pub fn from_slice(bytes: &[u8]) -> Result<Self, Error> {
+		let len = bytes.len();
+		unsafe {
+			let ptr = alloc(len + 1) as *mut u8;
+			if ptr.is_null() {
+				return Err(Error::new(Alloc));
+			}
+			array_copy(bytes, from_raw_parts_mut(ptr, len + 1), len)?;
+			*ptr.add(len) = 0u8;
+			let ptr = Ptr::new(ptr);
+
+			Ok(Self { ptr })
+		}
+	}
+
 	pub fn from_ptr(ptr: *const u8, leak: bool) -> Self {
 		let mut ptr = Ptr::new(ptr);
 		ptr.set_bit(leak);
