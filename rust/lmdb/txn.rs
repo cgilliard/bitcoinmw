@@ -1,7 +1,7 @@
 use core::convert::AsRef;
 use core::iter::Iterator;
 use core::mem::forget;
-use core::ptr::{copy_nonoverlapping, null_mut};
+use core::ptr::null_mut;
 use core::slice::from_raw_parts;
 use core::str::from_utf8;
 use lmdb::constants::{
@@ -10,6 +10,7 @@ use lmdb::constants::{
 use lmdb::ffi::*;
 use lmdb::types::{MDB_cursor, MDB_dbi, MDB_txn, MDB_val};
 use prelude::*;
+use std::misc::array_copy;
 use std::CString;
 
 struct LmdbTxnInner {
@@ -141,14 +142,19 @@ impl LmdbCursor {
 			} else {
 				key_val.mv_size
 			};
-			copy_nonoverlapping(key_val.mv_data, key.as_mut_ptr(), key_len);
+
+			let key_slice = from_raw_parts(key_val.mv_data, key_val.mv_size);
+			array_copy(key_slice, key, key_len)?;
 
 			let value_len = if data_val.mv_size > value.len() {
 				value.len()
 			} else {
 				data_val.mv_size
 			};
-			copy_nonoverlapping(data_val.mv_data, value.as_mut_ptr(), value_len);
+
+			let data_slice = from_raw_parts(data_val.mv_data, data_val.mv_size);
+			array_copy(data_slice, value, value_len)?;
+
 			Ok(Some((key_val.mv_size, data_val.mv_size)))
 		}
 	}
