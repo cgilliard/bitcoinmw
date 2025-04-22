@@ -58,7 +58,7 @@ define_errorkind_with_strings!(
 	Todo
 );
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Ord, PartialOrd, Eq)]
 pub struct Error {
 	pub kind: ErrorKind,
 }

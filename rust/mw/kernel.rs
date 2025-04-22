@@ -8,26 +8,78 @@ pub struct Kernel {
 	features: u8,
 }
 
-impl Ord for Kernel {
-	fn cmp(&self, other: &Self) -> Ordering {
-		let c = self.excess.cmp(&other.excess);
-		if c != Ordering::Equal {
-			return c;
-		}
-		let c = self.signature.cmp(&other.signature);
-		if c != Ordering::Equal {
-			return c;
-		}
-		if self.fee < other.fee {
-			return Ordering::Less;
-		} else if self.fee > other.fee {
-			return Ordering::Greater;
+impl PartialOrd for Kernel {
+	fn partial_cmp(&self, other: &Kernel) -> Option<Ordering> {
+		match self.excess.cmp(&other.excess) {
+			Ordering::Less => return Some(Ordering::Less),
+			Ordering::Greater => return Some(Ordering::Greater),
+			_ => {}
 		}
 
-		if self.features < other.features {
-			return Ordering::Less;
-		} else if self.features > other.features {
-			return Ordering::Greater;
+		match self.signature.cmp(&other.signature) {
+			Ordering::Less => return Some(Ordering::Less),
+			Ordering::Greater => return Some(Ordering::Greater),
+			_ => {}
+		}
+
+		match self.fee.cmp(&other.fee) {
+			Ordering::Less => return Some(Ordering::Less),
+			Ordering::Greater => return Some(Ordering::Greater),
+			_ => {}
+		}
+
+		match self.features.cmp(&other.features) {
+			Ordering::Less => return Some(Ordering::Less),
+			Ordering::Greater => return Some(Ordering::Greater),
+			_ => {}
+		}
+
+		Some(Ordering::Equal)
+	}
+}
+
+impl Eq for Kernel {}
+
+impl PartialEq for Kernel {
+	fn eq(&self, other: &Self) -> bool {
+		if self.excess != other.excess {
+			false
+		} else if self.signature != other.signature {
+			false
+		} else if self.fee != other.fee {
+			false
+		} else if self.features != other.features {
+			false
+		} else {
+			true
+		}
+	}
+}
+
+impl Ord for Kernel {
+	fn cmp(&self, other: &Self) -> Ordering {
+		match self.excess.cmp(&other.excess) {
+			Ordering::Less => return Ordering::Less,
+			Ordering::Greater => return Ordering::Greater,
+			_ => {}
+		}
+
+		match self.signature.cmp(&other.signature) {
+			Ordering::Less => return Ordering::Less,
+			Ordering::Greater => return Ordering::Greater,
+			_ => {}
+		}
+
+		match self.fee.cmp(&other.fee) {
+			Ordering::Less => return Ordering::Less,
+			Ordering::Greater => return Ordering::Greater,
+			_ => {}
+		}
+
+		match self.features.cmp(&other.features) {
+			Ordering::Less => return Ordering::Less,
+			Ordering::Greater => return Ordering::Greater,
+			_ => {}
 		}
 
 		Ordering::Equal

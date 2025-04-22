@@ -46,6 +46,33 @@ impl Display for Commitment {
 	}
 }
 
+impl PartialEq for Commitment {
+	fn eq(&self, other: &Self) -> bool {
+		for i in 0..self.0.len() {
+			if self.0[i] != other.0[i] {
+				return false;
+			}
+		}
+		true
+	}
+}
+
+impl PartialOrd for Commitment {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		let len = self.0.len();
+		for i in 0..len {
+			if self.0[i] < other.0[i] {
+				return Some(Ordering::Less);
+			} else if self.0[i] > other.0[i] {
+				return Some(Ordering::Greater);
+			}
+		}
+		Some(Ordering::Equal)
+	}
+}
+
+impl Eq for Commitment {}
+
 impl Ord for Commitment {
 	fn cmp(&self, other: &Self) -> Ordering {
 		let len = self.0.len();

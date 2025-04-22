@@ -18,7 +18,7 @@ use core::fmt::Formatter as CoreFormatter;
 #[derive(Clone)]
 pub struct PublicKey([u8; 33]);
 #[repr(C)]
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct SecretKey([u8; 32]);
 #[repr(C)]
 #[derive(Clone)]
@@ -30,6 +30,12 @@ pub struct PublicKeyUncompressed([u8; 64]);
 impl Debug for SecretKey {
 	fn fmt(&self, f: &mut CoreFormatter<'_>) -> Result<(), CoreError> {
 		write!(f, "SecretKey[..]")
+	}
+}
+
+impl PartialEq for SecretKey {
+	fn eq(&self, other: &SecretKey) -> bool {
+		self.0 == other.0
 	}
 }
 

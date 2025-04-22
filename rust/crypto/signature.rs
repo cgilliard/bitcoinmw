@@ -8,6 +8,33 @@ pub struct Signature([u8; 64]);
 #[repr(C)]
 pub struct Message([u8; 32]);
 
+impl PartialEq for Signature {
+	fn eq(&self, other: &Signature) -> bool {
+		for i in 0..64 {
+			if self.0[i] != other.0[i] {
+				return false;
+			}
+		}
+		true
+	}
+}
+
+impl PartialOrd for Signature {
+	fn partial_cmp(&self, other: &Signature) -> Option<Ordering> {
+		let len = self.0.len();
+		for i in 0..len {
+			if self.0[i] < other.0[i] {
+				return Some(Ordering::Less);
+			} else if self.0[i] > other.0[i] {
+				return Some(Ordering::Greater);
+			}
+		}
+		Some(Ordering::Equal)
+	}
+}
+
+impl Eq for Signature {}
+
 impl Ord for Signature {
 	fn cmp(&self, other: &Self) -> Ordering {
 		let len = self.0.len();
