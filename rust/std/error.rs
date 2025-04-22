@@ -71,7 +71,7 @@ impl Error {
 }
 
 impl Debug for Error {
-	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
+	fn fmt(&self, f: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
 		// There doesn't seem to be a way to call formatter in no_std so we print to stdout
 		// instead
 		let kind_str = self.kind.as_str();
@@ -81,6 +81,8 @@ impl Debug for Error {
 				write(2, "\n".as_ptr(), 1);
 				write(2, value.as_ptr(), value.len());
 				write(2, "\n".as_ptr(), 1);
+				#[cfg(test)]
+				write!(f, "{}", value.as_str().unwrap().to_str())?;
 			},
 			Err(_) => {}
 		}

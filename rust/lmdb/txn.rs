@@ -4,7 +4,7 @@ use core::mem::forget;
 use core::ptr::null_mut;
 use core::slice::from_raw_parts;
 use lmdb::constants::{
-	MDB_GET_CURRENT, MDB_MAP_FULL, MDB_NEXT, MDB_NOTFOUND, MDB_SET_RANGE, MDB_SUCCESS,
+	MDB_GET_CURRENT, MDB_MAP_FULL, MDB_NEXT, MDB_NOTFOUND, MDB_PREV, MDB_SET_RANGE, MDB_SUCCESS,
 };
 use lmdb::ffi::*;
 use lmdb::types::{MDB_cursor, MDB_dbi, MDB_txn, MDB_val};
@@ -51,19 +51,17 @@ impl Clone for LmdbTxn {
 
 impl Drop for LmdbCursor {
 	fn drop(&mut self) {
-		unsafe {
-			if !self.cursor.is_null() {
-				mdb_cursor_close(self.cursor);
-				self.cursor = null_mut();
-			}
-		}
+		self.close();
 	}
 }
 
 impl Iterator for LmdbCursor {
-	type Item = (CString, CString);
+	type Item = (Vec<u8>, Vec<u8>);
 
 	fn next(&mut self) -> Option<Self::Item> {
+		if self.cursor.is_null() {
+			return None;
+		}
 		unsafe {
 			let mut key_val = MDB_val {
 				mv_size: self.prefix.len(),
@@ -76,11 +74,9 @@ impl Iterator for LmdbCursor {
 			};
 
 			let rc = if self.is_first {
-				// First call: use current position from MDB_SET_RANGE
 				self.is_first = false;
 				mdb_cursor_get(self.cursor, &mut key_val, &mut data_val, MDB_GET_CURRENT)
 			} else {
-				// Subsequent calls: move to next key
 				mdb_cursor_get(self.cursor, &mut key_val, &mut data_val, MDB_NEXT)
 			};
 
@@ -89,28 +85,25 @@ impl Iterator for LmdbCursor {
 			}
 
 			let key_slice = from_raw_parts(key_val.mv_data, key_val.mv_size);
-			let key_cstr = match CString::from_slice(key_slice) {
-				Ok(s) => s,
-				Err(_) => return None,
-			};
+			let mut key_vec = Vec::new();
+			match key_vec.extend_from_slice(key_slice) {
+				Ok(_) => {}
+				Err(_e) => return None,
+			}
 
 			let prefix_slice = from_raw_parts(self.prefix.as_ptr(), self.prefix.len());
-			match key_cstr.as_bytes() {
-				Ok(key_bytes) => {
-					if !key_bytes.starts_with(prefix_slice) {
-						return None;
-					}
-				}
-				Err(_) => return None,
+			if !key_vec.as_ref().starts_with(prefix_slice) {
+				return None;
 			}
 
 			let data_slice = from_raw_parts(data_val.mv_data, data_val.mv_size);
-			let data_cstr = match CString::from_slice(data_slice) {
-				Ok(ds) => ds,
-				Err(_) => return None,
-			};
+			let mut data_vec = Vec::new();
+			match data_vec.extend_from_slice(data_slice) {
+				Ok(_) => {}
+				Err(_e) => return None,
+			}
 
-			Some((key_cstr, data_cstr))
+			Some((key_vec, data_vec))
 		}
 	}
 }
@@ -121,6 +114,9 @@ impl LmdbCursor {
 		key: &mut [u8],
 		value: &mut [u8],
 	) -> Result<Option<(usize, usize)>, Error> {
+		if self.cursor.is_null() {
+			return Err(Error::new(IllegalState));
+		}
 		unsafe {
 			let mut key_val = MDB_val {
 				mv_size: 0,
@@ -133,11 +129,9 @@ impl LmdbCursor {
 			};
 
 			let rc = if self.is_first {
-				// First call: use current position from MDB_SET_RANGE
 				self.is_first = false;
 				mdb_cursor_get(self.cursor, &mut key_val, &mut data_val, MDB_GET_CURRENT)
 			} else {
-				// Subsequent calls: move to next key
 				mdb_cursor_get(self.cursor, &mut key_val, &mut data_val, MDB_NEXT)
 			};
 
@@ -174,6 +168,51 @@ impl LmdbCursor {
 			Ok(Some((key_val.mv_size, data_val.mv_size)))
 		}
 	}
+
+	pub fn rewind(&mut self) -> Result<(), Error> {
+		let mut key_val = MDB_val {
+			mv_size: 0,
+			mv_data: null_mut(),
+		};
+		let mut data_val = MDB_val {
+			mv_size: 0,
+			mv_data: null_mut(),
+		};
+
+		// If at initial position, no previous key to rewind to
+		if self.is_first {
+			self.close();
+			return Err(Error::new(OutOfBounds));
+		}
+
+		// Move to previous key
+		let res = unsafe { mdb_cursor_get(self.cursor, &mut key_val, &mut data_val, MDB_PREV) };
+		if res == MDB_NOTFOUND {
+			self.is_first = true;
+			Ok(())
+		} else if res != MDB_SUCCESS {
+			self.close();
+			Err(Error::new(LmdbCursor))
+		} else {
+			let key_slice = unsafe { from_raw_parts(key_val.mv_data, key_val.mv_size) };
+			let prefix_slice = unsafe { from_raw_parts(self.prefix.as_ptr(), self.prefix.len()) };
+			if !key_slice.starts_with(prefix_slice) {
+				self.close();
+				return Err(Error::new(OutOfBounds));
+			}
+
+			Ok(())
+		}
+	}
+
+	fn close(&mut self) {
+		if !self.cursor.is_null() {
+			unsafe {
+				mdb_cursor_close(self.cursor);
+			}
+			self.cursor = null_mut();
+		}
+	}
 }
 
 impl LmdbTxn {
@@ -186,6 +225,9 @@ impl LmdbTxn {
 	}
 
 	pub fn iter<K: AsRef<[u8]> + ?Sized>(&self, key: &K) -> Result<LmdbCursor, Error> {
+		if self.txn.txn.is_null() {
+			return Err(Error::new(IllegalState));
+		}
 		unsafe {
 			let mut cursor: *mut MDB_cursor = null_mut();
 			let rc = mdb_cursor_open(self.txn.txn, self.dbi, &mut cursor);
@@ -221,6 +263,9 @@ impl LmdbTxn {
 	}
 
 	pub fn get<K: AsRef<[u8]> + ?Sized>(&self, key: &K) -> Result<Option<&[u8]>, Error> {
+		if self.txn.txn.is_null() {
+			return Err(Error::new(IllegalState));
+		}
 		let mut key_val = MDB_val {
 			mv_size: key.as_ref().len(),
 			mv_data: key.as_ref().as_ptr() as *mut u8,
@@ -247,7 +292,7 @@ impl LmdbTxn {
 		key: &K,
 		value: &V,
 	) -> Result<(), Error> {
-		if !self.write {
+		if self.txn.txn.is_null() || !self.write {
 			return Err(Error::new(IllegalState));
 		}
 		let mut key_val = MDB_val {
@@ -273,7 +318,7 @@ impl LmdbTxn {
 	}
 
 	pub fn del<K: AsRef<[u8]> + ?Sized>(&mut self, key: &K) -> Result<bool, Error> {
-		if !self.write {
+		if self.txn.txn.is_null() || !self.write {
 			return Err(Error::new(IllegalState));
 		}
 		let mut key_val = MDB_val {
@@ -297,20 +342,18 @@ impl LmdbTxn {
 	}
 
 	pub fn commit(mut self) -> Result<(), Error> {
+		if self.txn.txn.is_null() || !self.write {
+			return Err(Error::new(IllegalState));
+		}
 		unsafe {
-			if self.write {
-				let r = mdb_txn_commit(self.txn.txn);
-				if r != MDB_SUCCESS {
-					if r == MDB_MAP_FULL {
-						// set txn to null because drop should not abort in this case
-						self.txn.txn = null_mut();
-						return Err(Error::new(LmdbFull));
-					} else {
-						return Err(Error::new(LmdbCommit));
-					}
+			let r = mdb_txn_commit(self.txn.txn);
+			if r != MDB_SUCCESS {
+				if r == MDB_MAP_FULL {
+					self.txn.txn = null_mut();
+					return Err(Error::new(LmdbFull));
+				} else {
+					return Err(Error::new(LmdbCommit));
 				}
-			} else {
-				mdb_txn_abort(self.txn.txn);
 			}
 		}
 		forget(self);
@@ -321,6 +364,7 @@ impl LmdbTxn {
 #[cfg(test)]
 pub mod test {
 	use super::*;
+	use core::convert::AsMut;
 	use lmdb::db::Lmdb;
 	use std::ffi::{mkdir, rmdir, unlink};
 
@@ -487,16 +531,16 @@ pub mod test {
 			for (k, v) in txn.iter(&String::new("test")?)? {
 				if i == 0 {
 					assert_eq!(unsafe { *v.as_ptr() }, 'z' as u8);
-					assert_eq!(v.as_bytes()?[0], 'z' as u8);
-					assert_eq!(k.as_str()?, String::new("test1")?);
+					assert_eq!(v[0], 'z' as u8);
+					assert_eq!(k, vec![b't', b'e', b's', b't', b'1']?);
 				} else if i == 1 {
 					assert_eq!(unsafe { *v.as_ptr() }, 'y' as u8);
-					assert_eq!(v.as_bytes()?[0], 'y' as u8);
-					assert_eq!(k.as_str()?, String::new("test2")?);
+					assert_eq!(v[0], 'y' as u8);
+					assert_eq!(k, vec![b't', b'e', b's', b't', b'2']?);
 				} else if i == 2 {
 					assert_eq!(unsafe { *v.as_ptr() }, 'x' as u8);
-					assert_eq!(v.as_bytes()?[0], 'x' as u8);
-					assert_eq!(k.as_str()?, String::new("test3")?);
+					assert_eq!(v[0], 'x' as u8);
+					assert_eq!(k, vec![b't', b'e', b's', b't', b'3']?);
 				}
 				i += 1;
 			}
@@ -537,13 +581,15 @@ pub mod test {
 				keys.push(k)?;
 				values.push(v)?;
 			}
-			assert_eq!(keys[0].as_str()?, String::new("test1")?);
-			assert_eq!(keys[1].as_str()?, String::new("test2")?);
-			assert_eq!(keys[2].as_str()?, String::new("test3")?);
 
-			assert_eq!(values[0].as_bytes()?, vec!['z' as u8]?);
-			assert_eq!(values[1].as_bytes()?, vec!['y' as u8]?);
-			assert_eq!(values[2].as_bytes()?, vec!['x' as u8]?);
+			assert_eq!(keys.len(), 3);
+			assert_eq!(keys[0], vec![b't', b'e', b's', b't', b'1']?);
+			assert_eq!(keys[1], vec![b't', b'e', b's', b't', b'2']?);
+			assert_eq!(keys[2], vec![b't', b'e', b's', b't', b'3']?);
+
+			assert_eq!(values[0], vec!['z' as u8]?);
+			assert_eq!(values[1], vec!['y' as u8]?);
+			assert_eq!(values[2], vec!['x' as u8]?);
 		}
 
 		remove_lmdb_test_dir(db_dir)?;
@@ -613,6 +659,151 @@ pub mod test {
 		}
 
 		remove_lmdb_test_dir(db_dir)?;
+		Ok(())
+	}
+
+	#[test]
+	fn test_iter_rewind() -> Result<(), Error> {
+		let db_dir = "bin/.lmdb_iter_rewind";
+		let db_size = 1024 * 1024 * 100;
+		let db_name = "mydb";
+		make_lmdb_test_dir(db_dir)?;
+		let mut db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let mut txn = db.write()?;
+
+			txn.put(&String::new("test3")?, &['x' as u8; 1])?;
+			txn.put(&String::new("test2")?, &['y' as u8; 1])?;
+			txn.put(&String::new("test1")?, &['z' as u8; 1])?;
+			txn.put(&String::new("zzz")?, &['a' as u8; 1])?;
+			txn.commit()?;
+		}
+
+		db.close();
+		let db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let txn = db.read()?;
+			let mut iter = txn.iter(&String::new("test")?)?;
+
+			let (k, _v) = iter.next().unwrap();
+			assert_eq!(k, vec![b't', b'e', b's', b't', b'1']?);
+			let (k, _v) = iter.next().unwrap();
+			assert_eq!(k, vec![b't', b'e', b's', b't', b'2']?);
+			iter.rewind()?;
+			let (k, _v) = iter.next().unwrap();
+			assert_eq!(k, vec![b't', b'e', b's', b't', b'2']?);
+			let (k, _v) = iter.next().unwrap();
+			assert_eq!(k, vec![b't', b'e', b's', b't', b'3']?);
+			iter.rewind()?;
+			iter.rewind()?;
+			let (k, _v) = iter.next().unwrap();
+			assert_eq!(k, vec![b't', b'e', b's', b't', b'2']?);
+			let (k, _v) = iter.next().unwrap();
+			assert_eq!(k, vec![b't', b'e', b's', b't', b'3']?);
+
+			iter.rewind()?;
+			iter.rewind()?;
+			iter.rewind()?;
+			let (k, _v) = iter.next().unwrap();
+			assert_eq!(k, vec![b't', b'e', b's', b't', b'1']?);
+			iter.rewind()?;
+			assert!(iter.rewind().is_err());
+			assert!(iter.next().is_none());
+		}
+
+		remove_lmdb_test_dir(db_dir)?;
+		Ok(())
+	}
+
+	#[test]
+	fn test_rewind_and_allocate() -> Result<(), Error> {
+		let db_dir = "bin/.lmdb_rewind_and_allocate";
+		let db_size = 1024 * 1024 * 100;
+		let db_name = "mydb";
+		make_lmdb_test_dir(db_dir)?;
+		let mut db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let mut txn = db.write()?;
+
+			txn.put(&String::new("test3")?, &['x' as u8; 1])?;
+			txn.put(&String::new("test2")?, &['y' as u8; 1])?;
+			txn.put(&String::new("test1")?, &['z' as u8; 1])?;
+			txn.put(&String::new("zzz")?, &['a' as u8; 1])?;
+			txn.commit()?;
+		}
+
+		db.close();
+		let db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let txn = db.read()?;
+			let mut iter = txn.iter(&String::new("test")?)?;
+
+			let (k_size, v_size) = iter.next_bytes(&mut [], &mut [])?.unwrap();
+			assert_eq!(k_size, 5);
+			assert_eq!(v_size, 1);
+
+			let mut k = Vec::with_capacity(k_size)?;
+			let mut v = Vec::with_capacity(v_size)?;
+			k.resize(k_size)?;
+			v.resize(v_size)?;
+
+			iter.rewind()?;
+			let (_, _) = iter.next_bytes(k.as_mut(), v.as_mut())?.unwrap();
+			assert_eq!(k.len(), 5);
+			assert_eq!(k, vec![b't', b'e', b's', b't', b'1']?);
+			assert_eq!(v, vec![b'z']?);
+
+			let (k_size, v_size) = iter.next_bytes(&mut [], &mut [])?.unwrap();
+
+			let mut k = Vec::with_capacity(k_size)?;
+			let mut v = Vec::with_capacity(v_size)?;
+			k.resize(k_size)?;
+			v.resize(v_size)?;
+
+			iter.rewind()?;
+			let (_, _) = iter.next_bytes(k.as_mut(), v.as_mut())?.unwrap();
+			assert_eq!(k, vec![b't', b'e', b's', b't', b'2']?);
+			assert_eq!(v, vec![b'y']?);
+
+			let (k_size, v_size) = iter.next_bytes(&mut [], &mut [])?.unwrap();
+
+			let mut k = Vec::with_capacity(k_size)?;
+			let mut v = Vec::with_capacity(v_size)?;
+			k.resize(k_size)?;
+			v.resize(v_size)?;
+
+			iter.rewind()?;
+			let (_, _) = iter.next_bytes(k.as_mut(), v.as_mut())?.unwrap();
+			assert_eq!(k, vec![b't', b'e', b's', b't', b'3']?);
+			assert_eq!(v, vec![b'x']?);
+
+			assert_eq!(iter.next_bytes(&mut [], &mut [])?, None);
+		}
+
+		remove_lmdb_test_dir(db_dir)?;
+		Ok(())
+	}
+
+	#[test]
+	fn test_bad_txn_scenarios() -> Result<(), Error> {
+		let db_dir = "bin/.lmdb_bad_txn";
+		let db_size = 1024 * 1024;
+		let db_name = "mydb";
+		make_lmdb_test_dir(db_dir)?;
+		let db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		{
+			let mut txn = db.write()?;
+			assert!(txn.put(&[b'a'], &[0u8; 1024 * 1024 * 10]).is_err());
+			assert!(txn.commit().is_err());
+		}
+
+		remove_lmdb_test_dir(db_dir)?;
+
 		Ok(())
 	}
 }

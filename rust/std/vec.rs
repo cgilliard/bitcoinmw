@@ -566,9 +566,9 @@ mod test {
 		}
 	}
 
-	impl<T> Debug for Vec<T> {
-		fn fmt(&self, _: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
-			Ok(())
+	impl<T: Debug> Debug for Vec<T> {
+		fn fmt(&self, f: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
+			write!(f, "{:?}", self.as_ref())
 		}
 	}
 

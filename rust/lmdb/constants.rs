@@ -7,4 +7,5 @@ pub const FILE_MODE: u32 = 0o664;
 pub const MDB_MAX_DBS: usize = 10;
 pub const MDB_SET_RANGE: u32 = 17;
 pub const MDB_NEXT: u32 = 8;
+pub const MDB_PREV: u32 = 12;
 pub const MDB_GET_CURRENT: u32 = 4;
