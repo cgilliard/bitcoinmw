@@ -33,7 +33,7 @@ ar rcs .obj/libtest.a .obj/*.o || exit 1;
 
 # build macros
 cd macros
-rustc --crate-type=proc-macro --edition=2021 lib.rs -o ../.obj/libbitcoinmw_macros${MACRO_EXT}
+rustc --crate-type=proc-macro --edition=2021 lib.rs -o ../.obj/libbitcoinmw_macros${MACRO_EXT} || exit 1;
 cd ..
 
 # build tests

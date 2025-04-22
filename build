@@ -1,7 +1,7 @@
 #!/bin/sh
 
 export CC="${CC:-clang}"
-export OUTPUT="${OUTPUT:-../mrustc/output}"
+export OUTPUT="${OUTPUT:-../rust-bins/output}"
 export MRUSTC="${MRUSTC:-mrustc}"
 
 OS=$(uname -s)
@@ -85,7 +85,7 @@ else
 
     # build macros
     cd macros
-    rustc --crate-type=proc-macro --edition=2021 lib.rs -o ../.obj/libbitcoinmw_macros${MACRO_EXT}
+    rustc --crate-type=proc-macro --edition=2021 lib.rs -o ../.obj/libbitcoinmw_macros${MACRO_EXT} || exit 1;
     cd ..
 
 
