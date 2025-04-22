@@ -115,7 +115,7 @@ pub fn i128_to_str(mut n: i128, buf: &mut [u8], base: u8) -> usize {
 	}
 }
 
-pub fn array_copy<T: Copy>(src: &[T], dst: &mut [T], len: usize) -> Result<(), Error> {
+pub fn slice_copy<T: Copy>(src: &[T], dst: &mut [T], len: usize) -> Result<(), Error> {
 	if dst.len() < len || src.len() < len {
 		Err(Error::new(OutOfBounds))
 	} else {
@@ -227,14 +227,14 @@ mod test {
 	}
 
 	#[test]
-	fn test_array_copy() -> Result<(), Error> {
+	fn test_slice_copy() -> Result<(), Error> {
 		let mut arr = vec![Copyable { x: 1, y: 2, z: -1 }]?;
 		arr.push(Copyable { x: 3, y: 4, z: -2 })?;
 		arr.push(Copyable { x: 7, y: 7, z: -3 })?;
 
 		let mut n = Vec::new();
 		n.resize(3)?;
-		array_copy(arr.slice(0, 3), n.mut_slice(0, 3), 3)?;
+		slice_copy(arr.slice(0, 3), n.mut_slice(0, 3), 3)?;
 		assert_eq!(n[0].x, 1);
 		assert_eq!(n[1].x, 3);
 		assert_eq!(n[2].x, 7);
@@ -244,7 +244,7 @@ mod test {
 
 		let v = vec![0u64, 1u64, 2u64]?;
 		let mut v2 = vec![9u64, 9u64, 9u64]?;
-		array_copy(v.slice(0, 3), v2.mut_slice(0, 3), 3)?;
+		slice_copy(v.slice(0, 3), v2.mut_slice(0, 3), 3)?;
 
 		assert_eq!(v2[0], 0);
 		assert_eq!(v2[1], 1);

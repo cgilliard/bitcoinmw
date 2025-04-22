@@ -1,7 +1,7 @@
 use core::str::from_utf8_unchecked;
 use prelude::*;
 use std::ffi::f64_to_str;
-use std::misc::{array_copy, i128_to_str, subslice, subslice_mut, u128_to_str};
+use std::misc::{slice_copy, i128_to_str, subslice, subslice_mut, u128_to_str};
 
 pub struct Formatter {
 	buffer: Vec<u8>,
@@ -30,7 +30,7 @@ impl Formatter {
 			Err(e) => return Err(e),
 		}
 		let dest_slice = subslice_mut(&mut self.buffer, start, len)?;
-		array_copy(bytes, dest_slice, len)?;
+		slice_copy(bytes, dest_slice, len)?;
 		Ok(())
 	}
 

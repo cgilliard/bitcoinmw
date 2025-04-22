@@ -10,7 +10,7 @@ use lmdb::constants::{
 use lmdb::ffi::*;
 use lmdb::types::{MDB_cursor, MDB_dbi, MDB_txn, MDB_val};
 use prelude::*;
-use std::misc::array_copy;
+use std::misc::slice_copy;
 use std::CString;
 
 struct LmdbTxnInner {
@@ -27,6 +27,17 @@ pub struct LmdbCursor {
 	cursor: *mut MDB_cursor,
 	prefix: CString,
 	is_first: bool,
+}
+
+impl Drop for LmdbTxnInner {
+	fn drop(&mut self) {
+		unsafe {
+			if !self.txn.is_null() {
+				mdb_txn_abort(self.txn);
+				self.txn = null_mut();
+			}
+		}
+	}
 }
 
 impl Clone for LmdbTxn {
@@ -144,7 +155,13 @@ impl LmdbCursor {
 			};
 
 			let key_slice = from_raw_parts(key_val.mv_data, key_val.mv_size);
-			array_copy(key_slice, key, key_len)?;
+
+			let prefix_slice = from_raw_parts(self.prefix.as_ptr(), self.prefix.len());
+			if !key_slice.starts_with(prefix_slice) {
+				return Ok(None);
+			}
+
+			slice_copy(key_slice, key, key_len)?;
 
 			let value_len = if data_val.mv_size > value.len() {
 				value.len()
@@ -153,7 +170,7 @@ impl LmdbCursor {
 			};
 
 			let data_slice = from_raw_parts(data_val.mv_data, data_val.mv_size);
-			array_copy(data_slice, value, value_len)?;
+			slice_copy(data_slice, value, value_len)?;
 
 			Ok(Some((key_val.mv_size, data_val.mv_size)))
 		}
@@ -300,17 +317,6 @@ impl LmdbTxn {
 		}
 		forget(self);
 		Ok(())
-	}
-}
-
-impl Drop for LmdbTxnInner {
-	fn drop(&mut self) {
-		unsafe {
-			if !self.txn.is_null() {
-				mdb_txn_abort(self.txn);
-				self.txn = null_mut();
-			}
-		}
 	}
 }
 
@@ -557,6 +563,7 @@ pub mod test {
 		let test1 = "test1".as_bytes();
 		let test2 = "test2".as_bytes();
 		let test3 = "test3".as_bytes();
+		let test4 = "zzz".as_bytes();
 
 		{
 			let mut txn = db.write()?;
@@ -564,6 +571,7 @@ pub mod test {
 			txn.put(&test3, &['x' as u8; 1])?;
 			txn.put(&test2, &['y' as u8; 1])?;
 			txn.put(&test1, &['z' as u8; 1])?;
+			txn.put(&test4, &['a' as u8; 1])?;
 			txn.commit()?;
 		}
 

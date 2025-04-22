@@ -3,7 +3,7 @@ use core::ops::{Index, IndexMut};
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
 use std::ffi::alloc;
-use std::misc::{array_copy, subslice};
+use std::misc::{slice_copy, subslice};
 use std::Ptr;
 
 pub struct CString {
@@ -47,7 +47,7 @@ impl CString {
 			if ptr.is_null() {
 				return Err(Error::new(Alloc));
 			}
-			array_copy(s.as_ref(), from_raw_parts_mut(ptr, len + 1), len)?;
+			slice_copy(s.as_ref(), from_raw_parts_mut(ptr, len + 1), len)?;
 			*ptr.add(len) = 0u8;
 			let ptr = Ptr::new(ptr);
 
@@ -62,7 +62,7 @@ impl CString {
 			if ptr.is_null() {
 				return Err(Error::new(Alloc));
 			}
-			array_copy(bytes, from_raw_parts_mut(ptr, len + 1), len)?;
+			slice_copy(bytes, from_raw_parts_mut(ptr, len + 1), len)?;
 			*ptr.add(len) = 0u8;
 			let ptr = Ptr::new(ptr);
 
@@ -93,7 +93,7 @@ impl CString {
 		let mut r = Vec::with_capacity(len)?;
 		r.resize(len)?;
 		let mut slice = r.mut_slice(0, len);
-		array_copy(self.as_ref(), &mut slice, len)?;
+		slice_copy(self.as_ref(), &mut slice, len)?;
 		Ok(r)
 	}
 
@@ -111,7 +111,7 @@ impl CString {
 			Err(Error::new(OutOfBounds))
 		} else {
 			let b = subslice(self.as_ref(), offset, len - offset)?;
-			array_copy(b, slice, len - offset)
+			slice_copy(b, slice, len - offset)
 		}
 	}
 }

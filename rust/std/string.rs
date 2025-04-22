@@ -6,7 +6,7 @@ use core::ptr::null;
 use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
 use prelude::*;
-use std::misc::{array_copy, is_utf8_valid, strcmp, subslice};
+use std::misc::{slice_copy, is_utf8_valid, strcmp, subslice};
 
 pub struct String {
 	value: Option<Rc<Box<[u8]>>>,
@@ -60,7 +60,7 @@ impl String {
 		} else {
 			match try_box_slice!(0u8, end) {
 				Ok(mut value) => {
-					array_copy(s.as_bytes(), &mut value, end)?;
+					slice_copy(s.as_bytes(), &mut value, end)?;
 					match Rc::new(value) {
 						Ok(rc) => Ok(Self {
 							value: Some(rc),
@@ -85,7 +85,7 @@ impl String {
 		} else {
 			match try_box_slice!(0u8, end) {
 				Ok(mut value) => {
-					array_copy(b, &mut value, end)?;
+					slice_copy(b, &mut value, end)?;
 					match Rc::new(value) {
 						Ok(rc) => Ok(Self {
 							value: Some(rc),

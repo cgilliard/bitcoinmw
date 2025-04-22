@@ -8,7 +8,7 @@ use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
 use std::constants::VEC_MIN_SIZE;
 use std::ffi::{alloc, release, resize};
-use std::misc::array_copy;
+use std::misc::slice_copy;
 
 pub struct Vec<T> {
 	value: Ptr<u8>,
@@ -319,7 +319,7 @@ impl<T> Vec<T> {
 		let other_len = other.len();
 		self.resize_impl(other_len + len)?;
 		self.elements = other_len + len;
-		array_copy(other, self.slice_mut_from(len), other.len())
+		slice_copy(other, self.slice_mut_from(len), other.len())
 	}
 
 	pub fn iter_mut(&mut self) -> VecRefMutIterator<'_, T> {

@@ -4,7 +4,7 @@ use crypto::ffi::{sha3_context_size, sha3_finalize, sha3_init256, sha3_init384, 
 use crypto::types::Sha3Context;
 use prelude::*;
 use std::ffi::{alloc, release};
-use std::misc::array_copy;
+use std::misc::slice_copy;
 
 pub struct Sha3_256 {
 	ctx: *const Sha3Context,
@@ -62,7 +62,7 @@ impl Sha3_256 {
 			from_raw_parts(res, 32)
 		};
 		// SAFETY: we ensure len == 32 for both arrays
-		let _ = array_copy(res, &mut ret, 32);
+		let _ = slice_copy(res, &mut ret, 32);
 		ret
 	}
 }
@@ -123,7 +123,7 @@ impl Sha3_384 {
 			from_raw_parts(res, 48)
 		};
 		// SAFETY: we ensure len == 48 for both arrays
-		let _ = array_copy(res, &mut ret, 48);
+		let _ = slice_copy(res, &mut ret, 48);
 		ret
 	}
 }
