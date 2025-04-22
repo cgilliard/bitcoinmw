@@ -33,13 +33,12 @@ jobs:
           ./bin/bmw || exit 1;
       - name: linux build (mrustc)
         run: |
-          wget https://github.com/cgilliard/famc/releases/download/0.1.0/linux_output.tar.gz
-          gzip -dc linux_output.tar.gz | tar xvf -
-          ./build clean
           export CC=gcc
-          export MRUSTC=./famc/bin/mrustc
-          export OUTPUT=./famc/output
-          ./build mrustc
+          git clone https://github.com/cgilliard/rust-bins ../rust-bins
+          ./build clean
+          export MRUSTC=../rust-bins/linux/mrustc
+          export OUTPUT=../rust-bins/linux/output
+          ./build mrustc || exit 1;
           ./bin/bmw || exit 1;
       - name: linux tests
         run: |
