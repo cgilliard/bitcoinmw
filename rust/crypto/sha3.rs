@@ -122,6 +122,7 @@ mod test {
 	use super::*;
 	use crypto::aes::Aes256;
 	use crypto::ffi::{generate_matrix, heavyhash};
+	use crypto::Cpsrng;
 
 	// Converts a byte slice to a lowercase hexadecimal string in a fixed-size array.
 	// For a 32-byte input, returns a [u8; 64] array containing ASCII hex characters.
@@ -976,8 +977,13 @@ mod test {
 
 	#[test]
 	fn test_sha3_bip52() -> Result<(), Error> {
-		for i in 0..255 {
-			let aes = Aes256::new([i; 32], [0u8; 16])?;
+		let rng = Cpsrng::new()?;
+		for _ in 0..255 {
+			let mut key = [0u8; 32];
+			let mut iv = [0u8; 16];
+			rng.gen(&mut key);
+			rng.gen(&mut iv);
+			let aes = Aes256::new(key, iv)?;
 			let mut matrix = [0u16; 4096];
 			let mut hash_out = [0u8; 32];
 			let pdata = [1u8; 32];
