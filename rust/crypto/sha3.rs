@@ -6,46 +6,45 @@ use prelude::*;
 use std::ffi::{alloc, release};
 use std::misc::slice_copy;
 
-pub struct Sha3_256 {
-	ctx: *const Sha3Context,
-}
+const SHA3_256_CONTEXT_SIZE: usize = 224;
 
-impl Drop for Sha3_256 {
-	fn drop(&mut self) {
-		if !self.ctx.is_null() {
-			unsafe {
-				release(self.ctx as *const u8);
-			}
-			self.ctx = null();
-		}
-	}
+pub struct Sha3_256 {
+	data: [u8; SHA3_256_CONTEXT_SIZE],
 }
 
 impl Sha3_256 {
 	pub fn new() -> Result<Self, Error> {
 		// get size of context
 		let size = unsafe { sha3_context_size() };
-		// allocate memory
-		let ctx = unsafe { alloc(size) } as *const Sha3Context;
-		if ctx.is_null() {
-			Err(Error::new(Alloc))
-		} else {
-			unsafe { sha3_init256(ctx) };
-			Ok(Self { ctx })
+		if size != SHA3_256_CONTEXT_SIZE {
+			exit!(
+				"sha3_context_size() ({}) != SHA3_256_CONTEXT_SIZE ({})! Halting!",
+				size,
+				SHA3_256_CONTEXT_SIZE
+			);
 		}
+		let data = [0u8; SHA3_256_CONTEXT_SIZE];
+		unsafe {
+			sha3_init256(&data as *const u8 as *const Sha3Context);
+		}
+		Ok(Self { data })
 	}
 
 	#[inline]
 	pub fn reset(&self) {
 		unsafe {
-			sha3_init256(self.ctx);
+			sha3_init256(&self.data as *const u8 as *const Sha3Context);
 		}
 	}
 
 	#[inline]
 	pub fn update(&self, b: &[u8]) {
 		unsafe {
-			sha3_update(self.ctx, b.as_ptr(), b.len());
+			sha3_update(
+				&self.data as *const u8 as *const Sha3Context,
+				b.as_ptr(),
+				b.len(),
+			);
 		}
 	}
 
@@ -53,7 +52,7 @@ impl Sha3_256 {
 	pub fn finalize(&self) -> [u8; 32] {
 		let mut ret = [0u8; 32];
 		let res = unsafe {
-			let res = sha3_finalize(self.ctx);
+			let res = sha3_finalize(&self.data as *const u8 as *const Sha3Context);
 			from_raw_parts(res, 32)
 		};
 		// SAFETY: we ensure len == 32 for both arrays

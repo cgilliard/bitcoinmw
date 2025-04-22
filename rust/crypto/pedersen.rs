@@ -36,6 +36,12 @@ impl AsRaw<Self> for Commitment {
 	}
 }
 
+impl AsRef<[u8]> for Commitment {
+	fn as_ref(&self) -> &[u8] {
+		&self.0
+	}
+}
+
 impl Display for Commitment {
 	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		let b = bytes_to_hex_33(&self.0);

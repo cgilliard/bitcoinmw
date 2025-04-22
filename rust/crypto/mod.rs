@@ -13,6 +13,7 @@ mod types;
 pub use crypto::aes::Aes256;
 pub use crypto::cpsrng::Cpsrng;
 pub use crypto::ctx::Ctx;
+pub use crypto::ffi::secp256k1_schnorrsig_verify;
 pub use crypto::keys::{PublicKey, SecretKey};
 pub use crypto::pedersen::Commitment;
 pub use crypto::range_proof::RangeProof;

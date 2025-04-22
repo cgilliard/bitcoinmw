@@ -6,6 +6,7 @@ use std::misc::bytes_to_hex_64;
 pub struct Signature([u8; 64]);
 
 #[repr(C)]
+#[derive(PartialEq)]
 pub struct Message([u8; 32]);
 
 impl PartialEq for Signature {
@@ -46,6 +47,15 @@ impl Ord for Signature {
 			}
 		}
 		Ordering::Equal
+	}
+}
+
+impl Hash for Signature {
+	fn hash<H>(&self, hasher: &mut H)
+	where
+		H: Hasher,
+	{
+		self.0.hash(hasher);
 	}
 }
 

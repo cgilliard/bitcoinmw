@@ -230,6 +230,22 @@ pub fn bytes_to_hex_64(bytes: &[u8; 64]) -> [u8; 128] {
 	hex
 }
 
+pub fn to_be_bytes_u64(value: u64, bytes: &mut [u8]) -> Result<(), Error> {
+	if bytes.len() == 8 {
+		bytes[0] = (value >> 56) as u8;
+		bytes[1] = (value >> 48) as u8;
+		bytes[2] = (value >> 40) as u8;
+		bytes[3] = (value >> 32) as u8;
+		bytes[4] = (value >> 24) as u8;
+		bytes[5] = (value >> 16) as u8;
+		bytes[6] = (value >> 8) as u8;
+		bytes[7] = value as u8;
+		Ok(())
+	} else {
+		Err(Error::new(IllegalArgument))
+	}
+}
+
 #[cfg(test)]
 mod test {
 	use super::*;
