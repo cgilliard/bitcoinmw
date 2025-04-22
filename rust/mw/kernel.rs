@@ -2,18 +2,12 @@ use crypto::{secp256k1_schnorrsig_verify, Commitment, Ctx, Message, Sha3_256, Si
 use prelude::*;
 use std::misc::to_be_bytes_u64;
 
-#[derive(Ord, PartialOrd, PartialEq, Eq)]
+#[derive(Ord, PartialOrd, PartialEq, Eq, Clone)]
 pub struct Kernel {
 	excess: Commitment,
 	signature: Signature,
 	fee: u64,
 	features: u8,
-}
-
-impl Display for Kernel {
-	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
-		writef!(f, "{}", self.excess)
-	}
 }
 
 impl Kernel {

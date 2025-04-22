@@ -7,7 +7,7 @@ use prelude::*;
 use std::misc::bytes_to_hex_33;
 
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Commitment([u8; 33]);
 #[repr(C)]
 pub struct CommitmentUncompressed([u8; 64]);

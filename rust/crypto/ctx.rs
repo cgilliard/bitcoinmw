@@ -79,7 +79,7 @@ impl Ctx {
 	}
 
 	#[cfg(test)]
-	pub fn test_seed(key: [u8; 32], iv: [u8; 16]) -> Result<Self, Error> {
+	pub fn seed(key: [u8; 32], iv: [u8; 16]) -> Result<Self, Error> {
 		let rng = Cpsrng::test_seed(key, iv)?;
 		let secp =
 			unsafe { secp256k1_context_create(SECP256K1_START_SIGN | SECP256K1_START_VERIFY) };

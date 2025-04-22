@@ -41,6 +41,7 @@ define_errorkind_with_strings!(
 	ValidationFailed,
 	Serialization,
 	OutOfBounds,
+	NotFound,
 	ThreadCreate,
 	ThreadDetach,
 	ThreadJoin,

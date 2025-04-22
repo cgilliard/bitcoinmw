@@ -1,7 +1,7 @@
 use crypto::constants::MAX_PROOF_SIZE;
 use prelude::*;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct RangeProof {
 	pub proof: [u8; MAX_PROOF_SIZE],
 	pub plen: usize,

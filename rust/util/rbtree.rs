@@ -142,16 +142,18 @@ impl<V: Ord> RbTree<V> {
 
 		while !cur.is_null() {
 			let cmp = (*value).value.cmp(&(*cur).value);
-			if cmp == Ordering::Equal {
-				break;
-			} else if cmp == Ordering::Less {
-				parent = cur;
-				is_right = false;
-				cur = cur.left;
-			} else {
-				parent = cur;
-				is_right = true;
-				cur = cur.right;
+			match cmp {
+				Ordering::Equal => break,
+				Ordering::Less => {
+					parent = cur;
+					is_right = false;
+					cur = cur.left;
+				}
+				Ordering::Greater => {
+					parent = cur;
+					is_right = true;
+					cur = cur.right;
+				}
 			}
 		}
 
