@@ -58,7 +58,7 @@ elif [ "mrustc" = "$1" ]; then
 
     # build macros
     cd macros
-    ${MRUSTC} -C panic=abort --crate-type proc-macro -L../${OUTPUT} --cfg mrustc -o ../.obj/libbitcoinmw_macros.rlib lib.rs || exit 1
+    ../${MRUSTC} -C panic=abort --crate-type proc-macro -L../${OUTPUT} --cfg mrustc -o ../.obj/libbitcoinmw_macros.rlib lib.rs || exit 1
     cd ..
 
     ${MRUSTC} -C panic=abort \
