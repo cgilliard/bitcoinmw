@@ -9,7 +9,7 @@ use lmdb::constants::{
 use lmdb::ffi::*;
 use lmdb::types::{MDB_cursor, MDB_dbi, MDB_txn, MDB_val};
 use prelude::*;
-use std::misc::slice_copy;
+use std::misc::{slice_copy, slice_starts_with};
 use std::CString;
 
 struct LmdbTxnInner {
@@ -92,7 +92,7 @@ impl Iterator for LmdbCursor {
 			}
 
 			let prefix_slice = from_raw_parts(self.prefix.as_ptr(), self.prefix.len());
-			if !key_vec.as_ref().starts_with(prefix_slice) {
+			if !slice_starts_with(key_vec.as_ref(), prefix_slice) {
 				return None;
 			}
 
@@ -150,7 +150,7 @@ impl LmdbCursor {
 			let key_slice = from_raw_parts(key_val.mv_data, key_val.mv_size);
 
 			let prefix_slice = from_raw_parts(self.prefix.as_ptr(), self.prefix.len());
-			if !key_slice.starts_with(prefix_slice) {
+			if !slice_starts_with(key_slice, prefix_slice) {
 				return Ok(None);
 			}
 
@@ -196,7 +196,7 @@ impl LmdbCursor {
 		} else {
 			let key_slice = unsafe { from_raw_parts(key_val.mv_data, key_val.mv_size) };
 			let prefix_slice = unsafe { from_raw_parts(self.prefix.as_ptr(), self.prefix.len()) };
-			if !key_slice.starts_with(prefix_slice) {
+			if !slice_starts_with(key_slice, prefix_slice) {
 				self.close();
 				return Err(Error::new(OutOfBounds));
 			}

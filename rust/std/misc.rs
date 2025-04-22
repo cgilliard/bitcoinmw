@@ -33,6 +33,21 @@ pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
 	}
 }
 
+pub fn slice_starts_with<N: PartialEq>(slice: &[N], prefix: &[N]) -> bool {
+	let slice_len = slice.len();
+	let prefix_len = prefix.len();
+	if slice_len < prefix_len {
+		false
+	} else {
+		for i in 0..prefix_len {
+			if slice[i] != prefix[i] {
+				return false;
+			}
+		}
+		true
+	}
+}
+
 pub fn subslice_mut<N>(n: &mut [N], off: usize, len: usize) -> Result<&mut [N], Error> {
 	if off > n.len() || len.checked_add(off).map_or(true, |end| end > n.len()) {
 		Err(Error::new(OutOfBounds))
