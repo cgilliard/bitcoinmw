@@ -1,4 +1,4 @@
-use crypto::{Commitment, Ctx, RangeProof, SecretKey};
+use crypto::{Commitment, Ctx, Message, RangeProof, SecretKey, Sha3_256};
 use mw::Kernel;
 use prelude::*;
 use util::{RbTree, RbTreeNode};
@@ -143,8 +143,61 @@ impl Transaction {
 		}
 	}
 
-	pub fn kernel_merkle_root(&self, _ctx: &mut Ctx) -> Result<[u8; 32], Error> {
-		Err(Error::new(Todo))
+	pub fn kernel_merkle_root(&self) -> Result<Message, Error> {
+		use core::ptr::copy_nonoverlapping;
+		let kernels = self.kernels();
+		if kernels.len() == 0 {
+			return Ok(Message::zero());
+		}
+		// Initialize Vec for kernel hashes
+		let mut leaves = Vec::with_capacity(kernels.len())?;
+
+		// Copy kernel hashes from red-black tree to Vec
+		for k in kernels.iter() {
+			leaves.push(k.message())?;
+		}
+
+		// Build Merkle tree bottom-up
+		while leaves.len() > 1 {
+			let mut next_level = Vec::with_capacity((leaves.len() + 1) / 2)?;
+
+			for i in 0..leaves.len() {
+				if i % 2 != 0 {
+					continue;
+				}
+				let left = leaves[i];
+				let right = if i + 1 < leaves.len() {
+					leaves[i + 1]
+				} else {
+					left // Duplicate last hash for odd number of leaves
+				};
+
+				// Concatenate left || right
+				let mut input = [0u8; 64];
+				unsafe {
+					copy_nonoverlapping(left.as_ptr() as *const u8, input.as_mut_ptr(), 32);
+					copy_nonoverlapping(
+						right.as_ptr() as *const u8,
+						input.as_mut_ptr().add(32),
+						32,
+					);
+				}
+
+				// Hash the pair
+				let sha3 = Sha3_256::new();
+				sha3.update(&input);
+				let hash = sha3.finalize();
+				next_level.push(Message::new(hash))?;
+			}
+			// Replace leaves with next level
+			leaves = next_level;
+		}
+
+		// there should be exactly 1 leaf here, but avoid panic by returning IllegalState
+		match leaves.len() {
+			1 => Ok(leaves[0]),
+			_ => Err(Error::new(IllegalState)),
+		}
 	}
 
 	pub fn validate(&self, ctx: &Ctx, overage: u64) -> Result<(), Error> {
@@ -400,6 +453,33 @@ mod test {
 
 		assert!(tx.validate(&ctx, 2000).is_ok());
 		assert!(tx.validate(&ctx, 2001).is_err());
+		Ok(())
+	}
+
+	#[test]
+	fn test_kernel_merkle_roots() -> Result<(), Error> {
+		let ctx = Ctx::new()?;
+		let mut tx = Transaction::empty();
+
+		let blind_output = SecretKey::gen(&ctx);
+		let output = ctx.commit(2000, &blind_output)?;
+		let range_proof = ctx.range_proof(2000, &blind_output)?;
+		let nonce = SecretKey::gen(&ctx);
+		let pubnonce = PublicKey::from(&ctx, &nonce)?;
+		let excess_blind = ctx.blind_sum(&[], &[&blind_output])?;
+		let pub_blind = PublicKey::from(&ctx, &excess_blind)?;
+		let excess = ctx.commit(0, &excess_blind)?;
+		let msg = Kernel::message_for(&excess, 0, 0);
+		let sig = ctx.sign(&msg, &excess_blind, &nonce, &pubnonce, &pub_blind)?;
+		let kernel = Kernel::new(excess, sig, 0, 0);
+		tx.add_kernel(kernel.clone())?;
+		tx.add_output(output, range_proof)?;
+
+		assert!(tx.validate(&ctx, 2000).is_ok());
+
+		let hash = kernel.message();
+		assert_eq!(hash, tx.kernel_merkle_root()?);
+
 		Ok(())
 	}
 }

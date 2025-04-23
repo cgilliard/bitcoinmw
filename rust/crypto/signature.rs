@@ -6,7 +6,7 @@ use std::misc::bytes_to_hex_64;
 pub struct Signature([u8; 64]);
 
 #[repr(C)]
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub struct Message([u8; 32]);
 
 impl PartialEq for Signature {
@@ -84,6 +84,18 @@ impl Signature {
 	}
 }
 
+#[cfg(test)]
+mod test_debug {
+	use super::*;
+	use core::fmt::Error as FormatError;
+	use core::fmt::Formatter as CoreFormatter;
+	impl Debug for Message {
+		fn fmt(&self, f: &mut CoreFormatter<'_>) -> Result<(), FormatError> {
+			write!(f, "{:?}", self.0)
+		}
+	}
+}
+
 impl AsRaw<Self> for Message {
 	fn as_ptr(&self) -> *const Self {
 		self.0.as_ptr() as *const Self
@@ -96,5 +108,9 @@ impl AsRaw<Self> for Message {
 impl Message {
 	pub fn new(v: [u8; 32]) -> Self {
 		Self(v)
+	}
+
+	pub fn zero() -> Self {
+		Self([0u8; 32])
 	}
 }
