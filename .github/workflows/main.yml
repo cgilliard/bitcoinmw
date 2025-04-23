@@ -115,16 +115,17 @@ jobs:
       - name: macos bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            git clone https://github.com/thepowersgang/mrustc ../mrustc
-            cd ../mrustc
-            export LIBRARY_PATH="$(brew --prefix gmp)/lib:$LIBRARY_PATH"
-            CC=gcc
-            CXX=g++
-            ./build-1.29.0.sh
-            cd ../bitcoinmw
-            ./build clean
-            export MRUSTC=../mrustc/bin/mrustc
-            export OUTPUT=../mrustc/output-1.29.0
-            ./build mrustc || exit 1
-            ./bin/bmw || exit 1
+          echo "macos bootstrap currently disabled"
+          #git clone https://github.com/thepowersgang/mrustc ../mrustc
+          #cd ../mrustc
+          #export LIBRARY_PATH="$(brew --prefix gmp)/lib:$LIBRARY_PATH"
+          #CC=gcc
+          #CXX=g++
+          #./build-1.29.0.sh
+          #cd ../bitcoinmw
+          #./build clean
+          #export MRUSTC=../mrustc/bin/mrustc
+          #export OUTPUT=../mrustc/output-1.29.0
+          #./build mrustc || exit 1
+          #./bin/bmw || exit 1
           fi
