@@ -63,6 +63,7 @@ jobs:
       - name: linux bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            sudo apt-get install libssl-dev
             git clone https://github.com/thepowersgang/mrustc ../mrustc
             cd ../mrustc
             export CXX=g++

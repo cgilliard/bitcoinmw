@@ -3,4 +3,5 @@ mod keychain;
 mod transaction;
 
 pub use mw::kernel::Kernel;
+pub use mw::keychain::KeyChain;
 pub use mw::transaction::Transaction;
