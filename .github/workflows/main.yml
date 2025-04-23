@@ -68,7 +68,8 @@ jobs:
             cd ../mrustc
             export CXX=g++
             export CC=gcc
-            ./build-1.29.0.sh
+            RESULT=`./build-1.29.0.sh`
+            echo "result=$RESULT"
             cd ../bitcoinmw
             ./build clean
             export MRUSTC=../mrustc/bin/mrustc
