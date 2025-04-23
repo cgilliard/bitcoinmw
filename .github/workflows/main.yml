@@ -63,15 +63,16 @@ jobs:
       - name: linux bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            git clone https://github.com/cgilliard/famc famc_build
-            cd famc_build
-            ./build.sh
-            cd ..
+            git clone https://github.com/thepowersgang/mrustc ../mrustc
+            cd ../mrustc
+            export CXX=g++
             export CC=gcc
-            export MRUSTC=./famc_build/bin/mrustc
-            export OUTPUT=./famc_build/output
+            ./build-1.29.0.sh
+            cd ../bitcoinmw
             ./build clean
-            ./build mrustc
+            export MRUSTC=../mrustc/bin/mrustc
+            export OUTPUT=../mrustc/output-1.29.0
+            ./build mrustc || exit 1;
             ./bin/bmw || exit 1;
           fi
   macos:
