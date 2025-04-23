@@ -15,7 +15,7 @@ else
 fi
 
 
-CCFLAGS=-O3
+CCFLAGS="-O3 -flto"
 
 # Detect OS and set linker flags
 if [ "$(uname)" = "Darwin" ]; then
@@ -71,6 +71,7 @@ elif [ "mrustc" = "$1" ]; then
         -o .obj/rust \
 	--extern bitcoinmw_macros=.obj/libbitcoinmw_macros.rlib \
         rust/mod.rs || exit 1
+    echo "${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1}"
     ${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1} || exit 1
 else
     echo "Building BitcoinMW with rustc"

@@ -96,6 +96,12 @@ mod test_debug {
 	}
 }
 
+impl AsRef<[u8]> for Message {
+	fn as_ref(&self) -> &[u8] {
+		&self.0
+	}
+}
+
 impl AsRaw<Self> for Message {
 	fn as_ptr(&self) -> *const Self {
 		self.0.as_ptr() as *const Self

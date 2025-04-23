@@ -1,6 +1,7 @@
 use crypto::{Commitment, Ctx, Message, RangeProof, SecretKey, Sha3_256};
 use mw::Kernel;
 use prelude::*;
+use std::misc::{slice_copy, subslice_mut};
 use util::{RbTree, RbTreeNode};
 
 pub struct Transaction {
@@ -144,7 +145,6 @@ impl Transaction {
 	}
 
 	pub fn kernel_merkle_root(&self) -> Result<Message, Error> {
-		use core::ptr::copy_nonoverlapping;
 		let kernels = self.kernels();
 		if kernels.len() == 0 {
 			return Ok(Message::zero());
@@ -174,14 +174,9 @@ impl Transaction {
 
 				// Concatenate left || right
 				let mut input = [0u8; 64];
-				unsafe {
-					copy_nonoverlapping(left.as_ptr() as *const u8, input.as_mut_ptr(), 32);
-					copy_nonoverlapping(
-						right.as_ptr() as *const u8,
-						input.as_mut_ptr().add(32),
-						32,
-					);
-				}
+				slice_copy(left.as_ref(), &mut input, 32)?;
+				let mut input_end = subslice_mut(&mut input, 32, 32)?;
+				slice_copy(right.as_ref(), &mut input_end, 32)?;
 
 				// Hash the pair
 				let sha3 = Sha3_256::new();
