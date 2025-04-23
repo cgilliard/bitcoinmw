@@ -19,6 +19,20 @@ impl Drop for Transaction {
 	}
 }
 
+impl TryClone for Transaction {
+	fn try_clone(&self) -> Result<Self, Error>
+	where
+		Self: Sized,
+	{
+		Ok(Self {
+			inputs: self.inputs.try_clone()?,
+			outputs: self.outputs.try_clone()?,
+			kernels: self.kernels.try_clone()?,
+			offset: self.offset.clone(),
+		})
+	}
+}
+
 impl Transaction {
 	pub fn new(offset: SecretKey) -> Self {
 		Self {
