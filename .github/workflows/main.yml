@@ -120,8 +120,9 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             git clone https://github.com/thepowersgang/mrustc ../mrustc
             cd ../mrustc
-            export CXX=g++
-            export CC=gcc
+            export LIBRARY_PATH="$(brew --prefix gmp)/lib:$LIBRARY_PATH"
+            export CXX=/opt/homebrew/bin/g++-13
+            export CC=/opt/homebrew/bin/gcc-13
             export RUSTC_VERSION=1.29.0 MRUSTC_TARGET_VER=1.29 OUTDIR_SUF=-1.29.0
             make
             make -f minicargo.mk RUSTCSRC
