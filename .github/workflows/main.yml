@@ -63,11 +63,14 @@ jobs:
       - name: linux bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            sudo apt-get install libssl-dev
             git clone https://github.com/thepowersgang/mrustc ../mrustc
             cd ../mrustc
             export CXX=g++
             export CC=gcc
+            export OPENSSL_DIR=/usr
+            export OPENSSL_INCLUDE_DIR=/usr/include
+            export OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu
+            export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
             RESULT=`./build-1.29.0.sh`
             echo "result=$RESULT"
             cd ../bitcoinmw
