@@ -118,10 +118,11 @@ jobs:
             git clone https://github.com/thepowersgang/mrustc ../mrustc
             cd ../mrustc
             export LIBRARY_PATH="$(brew --prefix gmp)/lib:$LIBRARY_PATH"
+            CC=gcc
+            CXX=g++
             ./build-1.29.0.sh
             cd ../bitcoinmw
             ./build clean
-            export CC=gcc
             export MRUSTC=../mrustc/bin/mrustc
             export OUTPUT=../mrustc/output-1.29.0
             ./build mrustc || exit 1
