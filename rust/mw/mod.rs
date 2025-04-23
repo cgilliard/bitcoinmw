@@ -1,4 +1,5 @@
 mod kernel;
+mod keychain;
 mod transaction;
 
 pub use mw::kernel::Kernel;

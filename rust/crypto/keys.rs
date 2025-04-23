@@ -1,3 +1,4 @@
+use core::convert::{AsMut, AsRef};
 use core::ptr::write_bytes;
 use core::sync::atomic::compiler_fence;
 use core::sync::atomic::Ordering::SeqCst;
@@ -54,6 +55,18 @@ impl AsRaw<Self> for SecretKey {
 	}
 	fn as_mut_ptr(&mut self) -> *mut Self {
 		self.0.as_mut_ptr() as *mut Self
+	}
+}
+
+impl AsMut<[u8]> for SecretKey {
+	fn as_mut(&mut self) -> &mut [u8] {
+		&mut self.0
+	}
+}
+
+impl AsRef<[u8]> for SecretKey {
+	fn as_ref(&self) -> &[u8] {
+		&self.0
 	}
 }
 
