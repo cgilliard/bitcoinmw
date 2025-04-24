@@ -49,15 +49,6 @@ impl AsRef<[u8]> for String {
 	}
 }
 
-impl AsRaw<Self> for String {
-	fn as_ptr(&self) -> *const Self {
-		self.as_str().as_ptr() as *const Self
-	}
-	fn as_mut_ptr(&mut self) -> *mut Self {
-		self.as_str().as_ptr() as *mut Self
-	}
-}
-
 impl String {
 	pub fn new(s: &str) -> Result<Self, Error> {
 		let end = s.len();
@@ -89,6 +80,10 @@ impl String {
 
 	pub fn empty() -> Self {
 		Self::sso("")
+	}
+
+	pub fn as_ptr(&self) -> *const Self {
+		self.as_str().as_ptr() as *const Self
 	}
 
 	pub fn as_str(&self) -> &str {
@@ -251,6 +246,31 @@ mod test {
 
 		assert_eq!(s2.find("012"), Some(0));
 		assert_eq!(x5.rfind("012"), Some(30));
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_string_lens() -> Result<(), Error> {
+		// create a base string and check for various lengths to ensure transaction out of sso
+		// is ok
+		let s_base = "01234567890123456789012345678901234567890123456789";
+		unsafe {
+			for i in 0..s_base.len() {
+				let s_slice = from_raw_parts(s_base.as_ptr(), i);
+				let s_x = from_utf8_unchecked(s_slice);
+				let s = String::new(s_x)?;
+				assert_eq!(s.len(), i);
+				assert!(s.find("abc").is_none());
+				if i != 0 {
+					assert_eq!(s.find("0"), Some(0));
+					if i >= 4 {
+						assert_eq!(s.find("123"), Some(1));
+					}
+				}
+				assert_eq!(s.find(s_x), Some(0));
+			}
+		}
 
 		Ok(())
 	}
