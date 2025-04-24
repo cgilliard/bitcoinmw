@@ -1,5 +1,3 @@
-#![allow(unused_variables)]
-
 use core::ptr::copy_nonoverlapping;
 use crypto::Sha3_256;
 use lmdb::{Lmdb, LmdbTxn};
@@ -261,7 +259,7 @@ impl Pmmr {
 
 	// rewind to specified position (reorgs - rewind to the position in the pmmr position in
 	// the header)
-	pub fn rewind(&mut self, last_pos: u64, txn: Option<LmdbTxn>) -> Result<(), Error> {
+	pub fn rewind(&mut self, _last_pos: u64, _txn: Option<LmdbTxn>) -> Result<(), Error> {
 		Err(Error::new(Todo))
 	}
 
@@ -319,7 +317,7 @@ impl Pmmr {
 	}
 
 	fn is_peak(pos: u64, last_pos: u64) -> bool {
-		let (parent_pos, sibling_pos) = Self::family(pos);
+		let (_parent_pos, sibling_pos) = Self::family(pos);
 		sibling_pos > last_pos
 	}
 
