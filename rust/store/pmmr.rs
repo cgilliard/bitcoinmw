@@ -236,9 +236,20 @@ impl Pmmr {
 		}
 	}
 
-	// return the root hash of the PMMR.
-	pub fn root_hash(&self, txn: Option<LmdbTxn>) -> Result<[u8; 32], Error> {
-		Err(Error::new(Todo))
+	// return the hash of the peak data
+	pub fn peak_data_hash(&self, txn: Option<LmdbTxn>) -> Result<[u8; 32], Error> {
+		let txn = self.get_read_txn(txn)?;
+		let peaks_key = format!("{}:meta:peaks", self.prefix)?;
+
+		match txn.get(&peaks_key)? {
+			Some(peaks_bytes) => {
+				let sha3 = Sha3_256::new();
+				sha3.update(peaks_bytes);
+				Ok(sha3.finalize())
+			}
+			// invalid state to have an empty output mmr.
+			None => Err(Error::new(IllegalState)),
+		}
 	}
 
 	// return the last position in the pmmr.
@@ -246,12 +257,6 @@ impl Pmmr {
 		let txn = self.get_read_txn(txn)?;
 		let size_key = format!("{}:meta:size", self.prefix)?;
 		from_le_bytes_u64(self.get_key_with_default(&txn, &size_key, &ZERO_BYTES)?)
-	}
-
-	// return the peak info for the specified position. This peak info includes the hash,
-	// height and position of the 4 highest subpeaks of each peak in the MMR. These are used distributed sync.
-	pub fn peaks(&self, position: u64, txn: Option<LmdbTxn>) -> Result<Vec<PeakInfo>, Error> {
-		Err(Error::new(Todo))
 	}
 
 	// rewind to specified position (reorgs - rewind to the position in the pmmr position in
