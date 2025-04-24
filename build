@@ -4,11 +4,14 @@ export CC="${CC:-clang}"
 export OUTPUT="${OUTPUT:-../rust-bins/macos/output}"
 export MRUSTC="${MRUSTC:-../rust-bins/macos/mrustc}"
 
+
 OS=$(uname -s)
 if [ "$OS" = "Linux" ]; then
     MACRO_EXT=.so
+    STATIC=-static
 elif [ "$OS" = "Darwin" ]; then
     MACRO_EXT=.dylib
+    STATIC=
 else
     echo "Unsupported platform: $OS"
     exit 1
@@ -33,7 +36,7 @@ if [ "$(uname)" = "Darwin" ]; then
     LINK_SECP256K1="-lsecp256k1"  # Dynamic by default; adjust if static needed
 else
     # Linux (or other UNIX-like with GNU linker)
-    LINK_GMP="-Wl,-Bstatic -lgmp -Wl,-Bdynamic"
+    LINK_GMP="-lgmp"
     LINK_SECP256K1="-lsecp256k1"
 fi
 
@@ -71,8 +74,8 @@ elif [ "mrustc" = "$1" ]; then
         -o .obj/rust \
 	--extern bitcoinmw_macros=.obj/libbitcoinmw_macros.rlib \
         rust/mod.rs || exit 1
-    echo "${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1}"
-    ${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1} || exit 1
+    echo "${CC} ${CCFLAGS} ${STATIC} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1}"
+    ${CC} ${CCFLAGS} ${STATIC} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1} || exit 1
 else
     echo "Building BitcoinMW with rustc"
     ./scripts/secp256k1zkp.sh || exit 1
@@ -80,7 +83,7 @@ else
     for file in *.c
     do
         if [ ! -e ../.obj/${file%.c}.o ] || [ ${file} -nt ../.obj/${file%.c}.o ]; then
-            echo "${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file}"
+            echo "${CC} ${CCFLAGS}  -o ../.obj/${file%.c}.o -c -Ic ${file}"
             ${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file} || exit 1
         fi
     done
@@ -102,5 +105,6 @@ else
         -o .obj/rust.o \
 	--extern bitcoinmw_macros=.obj/libbitcoinmw_macros${MACRO_EXT} \
         rust/mod.rs || exit 1
-    ${CC} ${CCFLAGS} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1} || exit 1
+    echo "${CC} ${CCFLAGS} ${STATIC} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1}"
+    ${CC} ${CCFLAGS} ${STATIC} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1} || exit 1
 fi
