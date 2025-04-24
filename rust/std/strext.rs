@@ -1,6 +1,7 @@
+use prelude::*;
+
 use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
-use prelude::*;
 
 pub trait StrExt {
 	fn findn(&self, s: &str, offset: usize) -> Option<usize>;
@@ -12,7 +13,9 @@ impl StrExt for str {
 		if offset > self.len() || self.len() < s.len() {
 			return None;
 		}
-		// Use your findn logic or a simple search
+		if s.len() == 0 {
+			return Some(offset);
+		}
 		let mut i = offset;
 		while i <= self.len() - s.len() {
 			let slice = unsafe {
@@ -28,34 +31,26 @@ impl StrExt for str {
 	}
 
 	fn rfindn(&self, s: &str, offset: usize) -> Option<usize> {
-		let self_str_len = self.len();
-		let s_len = s.len();
-		if s_len == 0 {
-			if offset < self_str_len {
-				return Some(offset);
-			} else {
-				return Some(self_str_len);
-			}
+		let self_len = self.len();
+		if offset > self_len || self_len < s.len() {
+			return None;
+		}
+		if s.len() == 0 {
+			return Some(offset);
 		}
 
-		let offset = if offset < self_str_len {
-			offset
-		} else {
-			self_str_len
-		};
-
-		let search_len = offset + 1;
-		if search_len < s_len {
+		if offset < s.len() - 1 {
 			return None;
 		}
 
-		let max_start = offset - (s_len - 1);
+		let max_start = offset - (s.len() - 1);
 		let mut current_start = max_start;
-		while current_start <= max_start {
-			let x = unsafe { self.as_ptr().add(current_start) };
-			let slice = unsafe { from_raw_parts(x, s_len) };
-			let v = unsafe { from_utf8_unchecked(slice) };
-			if v == s {
+		loop {
+			let slice = unsafe {
+				let ptr = self.as_ptr().add(current_start);
+				from_utf8_unchecked(from_raw_parts(ptr, s.len()))
+			};
+			if slice == s {
 				return Some(current_start);
 			}
 			if current_start == 0 {

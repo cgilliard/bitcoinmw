@@ -227,7 +227,7 @@ mod test {
 		assert_eq!(s.findn("{}", 12), None);
 
 		assert_eq!(s.rfindn("{}", 12).unwrap(), 11);
-		assert_eq!(s.rfindn("{}", 14).unwrap(), 11);
+		assert_eq!(s.rfindn("{}", 13).unwrap(), 11);
 		assert_eq!(s.rfindn("{}", 11).unwrap(), 8);
 		assert_eq!(s.rfindn("{}", 10).unwrap(), 8);
 		assert_eq!(s.rfindn("{}", 9).unwrap(), 8);
@@ -240,6 +240,7 @@ mod test {
 		assert_eq!(s.rfindn("{}", 2), None);
 		assert_eq!(s.rfindn("{}", 1), None);
 		assert_eq!(s.rfindn("{}", 0), None);
+		assert_eq!(s.rfindn("{}", 14), None); // out of bounds 14
 
 		let s = String::new("test {} {} {} ")?;
 		assert_eq!(s.findn("{}", 11).unwrap(), 11);
