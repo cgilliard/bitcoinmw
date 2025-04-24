@@ -4,7 +4,7 @@ use lmdb::{Lmdb, LmdbTxn};
 use prelude::*;
 use std::misc::{from_le_bytes_u64, slice_copy, subslice, to_le_bytes_u64};
 use std::strext::StrExt;
-use store::constants::{ALL_ONES, ZERO_BYTES};
+use store::constants::*;
 
 pub struct Pmmr {
 	db: Lmdb,
@@ -73,6 +73,14 @@ impl Pmmr {
 		Ok(Self { prefix, db })
 	}
 
+	pub fn get_bitmap(&self, index: u64, txn: &LmdbTxn) -> Result<[u8; BITMAP_SIZE], Error> {
+		let bitmap_key = format!("{}:bitmap:{}", self.prefix, index)?;
+		let bytes: &[u8] = txn.get(&bitmap_key)?.unwrap_or(&[0u8; BITMAP_SIZE]);
+		let mut ret = [0u8; BITMAP_SIZE];
+		slice_copy(bytes, &mut ret, BITMAP_SIZE)?;
+		Ok(ret)
+	}
+
 	/*
 	6 (height=2)
 	/ \
@@ -94,6 +102,10 @@ impl Pmmr {
 		to_le_bytes_u64(last_pos, &mut last_pos_bytes)?;
 		txn.put(&data_key, &last_pos_bytes)?;
 		txn.put(&leaf_key, &hash)?;
+
+		let bit_pos = Self::peak_map_height(last_pos).0;
+		self.update_bit(bit_pos, true, &mut txn)?;
+
 		let mut pos = last_pos;
 		let mut last_pos_update = last_pos + 1;
 		let mut height = 0;
@@ -184,6 +196,7 @@ impl Pmmr {
 		to_le_bytes_u64(last_pos_update, &mut last_pos_bytes)?;
 		let size_key = format!("{}:meta:size", self.prefix)?;
 		txn.put(&size_key, &last_pos_bytes)?;
+
 		if commit {
 			txn.commit()?;
 		}
@@ -213,6 +226,9 @@ impl Pmmr {
 				let leaf_key = format!("{}:leaf:{}", self.prefix, pos)?;
 				txn.del(&data_key)?;
 				txn.del(&leaf_key)?;
+
+				let bit_pos = Self::peak_map_height(pos).0;
+				self.update_bit(bit_pos, false, &mut txn)?;
 			}
 			None => return Err(Error::new(NotFound)),
 		}
@@ -401,6 +417,50 @@ impl Pmmr {
 		}
 		self.hash_data(&dual_hash)
 	}
+
+	fn set_bitmap(
+		&mut self,
+		index: u64,
+		bytes: [u8; BITMAP_SIZE],
+		txn: &mut LmdbTxn,
+	) -> Result<(), Error> {
+		let bitmap_key = format!("{}:bitmap:{}", self.prefix, index)?;
+		txn.put(&bitmap_key, bytes.as_ref())?;
+		Ok(())
+	}
+
+	#[cfg(test)]
+	fn bit_is_set(&self, bit: u64, txn: &LmdbTxn) -> Result<bool, Error> {
+		let index = bit / (BITMAP_SIZE as u64 * 8);
+		let bmp = self.get_bitmap(index, txn)?;
+
+		let byte = (bit / 8) % BITMAP_SIZE as u64;
+		let offset = bit % 8;
+		if byte >= BITMAP_SIZE as u64 {
+			return Err(Error::new(IllegalState));
+		} else {
+			Ok(bmp[byte as usize] & (0x1 << offset) != 0)
+		}
+	}
+
+	fn update_bit(&mut self, bit: u64, value: bool, txn: &mut LmdbTxn) -> Result<(), Error> {
+		let index = bit / (BITMAP_SIZE as u64 * 8);
+		let mut cur = self.get_bitmap(index, txn)?;
+
+		let byte = (bit / 8) % BITMAP_SIZE as u64;
+		let offset = bit % 8;
+
+		if byte >= BITMAP_SIZE as u64 {
+			return Err(Error::new(IllegalState));
+		} else if value {
+			cur[byte as usize] |= 0x1 << offset;
+		} else {
+			cur[byte as usize] &= !(0x1 << offset);
+		}
+		self.set_bitmap(index, cur, txn)?;
+
+		Ok(())
+	}
 }
 
 #[cfg(test)]
@@ -532,7 +592,49 @@ mod test {
 		assert_eq!(pmmr.bit_pos(&[5u8; 32], None)?, Some(5));
 		assert_eq!(pmmr.bit_pos(&[6u8; 32], None)?, None);
 
+		{
+			let txn = pmmr.get_read_txn(None)?;
+			for i in 0..6 {
+				assert!(pmmr.bit_is_set(i, &txn)?);
+			}
+			assert!(!pmmr.bit_is_set(6, &txn)?);
+		}
+
 		remove_lmdb_test_dir(db_dir)?;
+		Ok(())
+	}
+
+	#[test]
+	fn test_pmmr_bitmap() -> Result<(), Error> {
+		let db_dir = "bin/.pmmr_bitmap";
+		let db_size = 100 * 1024 * 1024;
+		let db_name = "mydb";
+		make_lmdb_test_dir(db_dir)?;
+
+		let db = Lmdb::new(db_dir, db_name, db_size)?;
+
+		// create pmmr
+		let mut pmmr = Pmmr::new(db, "pmmr1")?;
+		let (mut txn, _commit) = pmmr.get_write_txn(None)?;
+		pmmr.update_bit(1, true, &mut txn)?;
+		assert!(pmmr.bit_is_set(1, &txn)?);
+		assert!(!pmmr.bit_is_set(0, &txn)?);
+		for i in 2..(4096 * 8 * 2) {
+			assert!(!pmmr.bit_is_set(i, &txn)?);
+		}
+		pmmr.update_bit(4, true, &mut txn)?;
+		pmmr.update_bit(1, false, &mut txn)?;
+		assert!(!pmmr.bit_is_set(0, &txn)?);
+		assert!(!pmmr.bit_is_set(1, &txn)?);
+		assert!(!pmmr.bit_is_set(2, &txn)?);
+		assert!(!pmmr.bit_is_set(3, &txn)?);
+		assert!(pmmr.bit_is_set(4, &txn)?);
+		for i in 5..(4096 * 8 * 2) {
+			assert!(!pmmr.bit_is_set(i, &txn)?);
+		}
+
+		remove_lmdb_test_dir(db_dir)?;
+
 		Ok(())
 	}
 }
