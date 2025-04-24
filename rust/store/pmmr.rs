@@ -223,13 +223,27 @@ impl Pmmr {
 		Ok(())
 	}
 
-	// determine whether the PMMR contains a particular piece of data.
-	pub fn contains(&self, data: &[u8], txn: Option<LmdbTxn>) -> Result<Option<u64>, Error> {
+	// Return the pos of a particular entry or None if it is not in the PMMR.
+	pub fn pos(&self, data: &[u8], txn: Option<LmdbTxn>) -> Result<Option<u64>, Error> {
 		let txn = self.get_read_txn(txn)?;
 		let hash = self.hash_data(data);
 		let data_key = format!("{}:data:{}", self.prefix, hash)?;
 		match txn.get(&data_key)? {
 			Some(key) => Ok(Some(from_le_bytes_u64(key)?)),
+			None => Ok(None),
+		}
+	}
+
+	// the bit position of a particular entry
+	pub fn bit_pos(&self, data: &[u8], txn: Option<LmdbTxn>) -> Result<Option<u64>, Error> {
+		let txn = self.get_read_txn(txn)?;
+		let hash = self.hash_data(data);
+		let data_key = format!("{}:data:{}", self.prefix, hash)?;
+		match txn.get(&data_key)? {
+			Some(key) => {
+				let leaf_pos = from_le_bytes_u64(key)?;
+				Ok(Some(Self::peak_map_height(leaf_pos).0))
+			}
 			None => Ok(None),
 		}
 	}
@@ -304,6 +318,11 @@ impl Pmmr {
 		Ok(ret)
 	}
 
+	fn is_peak(pos: u64, last_pos: u64) -> bool {
+		let (_parent_pos, sibling_pos) = Self::family(pos);
+		sibling_pos > last_pos
+	}
+
 	// Calculates the positions of the parent and sibling of the node at the
 	// provided position.
 	fn family(pos0: u64) -> (u64, u64) {
@@ -314,11 +333,6 @@ impl Pmmr {
 		} else {
 			(pos0 + 2 * peak, pos0 + 2 * peak - 1)
 		}
-	}
-
-	fn is_peak(pos: u64, last_pos: u64) -> bool {
-		let (_parent_pos, sibling_pos) = Self::family(pos);
-		sibling_pos > last_pos
 	}
 
 	// peak bitmap and height of next node in mmr of given size
@@ -501,6 +515,22 @@ mod test {
 			peaks[1].hash,
 			pmmr.hash_children(&pmmr.hash_data(&[4u8; 32]), &pmmr.hash_data(&[5u8; 32]))
 		);
+
+		assert_eq!(pmmr.pos(&[0u8; 32], None)?, Some(0));
+		assert_eq!(pmmr.pos(&[1u8; 32], None)?, Some(1));
+		assert_eq!(pmmr.pos(&[2u8; 32], None)?, Some(3));
+		assert_eq!(pmmr.pos(&[3u8; 32], None)?, Some(4));
+		assert_eq!(pmmr.pos(&[4u8; 32], None)?, Some(7));
+		assert_eq!(pmmr.pos(&[5u8; 32], None)?, Some(8));
+		assert_eq!(pmmr.pos(&[6u8; 32], None)?, None);
+
+		assert_eq!(pmmr.bit_pos(&[0u8; 32], None)?, Some(0));
+		assert_eq!(pmmr.bit_pos(&[1u8; 32], None)?, Some(1));
+		assert_eq!(pmmr.bit_pos(&[2u8; 32], None)?, Some(2));
+		assert_eq!(pmmr.bit_pos(&[3u8; 32], None)?, Some(3));
+		assert_eq!(pmmr.bit_pos(&[4u8; 32], None)?, Some(4));
+		assert_eq!(pmmr.bit_pos(&[5u8; 32], None)?, Some(5));
+		assert_eq!(pmmr.bit_pos(&[6u8; 32], None)?, None);
 
 		remove_lmdb_test_dir(db_dir)?;
 		Ok(())
