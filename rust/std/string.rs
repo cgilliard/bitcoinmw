@@ -53,7 +53,7 @@ impl String {
 	pub fn new(s: &str) -> Result<Self, Error> {
 		let end = s.len();
 		let start = 0;
-		if end < 23 {
+		if end <= 23 {
 			Ok(Self::sso(s))
 		} else {
 			match try_box_slice!(0u8, end) {
@@ -104,14 +104,16 @@ impl String {
 
 	pub fn substring(&self, start: usize, end: usize) -> Result<Self, Error> {
 		if start > end || end - start > self.len() {
-			Err(Error::new(OutOfBounds))
-		} else {
-			unsafe {
-				let s = self.as_str();
-				let s = from_raw_parts(s.as_ptr().offset(start as isize), end - start);
-				let s = from_utf8_unchecked(s);
-				Self::new(s)
-			}
+			return Err(Error::new(OutOfBounds));
+		}
+		let s = self.as_str();
+		if !s.is_char_boundary(start) || !s.is_char_boundary(end) {
+			return Err(Error::new(Utf8Error));
+		}
+		unsafe {
+			let s = from_raw_parts(s.as_ptr().offset(start as isize), end - start);
+			let s = from_utf8_unchecked(s);
+			Self::new(s)
 		}
 	}
 
