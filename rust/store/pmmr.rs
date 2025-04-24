@@ -193,8 +193,36 @@ impl Pmmr {
 	}
 
 	// prune data in the PMMR.
+	// note: pruning must not happen to the most recently inserted leaf node.
+	// This can be prevented by appending new outputs from a block before pruning the inputs.
+	// This ensures it's valid.
 	pub fn prune(&mut self, data: &[u8], txn: Option<LmdbTxn>) -> Result<(), Error> {
-		Err(Error::new(Todo))
+		let last_pos = self.last_pos(txn.clone())?;
+		let (mut txn, commit) = self.get_write_txn(txn)?;
+
+		let hash = self.hash_data(data);
+		let data_key = format!("{}:data:{}", self.prefix, hash)?;
+		match txn.get(&data_key)? {
+			Some(data_bytes) => {
+				let pos = from_le_bytes_u64(&data_bytes)?;
+				if pos + 1 == last_pos {
+					// prevent deleting most recent addition to PMMR.
+					// this would cause an invalid state.
+					// to ensure this is never needed,
+					// append all outputs from a block before pruning inputs.
+					return Err(Error::new(IllegalState));
+				}
+				let leaf_key = format!("{}:leaf:{}", self.prefix, pos)?;
+				txn.del(&data_key)?;
+				txn.del(&leaf_key)?;
+			}
+			None => return Err(Error::new(NotFound)),
+		}
+
+		if commit {
+			txn.commit()?;
+		}
+		Ok(())
 	}
 
 	// determine whether the PMMR contains a particular piece of data.
@@ -458,6 +486,18 @@ mod test {
 		assert_eq!(pmmr.last_pos(None)?, 8);
 		assert_eq!(peaks[0].hash, hash_pos_6);
 		assert_eq!(peaks[1].hash, pmmr.hash_data(&[4u8; 32]));
+
+		pmmr.append(&[5u8; 32], None)?;
+		let peaks = pmmr.get_peaks(None)?;
+		assert_eq!(peaks.len(), 2); // Peaks [6, 9]
+		assert_eq!(pmmr.last_pos(None)?, 10);
+		assert_eq!(peaks[0].hash, hash_pos_6);
+		assert_eq!(peaks[1].pos, 9);
+		assert_eq!(peaks[1].height, 1);
+		assert_eq!(
+			peaks[1].hash,
+			pmmr.hash_children(&pmmr.hash_data(&[4u8; 32]), &pmmr.hash_data(&[5u8; 32]))
+		);
 
 		remove_lmdb_test_dir(db_dir)?;
 		Ok(())
