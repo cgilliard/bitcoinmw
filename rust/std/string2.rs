@@ -1,0 +1,256 @@
+use core::fmt::Debug;
+use core::fmt::Formatter as CoreFormatter;
+use core::slice::from_raw_parts;
+use core::str::from_utf8_unchecked;
+use prelude::*;
+use std::misc::{is_utf8_valid, slice_copy, strcmp, subslice};
+use std::strext::StrExt;
+
+#[derive(Clone)]
+pub struct StringDataStruct {
+	value: Rc<Box<[u8]>>,
+	end: usize,
+	start: usize,
+}
+
+#[derive(Clone)]
+pub struct SSODataStruct([u8; 24]);
+
+#[derive(Clone)]
+pub enum String2 {
+	StringData(StringDataStruct),
+	SSOData(SSODataStruct),
+}
+
+impl Display for String2 {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
+		f.write_str(self.as_str(), self.len())
+	}
+}
+
+impl Debug for String2 {
+	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
+		// no_std compatiibility (cannot write but works for tests)
+		#[cfg(test)]
+		write!(_f, "{}", self.as_str())?;
+		Ok(())
+	}
+}
+
+impl PartialEq for String2 {
+	fn eq(&self, other: &String2) -> bool {
+		strcmp(self.as_str(), other.as_str()) == 0
+	}
+}
+
+impl AsRef<[u8]> for String2 {
+	fn as_ref(&self) -> &[u8] {
+		self.as_str().as_ref()
+	}
+}
+
+impl AsRaw<Self> for String2 {
+	fn as_ptr(&self) -> *const Self {
+		self.as_str().as_ptr() as *const Self
+	}
+	fn as_mut_ptr(&mut self) -> *mut Self {
+		self.as_str().as_ptr() as *mut Self
+	}
+}
+
+impl String2 {
+	pub fn new(s: &str) -> Result<Self, Error> {
+		let end = s.len();
+		let start = 0;
+		if end < 23 {
+			Ok(Self::sso(s))
+		} else {
+			match try_box_slice!(0u8, end) {
+				Ok(mut value) => {
+					slice_copy(s.as_bytes(), &mut value, end)?;
+					match Rc::new(value) {
+						Ok(rc) => Ok(Self::StringData(StringDataStruct {
+							value: rc,
+							start,
+							end,
+						})),
+						Err(e) => Err(e),
+					}
+				}
+				Err(e) => Err(e),
+			}
+		}
+	}
+
+	pub fn newb(b: &[u8]) -> Result<Self, Error> {
+		is_utf8_valid(b)?;
+		unsafe { Self::new(from_utf8_unchecked(b)) }
+	}
+
+	pub fn empty() -> Self {
+		Self::sso("")
+	}
+
+	pub fn as_str(&self) -> &str {
+		match self {
+			String2::StringData(StringDataStruct { value, start, end }) => {
+				let b = value.get().as_ref();
+				match subslice(b, *start, end - *start) {
+					Ok(b) => unsafe { from_utf8_unchecked(b) },
+					Err(_) => "", // not possible
+				}
+			}
+			String2::SSOData(SSODataStruct(b)) => unsafe {
+				let c = from_raw_parts(b.as_ptr().add(1), b[0] as usize);
+				from_utf8_unchecked(c)
+			},
+		}
+	}
+
+	pub fn substring(&self, start: usize, end: usize) -> Result<Self, Error> {
+		if start > end || end - start > self.len() {
+			Err(Error::new(OutOfBounds))
+		} else {
+			unsafe {
+				let s = self.as_str();
+				let s = from_raw_parts(s.as_ptr().offset(start as isize), end - start);
+				let s = from_utf8_unchecked(s);
+				Self::new(s)
+			}
+		}
+	}
+
+	pub fn findn(&self, s: &str, offset: usize) -> Option<usize> {
+		let str1 = self.as_str();
+		str1.findn(s, offset)
+	}
+
+	pub fn find(&self, s: &str) -> Option<usize> {
+		self.findn(s, 0)
+	}
+
+	pub fn rfindn(&self, s: &str, offset: usize) -> Option<usize> {
+		let str1 = self.as_str();
+		str1.rfindn(s, offset)
+	}
+
+	pub fn rfind(&self, s: &str) -> Option<usize> {
+		self.rfindn(s, self.len())
+	}
+
+	pub fn len(&self) -> usize {
+		match self {
+			String2::StringData(StringDataStruct {
+				value: _,
+				start,
+				end,
+			}) => end - start,
+			String2::SSOData(b) => b.0[0] as usize,
+		}
+	}
+
+	fn sso(s: &str) -> Self {
+		let len = s.len();
+		let mut v = [0u8; 24];
+		v[0] = len as u8;
+		let _ = slice_copy(&s.as_bytes(), &mut v[1..], len);
+		Self::SSOData(SSODataStruct(v))
+	}
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use std::ffi::getalloccount;
+
+	#[test]
+	fn test_strings2() {
+		let initial = unsafe { getalloccount() };
+		{
+			let x1 = String2::new("abcdefghijkl").unwrap();
+			assert_eq!(x1.len(), 12);
+			assert_eq!(x1.as_str(), "abcdefghijkl");
+			assert_eq!(x1.substring(3, 6).unwrap().as_str(), "def");
+			let x2 = x1.substring(3, 9).unwrap();
+			assert_eq!(x2.as_str(), "defghi");
+			assert_eq!(x2, String2::new("defghi").unwrap());
+			assert_eq!(x1, String2::new("abcdefghijkl").unwrap());
+			assert_eq!(x1.find("bc"), Some(1));
+			assert_eq!(x1.find("aa"), None);
+			assert_eq!(x1.find(""), Some(0));
+			let x2 = String2::new("").unwrap();
+			assert_eq!(x2.len(), 0);
+			let x3 = String2::new("aaabbbcccaaa").unwrap();
+			assert_eq!(x3.rfind("aaa"), Some(9));
+			assert_eq!(x3.rfind("ajlsfdjklasdjlfalsjkdfjklasdf"), None);
+			assert_eq!(x3.rfind("aaaa"), None);
+			assert_eq!(x3.find("ajlsfdjklasdjlfalsjkdfjklasdf"), None);
+			let x4 = String2::new("0123456789012345678901234567890123456789").unwrap();
+			assert_eq!(x4.find("012"), Some(0));
+
+			let x5 = x4.clone();
+			assert_eq!(x5.find("012"), Some(0));
+			assert_eq!(x5.rfind("012"), Some(30));
+
+			let x6 = x5.substring(5, 15).unwrap();
+			let x7 = x6.as_str().as_bytes();
+			assert_eq!(x7.len(), 10);
+			assert_eq!(x7[0], b'5');
+			let x8 = x5.substring(6, 6).unwrap();
+			assert_eq!(x8.len(), 0);
+
+			let x9 = match String2::new("test") {
+				Ok(s) => s,
+				Err(_e) => String2::new("").unwrap(),
+			};
+			assert_eq!(x9.len(), 4);
+		}
+
+		unsafe {
+			assert_eq!(initial, getalloccount());
+		}
+	}
+
+	#[test]
+	fn test_other_strings() -> Result<(), Error> {
+		let s = String2::new("")?;
+		assert_eq!(s, String2::empty());
+
+		let s = String2::new("test {} {} {}")?;
+		assert_eq!(s.findn("{}", 0).unwrap(), 5);
+		assert_eq!(s.findn("{}", 5).unwrap(), 5);
+		assert_eq!(s.findn("{}", 6).unwrap(), 8);
+		assert_eq!(s.findn("{}", 7).unwrap(), 8);
+		assert_eq!(s.findn("{}", 8).unwrap(), 8);
+		assert_eq!(s.findn("{}", 9).unwrap(), 11);
+		assert_eq!(s.findn("{}", 11).unwrap(), 11);
+		assert_eq!(s.findn("{}", 12), None);
+
+		assert_eq!(s.rfindn("{}", 12).unwrap(), 11);
+		assert_eq!(s.rfindn("{}", 14).unwrap(), 11);
+		assert_eq!(s.rfindn("{}", 11).unwrap(), 8);
+		assert_eq!(s.rfindn("{}", 10).unwrap(), 8);
+		assert_eq!(s.rfindn("{}", 9).unwrap(), 8);
+		assert_eq!(s.rfindn("{}", 8).unwrap(), 5);
+		assert_eq!(s.rfindn("{}", 7).unwrap(), 5);
+		assert_eq!(s.rfindn("{}", 6).unwrap(), 5);
+		assert_eq!(s.rfindn("{}", 5), None);
+		assert_eq!(s.rfindn("{}", 4), None);
+		assert_eq!(s.rfindn("{}", 3), None);
+		assert_eq!(s.rfindn("{}", 2), None);
+		assert_eq!(s.rfindn("{}", 1), None);
+		assert_eq!(s.rfindn("{}", 0), None);
+
+		let s = String2::new("test {} {} {} ")?;
+		assert_eq!(s.findn("{}", 11).unwrap(), 11);
+		assert_eq!(s.findn("{}", 12), None);
+
+		let s2 = String2::new("0123456789012345678901234567890123456789").unwrap();
+		let x5 = s2.clone();
+
+		assert_eq!(s2.find("012"), Some(0));
+		assert_eq!(x5.rfind("012"), Some(30));
+
+		Ok(())
+	}
+}

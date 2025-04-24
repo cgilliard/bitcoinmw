@@ -14,6 +14,7 @@ mod lock;
 mod ptr;
 mod rc;
 mod string;
+mod string2;
 mod thread;
 mod vec;
 
@@ -33,6 +34,7 @@ pub use std::lock::{Lock, LockBox};
 pub use std::ptr::Ptr;
 pub use std::rc::Rc;
 pub use std::string::String;
+pub use std::string2::String2;
 pub use std::thread::{spawn, spawnj};
 pub use std::vec::Vec;
 
