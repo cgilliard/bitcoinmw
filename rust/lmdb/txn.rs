@@ -381,8 +381,8 @@ pub mod test {
 		let data_file = format!("{}/data.mdb", s)?;
 		let lock_file = format!("{}/lock.mdb", s)?;
 		let dir = CString::new(s)?;
-		let data = CString::new(data_file.to_str())?;
-		let lock = CString::new(lock_file.to_str())?;
+		let data = CString::new(data_file.as_str())?;
+		let lock = CString::new(lock_file.as_str())?;
 
 		unsafe {
 			unlink(data.as_ptr());

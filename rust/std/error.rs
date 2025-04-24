@@ -83,7 +83,7 @@ impl Debug for Error {
 				write(2, value.as_ptr(), value.len());
 				write(2, "\n".as_ptr(), 1);
 				#[cfg(test)]
-				write!(_f, "{}", value.as_str().unwrap().to_str())?;
+				write!(_f, "{}", value.as_str().unwrap().as_str())?;
 			},
 			Err(_) => {}
 		}

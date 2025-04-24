@@ -265,7 +265,7 @@ macro_rules! println {
                 use std::ffi::write;
                 #[allow(unused_unsafe)]
                 unsafe {
-                        write(2, line.to_str().as_ptr(), line.len());
+                        write(2, line.as_str().as_ptr(), line.len());
                         write(2, "\n".as_ptr(), 1);
                 }
             },
@@ -284,7 +284,7 @@ macro_rules! print {
         match format!($fmt, $($t),*) {
             Ok(line) => {
                 #[allow(unused_unsafe)]
-                unsafe { crate::std::ffi::write(2, line.to_str().as_ptr(), line.len()); }
+                unsafe { crate::std::ffi::write(2, line.as_str().as_ptr(), line.len()); }
             },
             Err(_e) => {},
         }

@@ -60,7 +60,7 @@ pub fn strcmp(a: &str, b: &str) -> i32 {
 	}
 }
 
-pub fn u128_to_str(mut n: u128, offset: usize, buf: &mut [u8], base: u8) -> usize {
+pub fn u128_as_str(mut n: u128, offset: usize, buf: &mut [u8], base: u8) -> usize {
 	let buf_len = buf.len();
 	let mut i = buf_len - 1;
 
@@ -100,17 +100,17 @@ pub fn u128_to_str(mut n: u128, offset: usize, buf: &mut [u8], base: u8) -> usiz
 	len
 }
 
-pub fn i128_to_str(mut n: i128, buf: &mut [u8], base: u8) -> usize {
+pub fn i128_as_str(mut n: i128, buf: &mut [u8], base: u8) -> usize {
 	if n < 0 {
 		n *= -1;
 		if buf.len() < 2 {
 			0
 		} else {
 			buf[0] = b'-';
-			u128_to_str(n as u128, 1, buf, base) + 1
+			u128_as_str(n as u128, 1, buf, base) + 1
 		}
 	} else {
-		u128_to_str(n as u128, 0, buf, base)
+		u128_as_str(n as u128, 0, buf, base)
 	}
 }
 

@@ -27,8 +27,8 @@ impl TryClone for Lmdb {
 		Self: Sized,
 	{
 		let env = self.env.clone();
-		let c_path = CString::new(self.c_path.as_str()?.to_str())?;
-		let c_name = CString::new(self.c_name.as_str()?.to_str())?;
+		let c_path = CString::new(self.c_path.as_str()?.as_str())?;
+		let c_name = CString::new(self.c_name.as_str()?.as_str())?;
 		Ok(Self {
 			env,
 			dbi: self.dbi,

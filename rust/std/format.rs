@@ -1,7 +1,7 @@
 use core::str::from_utf8_unchecked;
 use prelude::*;
 use std::ffi::f64_to_str;
-use std::misc::{slice_copy, i128_to_str, subslice, subslice_mut, u128_to_str};
+use std::misc::{i128_as_str, slice_copy, subslice, subslice_mut, u128_as_str};
 
 pub struct Formatter {
 	buffer: Vec<u8>,
@@ -49,7 +49,7 @@ macro_rules! impl_display_unsigned {
 			impl Display for $t {
 				fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 					let mut buf = [0u8; 64];
-					let len = u128_to_str((*self) as u128, 0, &mut buf, 10);
+					let len = u128_as_str((*self) as u128, 0, &mut buf, 10);
 					unsafe { f.write_str(from_utf8_unchecked(&buf), len) }
 				}
 			}
@@ -62,7 +62,7 @@ impl_display_unsigned!(u8, u16, u32, u64, u128);
 impl Display for usize {
 	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 		let mut buf = [0u8; 64];
-		let len = u128_to_str(*self as u128, 0, &mut buf, 10);
+		let len = u128_as_str(*self as u128, 0, &mut buf, 10);
 		unsafe { f.write_str(from_utf8_unchecked(&buf), len) }
 	}
 }
@@ -87,7 +87,7 @@ macro_rules! impl_display_signed {
 			impl Display for $t {
 				fn format(&self, f: &mut Formatter) -> Result<(), Error> {
 					let mut buf = [0u8; 64];
-					let len = i128_to_str((*self) as i128, &mut buf, 10);
+					let len = i128_as_str((*self) as i128, &mut buf, 10);
 					unsafe { f.write_str(from_utf8_unchecked(&buf), len) }
 				}
 			}
@@ -276,7 +276,7 @@ mod test {
 			assert_eq!(f.as_str(), "test 1 -2 3 4.50000 true ok xyz end");
 
 			let x = format!("this is a test {} {}", 7, 8).unwrap();
-			assert_eq!(x.to_str(), "this is a test 7 8");
+			assert_eq!(x.as_str(), "this is a test 7 8");
 		}
 		assert_eq!(init, unsafe { getalloccount() });
 	}
