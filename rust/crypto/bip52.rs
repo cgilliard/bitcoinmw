@@ -46,17 +46,17 @@ mod test {
 	#[test]
 	fn test_bip52_struct() -> Result<(), Error> {
 		let bip52_key = [9u8; 32];
-		println!("");
+		//println!("");
 		let mut bip52 = Bip52::new(bip52_key, [0u8; 32])?; // generate matrix with previous block hash
 		let result1 = bip52.hash("hello".as_bytes());
-		println!("heavyhash(hello, 0u8)={}", result1);
+		//println!("heavyhash(hello, 0u8)={}", result1);
 		let result1a = bip52.hash("hello".as_bytes());
-		println!("heavyhash(hello, 0u8)={}", result1a);
+		//println!("heavyhash(hello, 0u8)={}", result1a);
 		assert_eq!(result1, result1a);
 		bip52.reset([1u8; 32])?; // generate new matrix based on previous block hash (new
 						   // block arrived)
 		let result2 = bip52.hash("hello".as_bytes());
-		println!("heavyhash(hello, 1u8)={}", result2);
+		//println!("heavyhash(hello, 1u8)={}", result2);
 		assert_ne!(result1, result2);
 
 		Ok(())
@@ -78,7 +78,7 @@ mod test {
 				generate_matrix(matrix.as_mut_ptr(), aes.as_ptr());
 				heavyhash(matrix.as_ptr(), pdata.as_ptr(), 32, hash_out.as_mut_ptr());
 			}
-			println!("hash_out={}", hash_out);
+			//println!("hash_out={}", hash_out);
 		}
 
 		Ok(())

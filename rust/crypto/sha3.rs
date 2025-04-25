@@ -1,12 +1,11 @@
 use core::ptr::null;
 use core::slice::from_raw_parts;
+use crypto::constants::*;
 use crypto::ffi::{sha3_context_size, sha3_finalize, sha3_init256, sha3_init384, sha3_update};
 use crypto::types::Sha3Context;
 use prelude::*;
 use std::ffi::{alloc, release};
 use std::misc::slice_copy;
-
-const SHA3_256_CONTEXT_SIZE: usize = 224;
 
 pub struct Sha3_256 {
 	data: [u8; SHA3_256_CONTEXT_SIZE],

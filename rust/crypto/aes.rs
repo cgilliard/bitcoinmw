@@ -1,56 +1,55 @@
-use core::ptr::null;
+use crypto::constants::*;
 use crypto::ffi::{aes_context_size, aes_ctr_xcrypt_buffer, aes_init, aes_set_iv};
 use crypto::types::AesContext;
 use prelude::*;
-use std::ffi::{alloc, release};
 
 pub struct Aes256 {
-	ctx: *const AesContext,
-}
-
-impl Drop for Aes256 {
-	fn drop(&mut self) {
-		if !self.ctx.is_null() {
-			unsafe {
-				release(self.ctx as *const u8);
-			}
-			self.ctx = null();
-		}
-	}
+	data: [u8; AES_256_CONTEXT_SIZE],
 }
 
 impl AsRaw<AesContext> for Aes256 {
 	fn as_ptr(&self) -> *const AesContext {
-		self.ctx
+		&self.data as *const u8 as *const AesContext
 	}
 	fn as_mut_ptr(&mut self) -> *mut AesContext {
-		self.ctx as *mut AesContext
+		&mut self.data as *const u8 as *mut AesContext
 	}
 }
 
 impl Aes256 {
 	pub fn new(key: [u8; 32], iv: [u8; 16]) -> Result<Self, Error> {
+		let data = [0u8; AES_256_CONTEXT_SIZE];
 		let size = unsafe { aes_context_size() };
-		let ctx = unsafe { alloc(size) } as *const AesContext;
-		if ctx.is_null() {
-			return Err(Error::new(Alloc));
-		} else {
-			unsafe {
-				aes_init(ctx, key.as_ptr(), iv.as_ptr());
-			}
-			Ok(Self { ctx })
+		if size != AES_256_CONTEXT_SIZE {
+			exit!(
+				"aes_context_size() ({}) != AES_256_CONTEXT_SIZE ({})! Halting!",
+				size,
+				AES_256_CONTEXT_SIZE
+			);
 		}
+		unsafe {
+			aes_init(
+				&data as *const u8 as *const AesContext,
+				key.as_ptr(),
+				iv.as_ptr(),
+			);
+		}
+		Ok(Self { data })
 	}
 
 	pub fn set_iv(&self, iv: [u8; 16]) {
 		unsafe {
-			aes_set_iv(self.ctx, iv.as_ptr());
+			aes_set_iv(&self.data as *const u8 as *const AesContext, iv.as_ptr());
 		}
 	}
 
 	pub fn crypt(&self, buf: &mut [u8]) {
 		unsafe {
-			aes_ctr_xcrypt_buffer(self.ctx, buf.as_mut_ptr(), buf.len());
+			aes_ctr_xcrypt_buffer(
+				&self.data as *const u8 as *const AesContext,
+				buf.as_mut_ptr(),
+				buf.len(),
+			);
 		}
 	}
 }
