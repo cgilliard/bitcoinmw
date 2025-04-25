@@ -1,5 +1,13 @@
+use bible::Bible;
+use prelude::*;
+
 #[no_mangle]
-pub extern "C" fn real_main(_argc: i32, _argv: *const *const u8) -> i32 {
+pub extern "C" fn real_main(argc: i32, _argv: *const *const u8) -> i32 {
+	let bible = Bible::new();
+	let verse = bible.find_mod(0);
+	if argc > 0 {
+		println!("{}", verse);
+	}
 	0
 }
 
