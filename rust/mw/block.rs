@@ -256,8 +256,6 @@ impl Block {
 mod test {
 	use super::*;
 	use core::mem::size_of;
-	use core::ptr::copy_nonoverlapping;
-	use crypto::Sha3_256;
 	use mw::{KeyChain, Slate};
 
 	#[test]
@@ -364,42 +362,6 @@ mod test {
 		assert_eq!(complete.tx.outputs().len(), 5);
 		assert_eq!(complete.tx.inputs().len(), 2);
 		assert_eq!(complete.tx.kernels().len(), 3);
-
-		let kernels = complete.tx.kernels();
-
-		let mut leaves: Vec<[u8; 32]> = Vec::with_capacity(kernels.len())?;
-
-		let sha3 = Sha3_256::new();
-
-		// Copy kernel hashes from red-black tree to Vec
-		for k in complete.tx.kernels().iter() {
-			sha3.reset();
-			k.sha3(&sha3);
-			let hash = sha3.finalize();
-			leaves.push(hash)?;
-		}
-		let mut input1 = [0u8; 64];
-		let mut input2 = [0u8; 64];
-		let mut input_mid = [0u8; 64];
-		unsafe {
-			copy_nonoverlapping(leaves[0].as_ptr(), input1.as_mut_ptr(), 32);
-			copy_nonoverlapping(leaves[1].as_ptr(), input1.as_mut_ptr().add(32), 32);
-			copy_nonoverlapping(leaves[2].as_ptr(), input2.as_mut_ptr(), 32);
-			copy_nonoverlapping(leaves[2].as_ptr(), input2.as_mut_ptr().add(32), 32);
-			sha3.reset();
-			sha3.update(&input1);
-
-			input_mid[0..32].slice_copy(&sha3.finalize())?;
-			sha3.reset();
-			sha3.update(&input2);
-			input_mid[32..].slice_copy(&sha3.finalize())?;
-		}
-
-		sha3.reset();
-		sha3.update(&input_mid);
-		let _hash = sha3.finalize();
-		// TODO: why hash doesn't match
-		//assert_eq!(complete.tx.kernel_merkle_root()?, Message::new(hash));
 
 		Ok(())
 	}

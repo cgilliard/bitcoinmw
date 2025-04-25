@@ -311,7 +311,7 @@ impl Transaction {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use crypto::PublicKey;
+	use crypto::{PublicKey, Signature};
 
 	#[test]
 	fn test_transaction1() -> Result<(), Error> {
@@ -474,6 +474,29 @@ mod test {
 
 		let hash = kernel.message();
 		assert_eq!(hash, tx.kernel_merkle_root()?);
+
+		let sig_zero = Signature::new();
+		let mut tx = Transaction::empty();
+		let blind1 = SecretKey::gen(&ctx);
+		let commit1 = ctx.commit(0, &blind1)?;
+		let kernel1 = Kernel::new(commit1, sig_zero.clone(), 0, 0);
+		tx.add_kernel(kernel1.clone())?;
+		let blind2 = SecretKey::gen(&ctx);
+		let commit2 = ctx.commit(0, &blind2)?;
+		let kernel2 = Kernel::new(commit2, sig_zero.clone(), 0, 0);
+		tx.add_kernel(kernel2.clone())?;
+
+		let sha3 = Sha3_256::new();
+		// order matters
+		if kernel1 < kernel2 {
+			sha3.update(kernel1.message().as_ref());
+			sha3.update(kernel2.message().as_ref());
+		} else {
+			sha3.update(kernel2.message().as_ref());
+			sha3.update(kernel1.message().as_ref());
+		}
+
+		assert_eq!(sha3.finalize(), tx.kernel_merkle_root()?.as_ref());
 
 		Ok(())
 	}
