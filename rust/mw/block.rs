@@ -227,6 +227,7 @@ mod test {
 	use super::*;
 	use core::mem::size_of;
 	use core::ptr::copy_nonoverlapping;
+	use crypto::Sha3_256;
 	use mw::{KeyChain, Slate};
 
 	#[test]

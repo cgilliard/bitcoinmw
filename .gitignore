@@ -1,5 +1,6 @@
 .obj/*
 bin/*
+c/bin.h
 secp256k1-zkp/.libs/
 secp256k1-zkp/Makefile
 secp256k1-zkp/Makefile.in

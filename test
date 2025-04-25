@@ -16,8 +16,13 @@ CCFLAGS=-DTEST
 RUSTFLAGS=
 FILTER=$1
 
+# build xxdir and create header
+${CC} -o bin/xxdir build_utils/xxdir.c
+./bin/xxdir ./resources c/bin.h
+
 echo "Running tests..."
 ./scripts/secp256k1zkp.sh || exit 1;
+
 cd c
 for file in *.c
 do

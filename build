@@ -47,6 +47,9 @@ if [ "clean" = "$1" ]; then
     cd ..
     rm -rf .obj/* libtest.a bin/*
 elif [ "mrustc" = "$1" ]; then
+    # build xxdir and create header
+    ${CC} -o bin/xxdir build_utils/xxdir.c
+    ./bin/xxdir ./resources c/bin.h
     echo "Building BitcoinMW with mrustc"
     ./scripts/secp256k1zkp.sh || exit 1
     cd c
@@ -77,6 +80,9 @@ elif [ "mrustc" = "$1" ]; then
     echo "${CC} ${CCFLAGS} ${STATIC} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1}"
     ${CC} ${CCFLAGS} ${STATIC} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1} || exit 1
 else
+    # build xxdir and create header
+    ${CC} -o bin/xxdir build_utils/xxdir.c
+    ./bin/xxdir ./resources c/bin.h
     echo "Building BitcoinMW with rustc"
     ./scripts/secp256k1zkp.sh || exit 1
     cd c
