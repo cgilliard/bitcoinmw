@@ -130,7 +130,7 @@ int main(int argc, char **argv) {
 	}
 
 	// 7 bytes preallocated
-	strcat(buf, "NULL};");
+	strcat(buf, "(void *)0};");
 	// write the names to the file
 	// fprintf(out, "%s", namespace);
 	fprintf(out, "%s", buf);
@@ -140,7 +140,7 @@ int main(int argc, char **argv) {
 	fprintf(out, "unsigned char *%sxxdir_files[] = {", namespace);
 	for (int i = 0; i < file_count; i++)
 		fprintf(out, "%sxxdir_file_%i,", namespace, i);
-	fprintf(out, "NULL};\n");
+	fprintf(out, "(void*)0};\n");
 	fprintf(out, "unsigned long %sxxdir_file_sizes[] = { ", namespace);
 	for (int i = 0; i < file_count; i++)
 		fprintf(out, "%i, ", file_sizes[i]);

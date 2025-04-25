@@ -6,6 +6,7 @@ extern crate bitcoinmw_macros;
 #[macro_use]
 pub mod std;
 
+pub mod bible;
 pub mod crypto;
 pub mod lmdb;
 pub mod mw;
