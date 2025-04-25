@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use bible::Bible;
 use core::mem::size_of;
 use core::slice::from_raw_parts;
 use crypto::{Bip52, Ctx, PublicKey, SecretKey};
@@ -7,9 +8,13 @@ use mw::constants::*;
 use mw::{Kernel, Transaction};
 use prelude::*;
 use std::ffi::getmicros;
-use std::misc::{from_le_bytes_u32, to_le_bytes_u32, to_le_bytes_u64, u256_less_than_or_equal};
+use std::misc::{
+	from_le_bytes_u32, from_le_bytes_u64, slice_copy, subslice_mut, to_le_bytes_u32,
+	to_le_bytes_u64, u256_less_than_or_equal,
+};
 
 #[derive(Clone)]
+#[repr(C)]
 pub struct BlockHeader {
 	// Header Version. Currently = 0
 	header_version: u8,
@@ -128,13 +133,14 @@ impl Block {
 		bip52: &Bip52,
 		iterations: u32,
 		target: [u8; 32],
+		bible: &Bible,
 	) -> Result<[u8; 32], Error> {
 		let mut nonce = from_le_bytes_u32(&self.header.nonce)?;
 
 		for i in 0..iterations {
 			nonce = nonce.wrapping_add(i);
 			to_le_bytes_u32(nonce, &mut self.header.nonce)?;
-			let hash = self.calculate_hash(bip52);
+			let hash = self.calculate_hash(bip52, bible);
 			if u256_less_than_or_equal(&target, &hash) {
 				// difficulty met - block found
 				return Ok(hash);
@@ -148,11 +154,12 @@ impl Block {
 		bip52: &Bip52,
 		target: [u8; 32],
 		hash: [u8; 32],
+		bible: &Bible,
 	) -> Result<(), Error> {
 		if !u256_less_than_or_equal(&target, &hash) {
 			Err(Error::new(ValidationFailed))
 		} else {
-			let hash_calc = self.calculate_hash(bip52);
+			let hash_calc = self.calculate_hash(bip52, bible);
 			if hash != hash_calc {
 				Err(Error::new(ValidationFailed))
 			} else {
@@ -216,9 +223,32 @@ impl Block {
 	}
 
 	#[inline]
-	fn calculate_hash(&self, bip52: &Bip52) -> [u8; 32] {
+	fn calculate_hash(&self, bip52: &Bip52, bible: &Bible) -> [u8; 32] {
+		// largest verse is 533 bytes and header 114 so 1024 is enough
+		let mut buffer = [0u8; 1024];
 		let header_ptr = &self.header as *const BlockHeader as *const u8;
-		unsafe { bip52.hash(from_raw_parts(header_ptr, size_of::<BlockHeader>())) }
+		let header_slice = unsafe { from_raw_parts(header_ptr, size_of::<BlockHeader>()) };
+		let end_prev_hash = match self.header.prev_hash.subslice(24, 8) {
+			Ok(eph) => eph,
+			Err(e) => exit!("unexpected error returned from subslice: {}", e),
+		};
+		let val = match from_le_bytes_u64(end_prev_hash) {
+			Ok(val) => val,
+			Err(e) => exit!("unexpected error returned from from_le_bytes_u64: {}", e),
+		};
+		let verse = bible.find_mod(val as usize);
+		let verse_ref = verse.as_ref();
+
+		// we know this is not out of bounds
+		let _ = slice_copy(header_slice, &mut buffer, header_slice.len());
+		let header_sub_slice =
+			match subslice_mut(&mut buffer, header_slice.len(), 1024 - header_slice.len()) {
+				Ok(s) => s,
+				Err(e) => exit!("unexpected error returned by sub_slice: {}", e),
+			};
+		let _ = slice_copy(verse_ref, header_sub_slice, verse.len());
+
+		bip52.hash(&buffer)
 	}
 }
 
@@ -407,9 +437,10 @@ mod test {
 
 	#[test]
 	fn test_mining() -> Result<(), Error> {
+		let bible = Bible::new();
 		let ctx = Ctx::new()?;
-		let prev_hash = [0u8; 32];
-		let block = Block::new(prev_hash, [0u8; 32], [0u8; 4], [0u8; 4]);
+		let prev_hash = [77u8; 32];
+		let block = Block::new(prev_hash, [3u8; 32], [9u8; 4], [81u8; 4]);
 
 		// mine an empty block (only coinbase)
 		let miner_keychain = KeyChain::from_seed([5u8; 48])?;
@@ -422,33 +453,35 @@ mod test {
 		let bip52 = Bip52::new([1u8; 32], [0u8; 32]);
 
 		let mut complete = block.with_coinbase(&ctx, &coinbase_blind, overage)?;
-		let hash = complete.mine_block(&bip52, 1024 * 1024, DIFFICULTY_4BIT_LEADING)?;
+		let hash = complete.mine_block(&bip52, 1024 * 1024, DIFFICULTY_4BIT_LEADING, &bible)?;
 
 		assert!(hash != [0u8; 32]);
 		assert!(hash[0] & 0xF0 == 0);
 
 		assert!(complete
-			.validate_hash(&bip52, DIFFICULTY_4BIT_LEADING, hash)
+			.validate_hash(&bip52, DIFFICULTY_4BIT_LEADING, hash, &bible)
 			.is_ok());
 
 		// update the aux_hash_data
 		complete.header.aux_data_hash = [1u8; 32];
 		// we attempt up to 1 million iterations at this low difficulty (on avg only takes
 		// a few tries)
-		let hash2 = complete.mine_block(&bip52, 1024 * 1024, DIFFICULTY_4BIT_LEADING)?;
+		let hash2 = complete.mine_block(&bip52, 1024 * 1024, DIFFICULTY_4BIT_LEADING, &bible)?;
 
 		assert!(hash2 != [0u8; 32]);
 		assert!(hash2[0] & 0xF0 == 0);
 		assert!(hash != hash2);
 
 		assert!(complete
-			.validate_hash(&bip52, DIFFICULTY_4BIT_LEADING, hash2)
+			.validate_hash(&bip52, DIFFICULTY_4BIT_LEADING, hash2, &bible)
 			.is_ok());
 
 		// try something too difficult
 		let mut complete = block.with_coinbase(&ctx, &coinbase_blind, overage)?;
 
-		assert!(complete.mine_block(&bip52, 1024, DIFFICULTY_HARD,).is_err());
+		assert!(complete
+			.mine_block(&bip52, 1024, DIFFICULTY_HARD, &bible)
+			.is_err());
 
 		Ok(())
 	}

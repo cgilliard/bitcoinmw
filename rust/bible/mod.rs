@@ -92,6 +92,7 @@ mod test {
 
 		// assert that we wrap arround correctly
 		assert_eq!(bible.find_mod(BIBLE_VERSE_COUNT), bible.find_mod(0));
+
 		Ok(())
 	}
 }
