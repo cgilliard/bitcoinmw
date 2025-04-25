@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
-use crypto::{Ctx, PublicKey, SecretKey, Sha3_256};
+use core::mem::size_of;
+use core::slice::from_raw_parts;
+use crypto::{Bip52, Ctx, PublicKey, SecretKey};
 use mw::constants::*;
 use mw::{Kernel, Transaction};
 use prelude::*;
@@ -123,7 +125,7 @@ impl Block {
 	#[inline]
 	pub fn mine_block(
 		&mut self,
-		sha3: &Sha3_256,
+		bip52: &Bip52,
 		iterations: u32,
 		target: [u8; 32],
 	) -> Result<[u8; 32], Error> {
@@ -132,7 +134,7 @@ impl Block {
 		for i in 0..iterations {
 			nonce = nonce.wrapping_add(i);
 			to_le_bytes_u32(nonce, &mut self.header.nonce)?;
-			let hash = self.calculate_hash(sha3)?;
+			let hash = self.calculate_hash(bip52);
 			if u256_less_than_or_equal(&target, &hash) {
 				// difficulty met - block found
 				return Ok(hash);
@@ -143,14 +145,14 @@ impl Block {
 
 	pub fn validate_hash(
 		&self,
-		sha3: &Sha3_256,
+		bip52: &Bip52,
 		target: [u8; 32],
 		hash: [u8; 32],
 	) -> Result<(), Error> {
 		if !u256_less_than_or_equal(&target, &hash) {
 			Err(Error::new(ValidationFailed))
 		} else {
-			let hash_calc = self.calculate_hash(sha3)?;
+			let hash_calc = self.calculate_hash(bip52);
 			if hash != hash_calc {
 				Err(Error::new(ValidationFailed))
 			} else {
@@ -214,28 +216,9 @@ impl Block {
 	}
 
 	#[inline]
-	fn calculate_hash(&self, sha3: &Sha3_256) -> Result<[u8; 32], Error> {
-		sha3.reset();
-
-		// header version
-		sha3.update(&[self.header.header_version]);
-
-		// timestamp
-		sha3.update(&self.header.timestamp);
-
-		// prev_hash
-		sha3.update(&self.header.prev_hash);
-
-		// sync_state_hash
-		sha3.update(&self.header.sync_state_hash);
-
-		// aux_data_hash
-		sha3.update(&self.header.aux_data_hash);
-
-		// nonce
-		sha3.update(&self.header.nonce);
-
-		Ok(sha3.finalize())
+	fn calculate_hash(&self, bip52: &Bip52) -> [u8; 32] {
+		let header_ptr = &self.header as *const BlockHeader as *const u8;
+		unsafe { bip52.hash(from_raw_parts(header_ptr, size_of::<BlockHeader>())) }
 	}
 }
 
@@ -433,34 +416,38 @@ mod test {
 		let overage = 1000;
 		// generate a blind from our keychain
 		let coinbase_blind = miner_keychain.derive_key(&ctx, &[0, 0]);
-		let sha3 = Sha3_256::new();
+		// generate a bip52 hasher with key (network param here we use [1u8; 32]) and
+		// prev_hash ([0u8; 32] for testing purposes)
+		let bip52 = Bip52::new([1u8; 32], [0u8; 32]);
 
 		let mut complete = block.with_coinbase(&ctx, &coinbase_blind, overage)?;
-		let hash = complete.mine_block(&sha3, 1024 * 1024, DIFFICULTY_4BIT_LEADING)?;
+		let hash = complete.mine_block(&bip52, 1024 * 1024, DIFFICULTY_4BIT_LEADING)?;
 
 		assert!(hash != [0u8; 32]);
 		assert!(hash[0] & 0xF0 == 0);
 
 		assert!(complete
-			.validate_hash(&sha3, DIFFICULTY_4BIT_LEADING, hash)
+			.validate_hash(&bip52, DIFFICULTY_4BIT_LEADING, hash)
 			.is_ok());
 
 		// update the aux_hash_data
 		complete.header.aux_data_hash = [1u8; 32];
-		let hash2 = complete.mine_block(&sha3, 1024 * 1024, DIFFICULTY_4BIT_LEADING)?;
+		// we attempt up to 1 million iterations at this low difficulty (on avg only takes
+		// a few tries)
+		let hash2 = complete.mine_block(&bip52, 1024 * 1024, DIFFICULTY_4BIT_LEADING)?;
 
 		assert!(hash2 != [0u8; 32]);
 		assert!(hash2[0] & 0xF0 == 0);
 		assert!(hash != hash2);
 
 		assert!(complete
-			.validate_hash(&sha3, DIFFICULTY_4BIT_LEADING, hash2)
+			.validate_hash(&bip52, DIFFICULTY_4BIT_LEADING, hash2)
 			.is_ok());
 
 		// try something too difficult
 		let mut complete = block.with_coinbase(&ctx, &coinbase_blind, overage)?;
 
-		assert!(complete.mine_block(&sha3, 1024, DIFFICULTY_HARD,).is_err());
+		assert!(complete.mine_block(&bip52, 1024, DIFFICULTY_HARD,).is_err());
 
 		Ok(())
 	}
