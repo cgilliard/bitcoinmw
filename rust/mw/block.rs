@@ -449,8 +449,8 @@ mod test {
 		// generate a blind from our keychain
 		let coinbase_blind = miner_keychain.derive_key(&ctx, &[0, 0]);
 		// generate a bip52 hasher with key (network param here we use [1u8; 32]) and
-		// prev_hash ([0u8; 32] for testing purposes)
-		let bip52 = Bip52::new([1u8; 32], [0u8; 32]);
+		// prev_hash
+		let bip52 = Bip52::new([1u8; 32], prev_hash);
 
 		let mut complete = block.with_coinbase(&ctx, &coinbase_blind, overage)?;
 		let hash = complete.mine_block(&bip52, 1024 * 1024, DIFFICULTY_4BIT_LEADING, &bible)?;

@@ -1,7 +1,13 @@
 use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
+use crypto::Sha3_256;
+use prelude::*;
 
 const BIBLE_VERSE_COUNT: usize = 31107;
+const BIBLE_SHA3_256_HASH: [u8; 32] = [
+	74, 250, 234, 251, 53, 214, 95, 98, 53, 200, 128, 99, 85, 98, 96, 39, 84, 185, 194, 248, 203,
+	235, 56, 26, 253, 230, 106, 249, 73, 223, 22, 4,
+];
 
 pub struct Bible {
 	ptr: *const u8,
@@ -17,6 +23,7 @@ impl Bible {
 	pub fn new() -> Self {
 		let ptr = unsafe { get_bible_data() };
 		let len = unsafe { get_bible_len() };
+		Self::validate_hash(ptr, len);
 		let indices = Self::build_indices(ptr, len);
 		Self { ptr, indices }
 	}
@@ -28,6 +35,22 @@ impl Bible {
 			let len = (self.indices[index + 1] - self.indices[index]) - 2;
 			let slice = from_raw_parts(self.ptr.add(offset as usize), len as usize);
 			from_utf8_unchecked(slice)
+		}
+	}
+
+	fn validate_hash(ptr: *const u8, len: usize) {
+		unsafe {
+			let sha3 = Sha3_256::new();
+			let slice = from_raw_parts(ptr, len);
+			sha3.update(slice);
+			let hash = sha3.finalize();
+			if hash != BIBLE_SHA3_256_HASH {
+				exit!(
+					"Bible is corrupted! Expected hash {}. Found hash {}. Halting!",
+					BIBLE_SHA3_256_HASH,
+					hash
+				);
+			}
 		}
 	}
 
@@ -66,7 +89,6 @@ impl Bible {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use prelude::*;
 
 	#[test]
 	fn test_bible1() -> Result<(), Error> {
