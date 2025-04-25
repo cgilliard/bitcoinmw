@@ -1,4 +1,5 @@
 mod aes;
+mod bip52;
 mod constants;
 mod cpsrng;
 mod ctx;

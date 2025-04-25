@@ -11,7 +11,7 @@ use std::misc::{from_le_bytes_u32, to_le_bytes_u32, to_le_bytes_u64, u256_less_t
 pub struct BlockHeader {
 	// Header Version. Currently = 0
 	header_version: u8,
-	// timestamp in seconds since epoch (ISO 8601) 00:00:00 Jan 1, 1970 (5 bytes allows for
+	// timestamp in seconds since epoch (ISO 8601) 00:00:00 Jan 1, 1970. 5 bytes allows for
 	// 1099511627776 seconds (~34,865 years).
 	timestamp: [u8; 5],
 	// nonce
