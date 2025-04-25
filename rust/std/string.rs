@@ -92,7 +92,7 @@ impl String {
 				let b = value.get().as_ref();
 				match subslice(b, *start, end - *start) {
 					Ok(b) => unsafe { from_utf8_unchecked(b) },
-					Err(_) => "", // not possible
+					Err(e) => exit!("unexpected error: subslice: {}", e),
 				}
 			}
 			String::SSOData(SSODataStruct(b)) => unsafe {
@@ -102,18 +102,56 @@ impl String {
 		}
 	}
 
-	pub fn substring(&self, start: usize, end: usize) -> Result<Self, Error> {
-		if start > end || end - start > self.len() {
+	pub fn substring(&self, nstart: usize, nend: usize) -> Result<Self, Error> {
+		if nstart > nend || nend - nstart > self.len() {
 			return Err(Error::new(OutOfBounds));
 		}
 		let s = self.as_str();
-		if !s.is_char_boundary(start) || !s.is_char_boundary(end) {
+		if nend > s.len() {
+			return Err(Error::new(OutOfBounds));
+		}
+		if !s.is_char_boundary(nstart) || !s.is_char_boundary(nend) {
 			return Err(Error::new(Utf8Error));
 		}
-		unsafe {
-			let s = from_raw_parts(s.as_ptr().offset(start as isize), end - start);
-			let s = from_utf8_unchecked(s);
-			Self::new(s)
+		match self {
+			String::StringData(StringDataStruct {
+				value,
+				start: base_start,
+				end: base_end,
+			}) => {
+				let new_start = base_start + nstart;
+				let new_end = base_start + nend;
+				if new_end > *base_end {
+					return Err(Error::new(OutOfBounds));
+				}
+				Ok(Self::StringData(StringDataStruct {
+					value: value.clone(),
+					start: new_start,
+					end: new_end,
+				}))
+			}
+			String::SSOData(SSODataStruct(b)) => {
+				if nend - nstart <= 23 {
+					let mut v = [0u8; 24];
+					v[0] = (nend - nstart) as u8;
+					unsafe {
+						let src = b.as_ptr().offset(1 + nstart as isize);
+						slice_copy(
+							from_raw_parts(src, nend - nstart),
+							&mut v[1..],
+							nend - nstart,
+						)?;
+					}
+					Ok(Self::SSOData(SSODataStruct(v)))
+				} else {
+					unsafe {
+						let s =
+							from_raw_parts(b.as_ptr().offset(1 + nstart as isize), nend - nstart);
+						let s = from_utf8_unchecked(s);
+						Self::new(s)
+					}
+				}
+			}
 		}
 	}
 
@@ -273,6 +311,34 @@ mod test {
 				assert_eq!(s.find(s_x), Some(0));
 			}
 		}
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_chained_substrings() -> Result<(), Error> {
+		// create a base string and check for various lengths to ensure transaction out of sso
+		// is ok
+		let s_base = "01234567890123456789012345678901234567890123456789";
+		let s_base_len = s_base.len();
+		let s = String::new(s_base)?;
+		assert_eq!(s.len(), s_base_len);
+		assert_eq!(s.find("1234"), Some(1));
+
+		let s1 = s.substring(1, s.len())?;
+		assert_eq!(s1.len(), s_base_len - 1);
+		assert_eq!(s1.find("1234"), Some(0));
+
+		let s2 = s1.substring(1, s1.len())?;
+		assert_eq!(s2.len(), s_base_len - 2);
+		assert_eq!(s2.find("2345"), Some(0));
+
+		let s3 = s2.substring(1, s2.len())?;
+
+		assert_eq!(s3.len(), s_base_len - 3);
+		assert_eq!(s3.find("4567"), Some(1));
+
+		assert!(s2.substring(1, s2.len() + 1).is_err());
 
 		Ok(())
 	}
