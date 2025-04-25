@@ -1,4 +1,6 @@
 // Internal
+pub use std::sliceext::SliceExt;
+pub use std::strext::StrExt;
 pub use std::{
 	spawn, spawnj, AsRaw, Box, Display, Error, ErrorKind, ErrorKind::*, Formatter, Lock, LockBox,
 	Ptr, Rc, String, TryClone, Vec,

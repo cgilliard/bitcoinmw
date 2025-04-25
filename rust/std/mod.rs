@@ -19,6 +19,7 @@ mod vec;
 
 pub(crate) mod ffi;
 pub(crate) mod misc;
+pub(crate) mod sliceext;
 pub(crate) mod strext;
 
 pub use std::as_raw::AsRaw;

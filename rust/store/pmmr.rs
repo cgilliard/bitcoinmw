@@ -3,7 +3,6 @@ use crypto::Sha3_256;
 use lmdb::{Lmdb, LmdbTxn};
 use prelude::*;
 use std::misc::{from_le_bytes_u64, slice_copy, subslice, to_le_bytes_u64};
-use std::strext::StrExt;
 use store::constants::*;
 
 pub struct Pmmr {
