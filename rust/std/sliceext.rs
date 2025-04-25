@@ -1,8 +1,10 @@
 use prelude::*;
-use std::misc::slice_copy;
+use std::misc::{slice_copy, subslice, subslice_mut};
 
 pub trait SliceExt<T: Copy> {
 	fn slice_copy(&mut self, src: &[T]) -> Result<(), Error>;
+	fn subslice(&self, offset: usize, len: usize) -> Result<&[T], Error>;
+	fn subslice_mut(&mut self, off: usize, len: usize) -> Result<&mut [T], Error>;
 }
 
 impl<T: Copy> SliceExt<T> for [T] {
@@ -11,6 +13,14 @@ impl<T: Copy> SliceExt<T> for [T] {
 			return Err(Error::new(OutOfBounds));
 		}
 		slice_copy(src, self, src.len())
+	}
+
+	fn subslice(&self, offset: usize, len: usize) -> Result<&[T], Error> {
+		subslice(self, offset, len)
+	}
+
+	fn subslice_mut(&mut self, offset: usize, len: usize) -> Result<&mut [T], Error> {
+		subslice_mut(self, offset, len)
 	}
 }
 
@@ -31,6 +41,10 @@ mod test {
 		assert_eq!(x[1], 2u64);
 		assert_eq!(x[2], 3u64);
 		assert_eq!(x[3], 4u64);
+		let v = x.subslice(0, 2)?;
+		assert_eq!(v.len(), 2);
+		assert_eq!(v[0], 1);
+		assert_eq!(v[1], 2);
 
 		let mut x = [3u8; 5];
 		let y = [1, 2, 3, 4, 5];
@@ -45,6 +59,19 @@ mod test {
 		assert_eq!(x[2], 3u8);
 		assert_eq!(x[3], 4u8);
 		assert_eq!(x[4], 5u8);
+
+		let z = x.subslice(1, 2)?;
+		assert_eq!(z.len(), 2);
+		assert_eq!(z[0], 2);
+		assert_eq!(z[1], 3);
+
+		let w = x.subslice_mut(1, 3)?;
+		assert_eq!(w.len(), 3);
+		assert_eq!(w[0], 2);
+		assert_eq!(w[1], 3);
+		assert_eq!(w[2], 4);
+		w[2] = 5;
+		assert_eq!(w[2], 5);
 
 		Ok(())
 	}
