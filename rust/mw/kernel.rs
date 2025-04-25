@@ -78,6 +78,10 @@ impl Kernel {
 		// finalize
 		Message::new(sha3.finalize())
 	}
+
+	pub fn sha3(&self, sha3: &Sha3_256) {
+		sha3.update(self.message().as_ref());
+	}
 }
 
 #[cfg(test)]

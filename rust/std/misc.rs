@@ -160,7 +160,17 @@ pub fn is_utf8_valid(bytes: &[u8]) -> Result<(), Error> {
 	Ok(())
 }
 
-#[allow(dead_code)]
+pub fn from_le_bytes_u32(bytes: &[u8]) -> Result<u32, Error> {
+	if bytes.len() >= 4 {
+		Ok((bytes[0] as u32)
+			| ((bytes[1] as u32) << 8)
+			| ((bytes[2] as u32) << 16)
+			| ((bytes[3] as u32) << 24))
+	} else {
+		Err(Error::new(IllegalArgument))
+	}
+}
+
 pub fn from_le_bytes_u64(bytes: &[u8]) -> Result<u64, Error> {
 	if bytes.len() >= 8 {
 		Ok((bytes[0] as u64)
@@ -215,6 +225,19 @@ pub fn to_le_bytes_u64(value: u64, bytes: &mut [u8]) -> Result<(), Error> {
 	}
 }
 
+#[inline]
+pub fn to_le_bytes_u32(value: u32, bytes: &mut [u8]) -> Result<(), Error> {
+	if bytes.len() >= 4 {
+		bytes[0] = value as u8;
+		bytes[1] = (value >> 8) as u8;
+		bytes[2] = (value >> 16) as u8;
+		bytes[3] = (value >> 24) as u8;
+		Ok(())
+	} else {
+		Err(Error::new(IllegalArgument))
+	}
+}
+
 pub fn bytes_to_hex_64(bytes: &[u8; 64]) -> [u8; 128] {
 	let mut hex = [0u8; 128];
 
@@ -244,6 +267,21 @@ pub fn to_be_bytes_u64(value: u64, bytes: &mut [u8]) -> Result<(), Error> {
 	} else {
 		Err(Error::new(IllegalArgument))
 	}
+}
+
+#[inline]
+pub fn u256_less_than_or_equal(max_value: &[u8; 32], value: &[u8; 32]) -> bool {
+	for i in 0..32 {
+		let m = max_value[i];
+		let v = value[i];
+		if v < m {
+			return true;
+		}
+		if v > m {
+			return false;
+		}
+	}
+	true
 }
 
 #[cfg(test)]
