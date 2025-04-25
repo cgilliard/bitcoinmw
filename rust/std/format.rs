@@ -24,11 +24,11 @@ impl Formatter {
 
 	pub fn write_str(&mut self, s: &str, len: usize) -> Result<(), Error> {
 		let bytes = s.as_bytes();
-		let start = self.buffer.len();
-		match self.buffer.resize(start + len) {
-			Ok(_) => {}
-			Err(e) => return Err(e),
+		if len > bytes.len() {
+			return Err(Error::new(OutOfBounds));
 		}
+		let start = self.buffer.len();
+		self.buffer.resize(start + len)?;
 		let dest_slice = subslice_mut(&mut self.buffer, start, len)?;
 		slice_copy(bytes, dest_slice, len)?;
 		Ok(())
@@ -40,6 +40,10 @@ impl Formatter {
 		} else {
 			unsafe { from_utf8_unchecked(&self.buffer.slice(0, self.buffer.len())) }
 		}
+	}
+
+	pub fn as_string(&self) -> Result<String, Error> {
+		String::newb(&self.buffer.slice(0, self.buffer.len()))
 	}
 }
 
@@ -292,6 +296,23 @@ mod test {
 			writef!(&mut f, "{}", x)?;
 
 			assert_eq!(f.as_str(), "abcdef101");
+		}
+		assert_eq!(init, unsafe { getalloccount() });
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_formatter_with_string() -> Result<(), Error> {
+		let init = unsafe { getalloccount() };
+		{
+			let mut f = Formatter::with_capacity(64)?;
+			writef!(&mut f, "abc")?;
+			writef!(&mut f, "def")?;
+			let x = 101;
+			writef!(&mut f, "{} {}", x, "123")?;
+
+			assert_eq!(f.as_string()?, String::new("abcdef101 123")?);
 		}
 		assert_eq!(init, unsafe { getalloccount() });
 

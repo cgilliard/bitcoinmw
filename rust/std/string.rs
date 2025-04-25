@@ -3,7 +3,7 @@ use core::fmt::Formatter as CoreFormatter;
 use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
 use prelude::*;
-use std::misc::{is_utf8_valid, slice_copy, strcmp, subslice};
+use std::misc::{is_utf8_valid, slice_copy, strcmp, subslice, subslice_mut};
 use std::strext::StrExt;
 
 #[derive(Clone)]
@@ -136,11 +136,9 @@ impl String {
 					v[0] = (nend - nstart) as u8;
 					unsafe {
 						let src = b.as_ptr().offset(1 + nstart as isize);
-						slice_copy(
-							from_raw_parts(src, nend - nstart),
-							&mut v[1..],
-							nend - nstart,
-						)?;
+						let vlen = v.len();
+						let subslice = subslice_mut(&mut v, 1, vlen - 1)?;
+						slice_copy(from_raw_parts(src, nend - nstart), subslice, nend - nstart)?;
 					}
 					Ok(Self::SSOData(SSODataStruct(v)))
 				} else {
