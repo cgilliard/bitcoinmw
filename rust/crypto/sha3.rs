@@ -982,7 +982,7 @@ mod test {
 			let mut iv = [0u8; 16];
 			rng.gen(&mut key);
 			rng.gen(&mut iv);
-			let aes = Aes256::new(key, iv)?;
+			let aes = Aes256::new(key, iv);
 			let mut matrix = [0u16; 4096];
 			let mut hash_out = [0u8; 32];
 			let pdata = [1u8; 32];

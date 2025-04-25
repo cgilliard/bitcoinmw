@@ -10,7 +10,7 @@ pub struct Bip52 {
 impl Bip52 {
 	pub fn new(key: [u8; 32], prev_hash: [u8; 32]) -> Result<Self, Error> {
 		// init with 0s for iv, we update in ret.reset below
-		let aes = Aes256::new(key, [0u8; 16])?;
+		let aes = Aes256::new(key, [0u8; 16]);
 		let matrix = [0u16; 4096];
 		let mut ret = Self { matrix, aes };
 		ret.reset(prev_hash)?;
@@ -70,7 +70,7 @@ mod test {
 			let mut iv = [0u8; 16];
 			rng.gen(&mut key);
 			rng.gen(&mut iv);
-			let aes = Aes256::new(key, iv)?;
+			let aes = Aes256::new(key, iv);
 			let mut matrix = [0u16; 4096];
 			let mut hash_out = [0u8; 32];
 			let pdata = [1u8; 32];

@@ -17,7 +17,7 @@ impl AsRaw<AesContext> for Aes256 {
 }
 
 impl Aes256 {
-	pub fn new(key: [u8; 32], iv: [u8; 16]) -> Result<Self, Error> {
+	pub fn new(key: [u8; 32], iv: [u8; 16]) -> Self {
 		let data = [0u8; AES_256_CONTEXT_SIZE];
 		let size = unsafe { aes_context_size() };
 		if size != AES_256_CONTEXT_SIZE {
@@ -34,7 +34,7 @@ impl Aes256 {
 				iv.as_ptr(),
 			);
 		}
-		Ok(Self { data })
+		Self { data }
 	}
 
 	pub fn set_iv(&self, iv: [u8; 16]) {
@@ -60,12 +60,12 @@ mod test {
 
 	#[test]
 	fn test_aes256_1() -> Result<(), Error> {
-		let aes1 = Aes256::new([0u8; 32], [0u8; 16])?;
+		let aes1 = Aes256::new([0u8; 32], [0u8; 16]);
 		let mut buf32 = [0u8; 32];
 		aes1.crypt(&mut buf32);
 		assert_ne!(buf32, [0u8; 32]);
 
-		let aes1 = Aes256::new([0u8; 32], [0u8; 16])?;
+		let aes1 = Aes256::new([0u8; 32], [0u8; 16]);
 		let mut buf32_2 = [0u8; 32];
 		aes1.crypt(&mut buf32_2);
 		assert_ne!(buf32_2, [0u8; 32]);
@@ -99,7 +99,7 @@ mod test {
 			0xad, 0x2b, 0x41, 0x7b, 0xe6, 0x6c, 0x37, 0x10,
 		];
 
-		let aes = Aes256::new(key, iv)?;
+		let aes = Aes256::new(key, iv);
 		aes.crypt(&mut input);
 
 		assert_eq!(input, expected_output);
@@ -122,7 +122,7 @@ mod test {
 			0xfe, 0xff,
 		];
 
-		let aes = Aes256::new(key, iv)?;
+		let aes = Aes256::new(key, iv);
 
 		// Input Plaintext
 		let mut input: [u8; 64] = [

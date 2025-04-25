@@ -16,7 +16,7 @@ impl KeyChain {
 		let seed_iv = subslice(&seed, 32, 16)?;
 		slice_copy(&seed_key, &mut key, 32)?;
 		slice_copy(&seed_iv, &mut iv, 16)?;
-		let aes = Aes256::new(key, iv)?;
+		let aes = Aes256::new(key, iv);
 		Ok(Self { aes })
 	}
 

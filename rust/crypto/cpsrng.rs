@@ -28,7 +28,7 @@ impl Cpsrng {
 				return Err(Error::new(InsufficientEntropy));
 			}
 		}
-		let res = Aes256::new(key, iv)?;
+		let res = Aes256::new(key, iv);
 
 		// Zeroize key and IV to prevent leaks
 		unsafe {
@@ -45,7 +45,7 @@ impl Cpsrng {
 
 	#[cfg(test)]
 	pub fn test_seed(key: [u8; 32], iv: [u8; 16]) -> Result<Self, Error> {
-		Ok(Self(Aes256::new(key, iv)?))
+		Ok(Self(Aes256::new(key, iv)))
 	}
 }
 
