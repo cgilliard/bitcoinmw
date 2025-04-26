@@ -48,7 +48,11 @@ impl StrExt for str {
 		loop {
 			let slice = unsafe {
 				let ptr = self.as_ptr().add(current_start);
-				from_utf8_unchecked(from_raw_parts(ptr, s.len()))
+				let mut nlen = s.len();
+				if nlen + current_start > self.len() {
+					nlen = self.len();
+				}
+				from_utf8_unchecked(from_raw_parts(ptr, nlen))
 			};
 			if slice == s {
 				return Some(current_start);
