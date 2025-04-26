@@ -44,6 +44,7 @@ int socket_connect(Socket* s, unsigned char addr[4], int port) {
 		close_impl(s->fd);
 		return ERROR_FCNTL;
 	}
+	return 0;
 }
 
 int socket_listen(Socket* s, unsigned char addr[4], int port, int backlog) {
