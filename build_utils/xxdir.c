@@ -104,7 +104,7 @@ int main(int argc, char **argv) {
 		 "char *%sxxdir_file_names[] = {", namespace);
 
 	// add three bytes for the last strcat
-	char *buf = malloc(sizeof(char) * (strlen(initial_text) + 7));
+	char *buf = malloc(sizeof(char) * (strlen(initial_text) + 8));
 	int cur_alloc = strlen(initial_text);
 	strcpy(buf, initial_text);
 
@@ -126,7 +126,8 @@ int main(int argc, char **argv) {
 
 		proc_file(full_path, output_header, out, namespace);
 
-		char *tmp = realloc(buf, cur_alloc + strlen(entry->d_name) + 3);
+		char *tmp =
+		    realloc(buf, cur_alloc + strlen(entry->d_name) + 30);
 		if (tmp == NULL) {
 			fprintf(stderr, "Alloc error!\n");
 			exit(-1);
