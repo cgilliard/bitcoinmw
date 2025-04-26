@@ -18,7 +18,12 @@ else
 fi
 
 
-CCFLAGS="-O3 -flto"
+case "$($CC --version 2>/dev/null)" in
+    *clang*) CCFLAGS="-O3 -flto" ;;
+    *gcc*) CCFLAGS="-O3 -flto=2" ;;
+    *) echo "Error: Unknown compiler: $CC" >&2; exit 1 ;;
+esac
+# CCFLAGS="-O3 -flto=2"
 
 # Detect OS and set linker flags
 if [ "$(uname)" = "Darwin" ]; then
@@ -45,12 +50,18 @@ if [ "clean" = "$1" ]; then
     cd secp256k1-zkp
     make mostlyclean-compile
     cd ..
-    rm -rf .obj/* libtest.a bin/*
+    rm -rf .obj/* libtest.a bin/* c/bin.h
 elif [ "mrustc" = "$1" ]; then
     # build xxdir and create header
-    ${CC} -o bin/xxdir build_utils/xxdir.c
-    ./bin/xxdir ./resources c/bin.h
-    touch c/bible.c
+    if [ build_utils/xxdir.c -nt  bin/xxdir ]; then
+        echo "${CC} -o bin/xxdir build_utils/xxdir.c"
+        ${CC} -o bin/xxdir build_utils/xxdir.c
+    fi
+    if [ ! -e c/bin.h ] || [ -n "$(find resources -type f -newer c/bin.h)" ]; then
+        ./bin/xxdir ./resources c/bin.h
+        touch c/bible.c
+    fi
+
     echo "Building BitcoinMW with mrustc"
     ./scripts/secp256k1zkp.sh || exit 1
     cd c
@@ -82,9 +93,15 @@ elif [ "mrustc" = "$1" ]; then
     ${CC} ${CCFLAGS} ${STATIC} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1} || exit 1
 else
     # build xxdir and create header
-    ${CC} -o bin/xxdir build_utils/xxdir.c
-    ./bin/xxdir ./resources c/bin.h
-    touch c/bible.c
+    if [ build_utils/xxdir.c -nt  bin/xxdir ]; then
+        echo "${CC} -o bin/xxdir build_utils/xxdir.c"
+        ${CC} -o bin/xxdir build_utils/xxdir.c
+    fi
+    if [ ! -e c/bin.h ] || [ -n "$(find resources -type f -newer c/bin.h)" ]; then
+        ./bin/xxdir ./resources c/bin.h
+        touch c/bible.c
+    fi
+
     echo "Building BitcoinMW with rustc"
     ./scripts/secp256k1zkp.sh || exit 1
     cd c

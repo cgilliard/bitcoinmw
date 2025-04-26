@@ -139,3 +139,6 @@ long long socket_send(Socket* s, const void* buf, unsigned long long len) {
 	}
 	return ret;
 }
+
+int socket_shutdown(Socket* s) { return shutdown(s->fd, SHUT_RDWR); }
+int socket_close(Socket* s) { return close_impl(s->fd); }

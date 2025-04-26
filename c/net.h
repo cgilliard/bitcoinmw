@@ -22,5 +22,7 @@ int socket_listen(Socket* s, unsigned char addr[4], int port, int backlog);
 int socket_accept(Socket* s, Socket* accepted);
 long long socket_recv(Socket* s, void* buf, unsigned long long capacity);
 long long socket_send(Socket* s, const void* buf, unsigned long long len);
+int socket_close(Socket* s);
+int socket_shutdown(Socket* s);
 
 #endif	// _NET_H__

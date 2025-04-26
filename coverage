@@ -18,9 +18,14 @@ RUSTFLAGS="-C instrument-coverage -C opt-level=0"
 FILTER=$1
 
 # build xxdir and create header
-${CC} -o bin/xxdir build_utils/xxdir.c
-./bin/xxdir ./resources c/bin.h
-touch c/bible.c
+if [ build_utils/xxdir.c -nt  bin/xxdir ]; then
+    echo "${CC} -o bin/xxdir build_utils/xxdir.c"
+    ${CC} -o bin/xxdir build_utils/xxdir.c
+fi
+if [ ! -e c/bin.h ] || [ -n "$(find resources -type f -newer c/bin.h)" ]; then
+    ./bin/xxdir ./resources c/bin.h
+    touch c/bible.c
+fi
 
 echo "Running tests..."
 ./scripts/secp256k1zkp.sh || exit 1;

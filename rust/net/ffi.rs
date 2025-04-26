@@ -7,4 +7,6 @@ extern "C" {
 	pub fn socket_accept(sock: *mut Socket, accepted: *mut Socket) -> i32;
 	pub fn socket_recv(sock: *const Socket, buf: *mut u8, capacity: usize) -> i32;
 	pub fn socket_send(sock: *const Socket, buf: *const u8, len: usize) -> i32;
+	pub fn socket_close(sock: *const Socket) -> i32;
+	pub fn socket_shutdown(sock: *const Socket) -> i32;
 }

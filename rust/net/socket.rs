@@ -1,7 +1,8 @@
 use core::mem::size_of;
 use net::constants::*;
 use net::ffi::{
-	socket_accept, socket_connect, socket_listen, socket_recv, socket_send, socket_size,
+	socket_accept, socket_close, socket_connect, socket_listen, socket_recv, socket_send,
+	socket_shutdown, socket_size,
 };
 use prelude::*;
 
@@ -103,6 +104,24 @@ impl Socket {
 			}
 		}
 	}
+
+	pub fn close(&self) -> Result<(), Error> {
+		let res = unsafe { socket_close(self as *const Socket) };
+		if res == 0 {
+			Ok(())
+		} else {
+			Err(Error::new(SocketError))
+		}
+	}
+
+	pub fn shutdown(&self) -> Result<(), Error> {
+		let res = unsafe { socket_shutdown(self as *const Socket) };
+		if res == 0 {
+			Ok(())
+		} else {
+			Err(Error::new(SocketError))
+		}
+	}
 }
 
 #[cfg(test)]
@@ -137,6 +156,10 @@ mod test {
 		assert_eq!(len, 2);
 		assert_eq!(buf[0], b'h');
 		assert_eq!(buf[1], b'i');
+
+		s1.close()?;
+		s2.close()?;
+		s3.close()?;
 
 		Ok(())
 	}
