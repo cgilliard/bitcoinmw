@@ -3,7 +3,7 @@
 use bible::Bible;
 use core::mem::size_of;
 use core::slice::from_raw_parts;
-use crypto::{Bip52, Ctx, PublicKey, SecretKey};
+use crypto::{Bip52, Ctx, PublicKey, SecretKey, Sha3_256};
 use mw::constants::*;
 use mw::{Kernel, Transaction};
 use prelude::*;
@@ -168,6 +168,22 @@ impl Block {
 		}
 	}
 
+	pub fn finalize_header(&mut self) -> Result<(), Error> {
+		// update timestamp
+		let timestamp = unsafe { getmicros() / 1_000_000u64 };
+		let timestamp = BlockHeader::timestamp_to_bytes_le(timestamp);
+		self.header.timestamp = timestamp;
+
+		let sha3 = Sha3_256::new();
+		// TODO: currently we just hash the kernel merkle root, but we need to add in the
+		// other sync_state_hash.
+		let kmr = self.tx.kernel_merkle_root()?;
+		sha3.update(kmr.as_ref());
+		self.header.sync_state_hash = sha3.finalize();
+
+		Ok(())
+	}
+
 	pub fn with_coinbase(
 		&self,
 		ctx: &Ctx,
@@ -206,15 +222,7 @@ impl Block {
 		tx.validate(ctx, overage)?;
 
 		// clone header
-		let mut header = self.header.clone();
-		// update timestamp
-		let timestamp = unsafe { getmicros() / 1_000_000u64 };
-		let timestamp = BlockHeader::timestamp_to_bytes_le(timestamp);
-		header.timestamp = timestamp;
-
-		// update sync_hash (TODO: actual calc)
-		header.sync_state_hash = [0u8; 32];
-
+		let header = self.header.clone();
 		Ok(Self { header, tx })
 	}
 
@@ -415,6 +423,7 @@ mod test {
 		let bip52 = Bip52::new([1u8; 32], prev_hash);
 
 		let mut complete = block.with_coinbase(&ctx, &coinbase_blind, overage)?;
+		complete.finalize_header()?;
 		let hash = complete.mine_block(&bip52, 1024 * 1024, DIFFICULTY_4BIT_LEADING, &bible)?;
 
 		assert!(hash != [0u8; 32]);
@@ -428,6 +437,7 @@ mod test {
 		complete.header.aux_data_hash = [1u8; 32];
 		// we attempt up to 1 million iterations at this low difficulty (on avg only takes
 		// a few tries)
+		complete.finalize_header()?;
 		let hash2 = complete.mine_block(&bip52, 1024 * 1024, DIFFICULTY_4BIT_LEADING, &bible)?;
 
 		assert!(hash2 != [0u8; 32]);
@@ -441,6 +451,7 @@ mod test {
 		// try something too difficult
 		let mut complete = block.with_coinbase(&ctx, &coinbase_blind, overage)?;
 
+		complete.finalize_header()?;
 		assert!(complete
 			.mine_block(&bip52, 1024, DIFFICULTY_HARD, &bible)
 			.is_err());
