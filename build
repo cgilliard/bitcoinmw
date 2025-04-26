@@ -21,9 +21,8 @@ fi
 case "$($CC --version 2>/dev/null)" in
     *clang*) CCFLAGS="-O3 -flto" ;;
     *gcc*) CCFLAGS="-O3 -flto=2" ;;
-    *) echo "Error: Unknown compiler: $CC" >&2; exit 1 ;;
+    *) CCFLAGS="-O3 -flto" ;;
 esac
-# CCFLAGS="-O3 -flto=2"
 
 # Detect OS and set linker flags
 if [ "$(uname)" = "Darwin" ]; then
@@ -53,7 +52,7 @@ if [ "clean" = "$1" ]; then
     rm -rf .obj/* libtest.a bin/* c/bin.h
 elif [ "mrustc" = "$1" ]; then
     # build xxdir and create header
-    if [ build_utils/xxdir.c -nt  bin/xxdir ]; then
+    if [ ! -e bin/xxdir ] || [ build_utils/xxdir.c -nt  bin/xxdir ]; then
         echo "${CC} -o bin/xxdir build_utils/xxdir.c"
         ${CC} -o bin/xxdir build_utils/xxdir.c
     fi
@@ -93,7 +92,7 @@ elif [ "mrustc" = "$1" ]; then
     ${CC} ${CCFLAGS} ${STATIC} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1} || exit 1
 else
     # build xxdir and create header
-    if [ build_utils/xxdir.c -nt  bin/xxdir ]; then
+    if [ ! -e bin/xxdir ] || [ build_utils/xxdir.c -nt  bin/xxdir ]; then
         echo "${CC} -o bin/xxdir build_utils/xxdir.c"
         ${CC} -o bin/xxdir build_utils/xxdir.c
     fi
