@@ -50,6 +50,7 @@ elif [ "mrustc" = "$1" ]; then
     # build xxdir and create header
     ${CC} -o bin/xxdir build_utils/xxdir.c
     ./bin/xxdir ./resources c/bin.h
+    touch c/bible.c
     echo "Building BitcoinMW with mrustc"
     ./scripts/secp256k1zkp.sh || exit 1
     cd c
@@ -83,6 +84,7 @@ else
     # build xxdir and create header
     ${CC} -o bin/xxdir build_utils/xxdir.c
     ./bin/xxdir ./resources c/bin.h
+    touch c/bible.c
     echo "Building BitcoinMW with rustc"
     ./scripts/secp256k1zkp.sh || exit 1
     cd c

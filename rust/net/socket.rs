@@ -112,7 +112,7 @@ mod test {
 	#[test]
 	fn test_socket1() -> Result<(), Error> {
 		let mut s1 = Socket::new();
-		let port = s1.listen([127, 0, 0, 1], 9090, 10)?;
+		let port = s1.listen([127, 0, 0, 1], 0, 10)?;
 		let mut s2 = Socket::new();
 		s2.connect([127, 0, 0, 1], port)?;
 		let s3 = loop {

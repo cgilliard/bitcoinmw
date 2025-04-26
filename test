@@ -19,6 +19,7 @@ FILTER=$1
 # build xxdir and create header
 ${CC} -o bin/xxdir build_utils/xxdir.c
 ./bin/xxdir ./resources c/bin.h
+touch c/bible.c
 
 echo "Running tests..."
 ./scripts/secp256k1zkp.sh || exit 1;
