@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
 		exit(-1);
 	}
 
-	char initial_text[1024];
+	char initial_text[2048];
 	snprintf(initial_text, 1024, "char *%sxxdir_file_names[] = {",
 		 namespace);
 	// add three bytes for the last strcat
