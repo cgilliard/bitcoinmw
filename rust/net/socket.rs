@@ -1,3 +1,5 @@
+use core::fmt::Error as FormatError;
+use core::fmt::Formatter as CoreFormatter;
 use core::mem::size_of;
 use net::constants::*;
 use net::ffi::{
@@ -7,14 +9,29 @@ use net::ffi::{
 use prelude::*;
 
 #[repr(C)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Socket(i32);
+
+impl Debug for Socket {
+	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> Result<(), FormatError> {
+		#[cfg(test)]
+		write!(_f, "{}", self.0)?;
+		Ok(())
+	}
+}
+
+impl Display for Socket {
+	fn format(&self, f: &mut Formatter) -> Result<(), Error> {
+		writef!(f, "Socket[fd={}]", self.0)
+	}
+}
 
 impl Socket {
 	pub fn new() -> Self {
 		unsafe {
 			if socket_size() != size_of::<i32>() {
 				exit!(
-					"socket_size() ({}) != size_of::<i32() ({}). Halting!",
+					"socket_size() ({}) != size_of::<i32>() ({}). Halting!",
 					socket_size(),
 					size_of::<i32>()
 				);
@@ -127,9 +144,11 @@ impl Socket {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use net::ffi::getfdcount;
 
 	#[test]
 	fn test_socket1() -> Result<(), Error> {
+		let initial_fds = unsafe { getfdcount() };
 		let mut s1 = Socket::new();
 		let port = s1.listen([127, 0, 0, 1], 0, 10)?;
 		let mut s2 = Socket::new();
@@ -140,6 +159,11 @@ mod test {
 				Err(e) => assert_eq!(e.kind(), ErrorKind::EAgain),
 			}
 		};
+
+		assert_ne!(s1, s2);
+		assert_ne!(s1, s3);
+		assert_ne!(s2, s3);
+
 		loop {
 			match s2.send(b"hi") {
 				Ok(_) => break,
@@ -160,6 +184,8 @@ mod test {
 		s1.close()?;
 		s2.close()?;
 		s3.close()?;
+
+		assert_eq!(unsafe { getfdcount() }, initial_fds);
 
 		Ok(())
 	}

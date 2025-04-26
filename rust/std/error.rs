@@ -64,6 +64,7 @@ define_errorkind_with_strings!(
 	ListenError,
 	SetSockOpt,
 	AcceptError,
+	Registerfailed,
 	EAgain,
 	Todo
 );

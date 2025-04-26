@@ -1,3 +1,6 @@
+pub const MULTIPLEX_REGISTER_TYPE_FLAG_READ: i32 = 0x1;
+pub const MULTIPLEX_REGISTER_TYPE_FLAG_WRITE: i32 = 0x1 << 1;
+
 pub const ERROR_SOCKET: i32 = -1;
 pub const ERROR_CONNECT: i32 = -2;
 pub const ERROR_SETSOCKOPT: i32 = -3;
