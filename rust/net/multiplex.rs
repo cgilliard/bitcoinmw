@@ -713,19 +713,34 @@ mod test {
 			sleep_millis(100);
 		}
 
-		// assert that only 2 events are returned (our write event and our read event)
-		assert_eq!(m1.wait(&mut events, Some(10_000))?, 2);
+		#[cfg(target_os = "linux")]
+		{
+			assert_eq!(m1.wait(&mut events, Some(10_000))?, 1);
+			assert!(events[0].is_read());
+			assert!(events[0].is_write());
+			assert_eq!(events[0].socket(), s3);
+		}
+		#[cfg(any(
+			target_os = "macos",
+			target_os = "freebsd",
+			target_os = "openbsd",
+			target_os = "netbsd"
+		))]
+		{
+			// assert that only 2 events are returned (our write event and our read event)
+			assert_eq!(m1.wait(&mut events, Some(10_000))?, 2);
 
-		assert!(
-			(events[0].is_read() && !events[1].is_read())
-				|| (events[1].is_read() && !events[0].is_read())
-		);
-		assert!(
-			(events[0].is_write() && !events[1].is_write())
-				|| (events[1].is_write() && !events[0].is_write())
-		);
-		assert_eq!(events[0].socket(), s3);
-		assert_eq!(events[1].socket(), s3);
+			assert!(
+				(events[0].is_read() && !events[1].is_read())
+					|| (events[1].is_read() && !events[0].is_read())
+			);
+			assert!(
+				(events[0].is_write() && !events[1].is_write())
+					|| (events[1].is_write() && !events[0].is_write())
+			);
+			assert_eq!(events[0].socket(), s3);
+			assert_eq!(events[1].socket(), s3);
+		}
 
 		// ensure we can read our event back as well
 		let len = loop {
