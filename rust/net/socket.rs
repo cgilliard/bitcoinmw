@@ -15,7 +15,13 @@ pub struct Socket(i32);
 impl Debug for Socket {
 	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> Result<(), FormatError> {
 		#[cfg(test)]
-		write!(_f, "{}", self.0)?;
+		{
+			if self.0 < 0 {
+				write!(_f, "Socket[closed]")?;
+			} else {
+				write!(_f, "{}", self.0)?;
+			}
+		}
 		Ok(())
 	}
 }
@@ -77,6 +83,9 @@ impl Socket {
 	}
 
 	pub fn accept(&mut self) -> Result<Socket, Error> {
+		if self.0 < 0 {
+			return Err(Error::new(IllegalState));
+		}
 		let mut ret = Socket::new();
 		let res = unsafe { socket_accept(self as *mut Socket, &mut ret as *mut Socket) };
 		if res == 0 {
@@ -93,6 +102,9 @@ impl Socket {
 	}
 
 	pub fn recv(&self, buf: &mut [u8]) -> Result<usize, Error> {
+		if self.0 < 0 {
+			return Err(Error::new(IllegalState));
+		}
 		let res = unsafe { socket_recv(self as *const Socket, buf.as_mut_ptr(), buf.len()) };
 		if res >= 0 {
 			Ok(res as usize)
@@ -108,6 +120,9 @@ impl Socket {
 	}
 
 	pub fn send(&self, buf: &[u8]) -> Result<usize, Error> {
+		if self.0 < 0 {
+			return Err(Error::new(IllegalState));
+		}
 		let res = unsafe { socket_send(self as *const Socket, buf.as_ptr(), buf.len()) };
 		if res >= 0 {
 			Ok(res as usize)
@@ -122,9 +137,13 @@ impl Socket {
 		}
 	}
 
-	pub fn close(&self) -> Result<(), Error> {
+	pub fn close(&mut self) -> Result<(), Error> {
+		if self.0 < 0 {
+			return Err(Error::new(IllegalState));
+		}
 		let res = unsafe { socket_close(self as *const Socket) };
 		if res == 0 {
+			self.0 = -1; // prevent double close
 			Ok(())
 		} else {
 			Err(Error::new(SocketError))
@@ -132,6 +151,9 @@ impl Socket {
 	}
 
 	pub fn shutdown(&self) -> Result<(), Error> {
+		if self.0 < 0 {
+			return Err(Error::new(IllegalState));
+		}
 		let res = unsafe { socket_shutdown(self as *const Socket) };
 		if res == 0 {
 			Ok(())
@@ -153,7 +175,7 @@ mod test {
 		let port = s1.listen([127, 0, 0, 1], 0, 10)?;
 		let mut s2 = Socket::new();
 		s2.connect([127, 0, 0, 1], port)?;
-		let s3 = loop {
+		let mut s3 = loop {
 			match s1.accept() {
 				Ok(s3) => break s3,
 				Err(e) => assert_eq!(e.kind(), ErrorKind::EAgain),
@@ -184,6 +206,16 @@ mod test {
 		s1.close()?;
 		s2.close()?;
 		s3.close()?;
+
+		assert!(s1.close().is_err());
+		assert!(s2.close().is_err());
+		assert!(s3.close().is_err());
+
+		let mut x = Socket::new();
+		assert!(x.accept().is_err());
+		assert!(x.recv(&mut []).is_err());
+		assert!(x.send(&[]).is_err());
+		assert!(x.shutdown().is_err());
 
 		assert_eq!(unsafe { getfdcount() }, initial_fds);
 

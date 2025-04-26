@@ -3,7 +3,6 @@
 
 #include <unistd.h>
 #ifdef __APPLE__
-#include <fcntl.h>
 #include <sys/event.h>
 #elif defined(__linux__)
 #include <errno.h>
