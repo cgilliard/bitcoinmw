@@ -1,6 +1,5 @@
 use core::convert::AsRef;
 use core::iter::Iterator;
-use core::mem::forget;
 use core::ptr::null_mut;
 use core::slice::from_raw_parts;
 use lmdb::constants::{
@@ -356,7 +355,7 @@ impl LmdbTxn {
 				}
 			}
 		}
-		forget(self);
+		self.txn.txn = null_mut();
 		Ok(())
 	}
 }
