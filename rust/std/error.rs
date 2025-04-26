@@ -5,7 +5,7 @@ use std::ffi::{format_err, write};
 
 macro_rules! define_errorkind_with_strings {
     ( $( $variant:ident ),* ) => {
-        #[derive(PartialEq, Ord, PartialOrd, Eq)]
+        #[derive(PartialEq, Ord, PartialOrd, Eq, Clone, Copy)]
         pub enum ErrorKind {
             $( $variant ),*
         }
@@ -56,6 +56,15 @@ define_errorkind_with_strings!(
 	LmdbPut,
 	LmdbDel,
 	LmdbCursor,
+	SocketError,
+	ConnectError,
+	FcntlError,
+	GetSockNameError,
+	BindError,
+	ListenError,
+	SetSockOpt,
+	AcceptError,
+	EAgain,
 	Todo
 );
 
@@ -69,6 +78,10 @@ impl Error {
 	pub fn new(kind: ErrorKind) -> Self {
 		Self { kind }
 	}
+
+	pub fn kind(&self) -> ErrorKind {
+		self.kind
+	}
 }
 
 impl Debug for Error {
@@ -76,6 +89,26 @@ impl Debug for Error {
 		// There doesn't seem to be a way to call formatter in no_std so we print to stdout
 		// instead
 		let kind_str = self.kind.as_str();
+		match CString::new(kind_str) {
+			Ok(cstr) => unsafe {
+				let value = CString::from_ptr(format_err(cstr.as_ptr(), cstr.len()), false);
+				write(2, "\n".as_ptr(), 1);
+				write(2, value.as_ptr(), value.len());
+				write(2, "\n".as_ptr(), 1);
+				#[cfg(test)]
+				write!(_f, "{}", value.as_str().unwrap().as_str())?;
+			},
+			Err(_) => {}
+		}
+		Ok(())
+	}
+}
+
+impl Debug for ErrorKind {
+	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> Result<(), FmtError> {
+		// There doesn't seem to be a way to call formatter in no_std so we print to stdout
+		// instead
+		let kind_str = self.as_str();
 		match CString::new(kind_str) {
 			Ok(cstr) => unsafe {
 				let value = CString::from_ptr(format_err(cstr.as_ptr(), cstr.len()), false);
