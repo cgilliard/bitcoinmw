@@ -159,6 +159,7 @@ int main(int argc, char **argv) {
 	free(buf);
 
 	fclose(out);
+	closedir(dir);
 
 	printf("Binary header complete.\n");
 
