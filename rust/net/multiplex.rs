@@ -23,6 +23,17 @@ pub enum RegisterType {
 
 #[repr(C)]
 #[derive(Copy, Clone)]
+#[cfg(target_os = "linux")]
+pub struct Event([u8; 12]);
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+#[cfg(any(
+	target_os = "macos",
+	target_os = "freebsd",
+	target_os = "openbsd",
+	target_os = "netbsd"
+))]
 pub struct Event([u8; 32]);
 
 impl Event {
@@ -37,7 +48,16 @@ impl Event {
 			}
 		}
 
-		Self([0u8; 32])
+		#[cfg(target_os = "linux")]
+		let ret = Self([0u8; 12]);
+		#[cfg(any(
+			target_os = "macos",
+			target_os = "freebsd",
+			target_os = "openbsd",
+			target_os = "netbsd"
+		))]
+		let ret = Self([0u8; 32]);
+		ret
 	}
 
 	pub fn is_read(&self) -> bool {
