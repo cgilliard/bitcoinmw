@@ -71,17 +71,25 @@ int main(int argc, char **argv) {
 	const char *dir_path = argv[1];
 	const char *output_header = argv[2];
 
-	char namespace[1000];
+	char namespace[1000] = "";  // Initialize to empty string
 	if (argc == 4) {
-		strcpy(namespace, argv[3]);
-		strcat(namespace, "_");
-	} else {
-		strcpy(namespace, "");
-	}
+		if (argv[3] == NULL) {
+			fprintf(stderr, "Error: argv[3] is NULL\n");
+			exit(-1);
+		}
+		// Check length to prevent overflow (leave space for "_" and
+		// null terminator)
+		size_t len = strlen(argv[3]);
+		if (len > 998) {  // 1000 - 1 for "_" - 1 for null terminator
+			fprintf(stderr, "Error: namespace too long\n");
+			exit(-1);
+		}
+		snprintf(namespace, sizeof(namespace), "%s_", argv[3]);
+	}  // No else needed, namespace is already empty
 
 	FILE *out = fopen(output_header, "w");
 	if (out == NULL) {
-		fprintf(stderr, "Could not open output file");
+		fprintf(stderr, "Could not open output file\n");
 		exit(-1);
 	}
 
@@ -92,8 +100,9 @@ int main(int argc, char **argv) {
 	}
 
 	char initial_text[2048];
-	snprintf(initial_text, 2048, "char *%sxxdir_file_names[] = {",
-		 namespace);
+	snprintf(initial_text, sizeof(initial_text),
+		 "char *%sxxdir_file_names[] = {", namespace);
+
 	// add three bytes for the last strcat
 	char *buf = malloc(sizeof(char) * (strlen(initial_text) + 7));
 	int cur_alloc = strlen(initial_text);
