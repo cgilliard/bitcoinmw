@@ -10,3 +10,13 @@ pub const ERROR_ACCEPT: i32 = -6;
 pub const ERROR_FCNTL: i32 = -7;
 pub const ERROR_GETSOCKNAME: i32 = -10;
 pub const ERROR_EAGAIN: i32 = -11;
+
+#[cfg(target_os = "linux")]
+pub const EVENT_SIZE: usize = 12;
+#[cfg(any(
+	target_os = "macos",
+	target_os = "freebsd",
+	target_os = "openbsd",
+	target_os = "netbsd"
+))]
+pub const EVENT_SIZE: usize = 32;
