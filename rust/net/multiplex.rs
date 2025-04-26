@@ -636,4 +636,146 @@ mod test {
 
 		Ok(())
 	}
+
+	#[test]
+	fn test_multiplex_read_write() -> Result<(), Error> {
+		// get initial file descriptor count
+		let initial_fds = unsafe { getfdcount() };
+
+		// create a multiplex
+		let mut m1 = Multiplex::new()?;
+
+		// create a socket
+		let mut s1 = Socket::new();
+		// start listening on the socket (allow system to choose unused port)
+		let port = s1.listen([127, 0, 0, 1], 0, 1)?;
+
+		// register for read events (accept = read), no timeout
+		m1.register(s1, RegisterType::Read, None)?;
+
+		// create a new socket
+		let mut s2 = Socket::new();
+		// connect on the port we've bound to
+		s2.connect([127, 0, 0, 1], port)?;
+
+		// create an event slice and wait for events
+		let mut events = [Event::new(); 3];
+		// assert that only 1 event is returned (our accept event)
+		assert_eq!(m1.wait(&mut events, Some(10_000))?, 1);
+
+		// confirm the event (at the first index in our slice) is the read event on our
+		// listener)
+		assert!(events[0].is_read());
+		assert!(!events[0].is_write());
+		assert_eq!(events[0].socket(), s1);
+
+		// accept a new socket on our listener
+		let mut s3 = events[0].socket().accept()?;
+
+		// register s3 without our multiplex
+		m1.register(s3, RegisterType::Read, None)?;
+
+		// send a message back to the client
+		loop {
+			match s3.send(b"hi") {
+				Ok(_) => break,
+				Err(e) => assert_eq!(e.kind(), ErrorKind::EAgain),
+			}
+		}
+
+		// recieve the message on the client
+		let mut buf = [0u8; 50];
+		let len = loop {
+			match s2.recv(&mut buf) {
+				Ok(len) => break len,
+				Err(e) => assert_eq!(e.kind(), ErrorKind::EAgain),
+			}
+		};
+
+		// confirm message
+		assert_eq!(len, 2);
+
+		// we have established the connection, how let's write from the server. Generally,
+		// you attempt a write first and only if you can't fully write do you schedule a
+		// write, but to exercise the functionality we'll just register for write
+
+		m1.register(s3, RegisterType::RW, None)?;
+
+		// now that we've registered for read/write, send a message to trigger read event
+		// as well
+		loop {
+			match s2.send(b"dualevent1234") {
+				Ok(_) => break,
+				Err(e) => assert_eq!(e.kind(), ErrorKind::EAgain),
+			}
+		}
+		unsafe {
+			sleep_millis(100);
+		}
+
+		// assert that only 2 events are returned (our write event and our read event)
+		assert_eq!(m1.wait(&mut events, Some(10_000))?, 2);
+
+		assert!(
+			(events[0].is_read() && !events[1].is_read())
+				|| (events[1].is_read() && !events[0].is_read())
+		);
+		assert!(
+			(events[0].is_write() && !events[1].is_write())
+				|| (events[1].is_write() && !events[0].is_write())
+		);
+		assert_eq!(events[0].socket(), s3);
+		assert_eq!(events[1].socket(), s3);
+
+		// ensure we can read our event back as well
+		let len = loop {
+			match s3.recv(&mut buf) {
+				Ok(len) => break len,
+				Err(e) => assert_eq!(e.kind(), ErrorKind::EAgain),
+			}
+		};
+		assert_eq!(len, b"dualevent1234".len());
+
+		events[0].socket().send(b"complete")?;
+
+		// recieve the message on the client
+		let mut buf = [0u8; 50];
+
+		let len = loop {
+			match s2.recv(&mut buf) {
+				Ok(len) => break len,
+				Err(e) => assert_eq!(e.kind(), ErrorKind::EAgain),
+			}
+		};
+
+		// confirm message
+		assert_eq!(len, 8);
+
+		// assert that only 1 event is returned (since we're still registered for writing,
+		// we get events until we unreg)
+		assert_eq!(m1.wait(&mut events, Some(10_000))?, 1);
+
+		assert!(!events[0].is_read());
+		assert!(events[0].is_write());
+		assert_eq!(events[0].socket(), s3);
+
+		// ungregister
+		m1.unregister_write(s3, None)?;
+
+		// we should no longer have events waiting
+		assert_eq!(m1.wait(&mut events, Some(10))?, 0);
+
+		// cleanup handles
+		m1.close()?;
+		s1.close()?;
+		s2.close()?;
+		s3.close()?;
+
+		assert!(s3.close().is_err());
+
+		// assert that no file descriptors are open
+		assert_eq!(unsafe { getfdcount() }, initial_fds);
+
+		Ok(())
+	}
 }
