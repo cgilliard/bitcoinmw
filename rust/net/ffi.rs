@@ -39,4 +39,5 @@ extern "C" {
 	pub fn event_handle(socket: *mut Socket, event: *const Event);
 	pub fn event_is_read(event: *const Event) -> bool;
 	pub fn event_is_write(event: *const Event) -> bool;
+	pub fn event_ptr(event: *const Event) -> *mut u8;
 }

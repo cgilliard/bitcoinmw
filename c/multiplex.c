@@ -171,3 +171,14 @@ _Bool event_is_write(Event *event) {
 #endif	// __linux__
 }
 
+void *event_ptr(void *event) {
+#ifdef __APPLE__
+        struct kevent *kv = (struct kevent *)event;
+        return kv->udata;
+#elif defined(__linux__)
+        struct epoll_event *epoll_ev = (struct epoll_event *)event;
+        return epoll_ev->data.ptr;
+#else
+        return NULL;
+#endif
+}

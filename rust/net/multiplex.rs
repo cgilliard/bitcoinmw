@@ -3,8 +3,8 @@ use core::ptr::null;
 use net::constants::*;
 use net::errors::*;
 use net::ffi::{
-	event_handle, event_is_read, event_is_write, event_size, multiplex_close, multiplex_init,
-	multiplex_register, multiplex_size, multiplex_unregister_write, multiplex_wait,
+	event_handle, event_is_read, event_is_write, event_ptr, event_size, multiplex_close,
+	multiplex_init, multiplex_register, multiplex_size, multiplex_unregister_write, multiplex_wait,
 };
 use net::Socket;
 use prelude::*;
@@ -51,6 +51,10 @@ impl Event {
 		let mut ret = Socket::new();
 		unsafe { event_handle(&mut ret as *mut Socket, self as *const Event) }
 		ret
+	}
+
+	pub fn attachment(&self) -> *mut u8 {
+		unsafe { event_ptr(self as *const Event) }
 	}
 }
 
@@ -765,6 +769,130 @@ mod test {
 		s3.close()?;
 
 		assert!(s3.close().is_err());
+
+		Ok(())
+	}
+
+	struct MyAttachment {
+		pub x: i32,
+		pub y: u128,
+	}
+
+	#[test]
+	fn test_attachments() -> Result<()> {
+		// create a multiplex
+		let mut m1 = Multiplex::new()?;
+
+		// create a socket
+		let mut s1 = Socket::new();
+		// start listening on the socket (allow system to choose unused port)
+		let port = s1.listen([127, 0, 0, 1], 0, 1)?;
+
+		let attach = MyAttachment { x: -1, y: 100 };
+		// register for read events (accept = read), no timeout
+		m1.register(s1, RegisterType::Read, None)?;
+		// create a new socket
+		let mut s2 = Socket::new();
+		// connect on the port we've bound to
+		s2.connect([127, 0, 0, 1], port)?;
+
+		// create an event slice and wait for events
+		let mut events = [Event::new(); 3];
+		// assert that only 1 event is returned (our accept event)
+		assert_eq!(m1.wait(&mut events, Some(10_000))?, 1);
+		// confirm the event (at the first index in our slice) is the read event on our
+		// listener)
+		assert!(events[0].is_read());
+		assert!(!events[0].is_write());
+		assert_eq!(events[0].socket(), s1);
+
+		// accept a new socket on our listener
+		let mut s3 = events[0].socket().accept()?;
+
+		// register s3 with our multiplex (including attach)
+		m1.register(
+			s3,
+			RegisterType::Read,
+			Some(&attach as *const MyAttachment as *const u8),
+		)?;
+
+		// send a message back to the client
+		loop {
+			match s3.send(b"hi") {
+				Ok(_) => break,
+				Err(e) => assert_eq!(e, EAgain),
+			}
+		}
+
+		// recieve the message on the client
+		let mut buf = [0u8; 50];
+		let len = loop {
+			match s2.recv(&mut buf) {
+				Ok(len) => break len,
+				Err(e) => assert_eq!(e, EAgain),
+			}
+		};
+
+		// confirm message
+		assert_eq!(len, 2);
+		assert_eq!(buf[0], b'h');
+		assert_eq!(buf[1], b'i');
+
+		// confirm no messages waiting
+		assert_eq!(m1.wait(&mut events, Some(10))?, 0);
+
+		// write a message back
+		// send a message back to the client
+		loop {
+			match s2.send(b"test") {
+				Ok(_) => break,
+				Err(e) => assert_eq!(e, EAgain),
+			}
+		}
+
+		// assert that only 1 event is returned (our new message event)
+		assert_eq!(m1.wait(&mut events, Some(10_000))?, 1);
+
+		// confirm expected values
+		assert!(events[0].is_read());
+		assert!(!events[0].is_write());
+		assert_eq!(events[0].socket(), s3);
+
+		// check our attachment
+		let ptr = events[0].attachment() as *mut MyAttachment;
+		unsafe {
+			assert_eq!((*ptr).x, -1);
+			assert_eq!((*ptr).y, 100);
+		}
+
+		// recv 'test'
+		assert_eq!(events[0].socket().recv(&mut buf)?, 4);
+		assert_eq!(buf[0], b't');
+		assert_eq!(buf[1], b'e');
+		assert_eq!(buf[2], b's');
+		assert_eq!(buf[3], b't');
+
+		// confirm no messages waiting
+		assert_eq!(m1.wait(&mut events, Some(10))?, 0);
+
+		// close our connection
+		s2.close()?;
+
+		// assert that only 1 event is returned (our closed connection event)
+		assert_eq!(m1.wait(&mut events, Some(10_000))?, 1);
+		// confirm expected values
+
+		assert!(events[0].is_read());
+		assert!(!events[0].is_write());
+		assert_eq!(events[0].socket(), s3);
+		s3.close()?; // now we can call close on socket s3
+
+		// confirm no messages waiting
+		assert_eq!(m1.wait(&mut events, Some(10))?, 0);
+
+		// close listener and multiplex
+		s1.close()?;
+		m1.close()?;
 
 		Ok(())
 	}
