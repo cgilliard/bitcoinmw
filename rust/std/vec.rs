@@ -641,6 +641,7 @@ mod test {
 		}
 		{
 			let v = vec![DropTest2 { x: 1 }, DropTest2 { x: 2 }, DropTest2 { x: 3 }].unwrap();
+			assert_eq!(v[0].x, 1);
 			for y in v {
 				let _z = y;
 			}

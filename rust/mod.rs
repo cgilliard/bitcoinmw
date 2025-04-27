@@ -4,6 +4,7 @@
 #[macro_use]
 pub mod std;
 
+pub mod crypto;
 pub mod prelude;
 mod real_main;
-mod util;
+pub mod util;
