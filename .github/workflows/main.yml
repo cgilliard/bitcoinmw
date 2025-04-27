@@ -128,8 +128,8 @@ jobs:
             git clone https://github.com/cgilliard/famc ../famc
             cd ../famc
             export LIBRARY_PATH="$(brew --prefix gmp)/lib:$LIBRARY_PATH"
-            export CXX=/opt/homebrew/bin/g++-13
-            export CC=/opt/homebrew/bin/gcc-13
+            export CXX=clang++
+            export CC=clang
             ./build.sh
             cd ../bitcoinmw
             ./build clean
