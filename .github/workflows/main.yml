@@ -33,7 +33,7 @@ jobs:
           ./bin/bmw || exit 1;
       - name: linux build (mrustc)
         run: |
-          export CC=gcc
+          export CC=clang
           mkdir ../famc
           cd ../famc
           wget https://github.com/cgilliard/famc/releases/download/0.0.1/famc_linux.tar.gz
@@ -74,8 +74,8 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             git clone https://github.com/cgilliard/famc ../famc_src
             cd ../famc_src
-            export CXX=g++
-            export CC=gcc
+            export CXX=clang++
+            export CC=clang
             ./build.sh
             cd ../bitcoinmw
             ./build clean
