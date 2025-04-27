@@ -331,8 +331,19 @@ mod test {
 		assert_eq!(m1.wait(&mut events, Some(10))?, 1);
 
 		let mut r1 = events[0].socket().accept()?;
-		let mut r2 = events[0].socket().accept()?;
-		let mut r3 = events[0].socket().accept()?;
+
+		let mut r2 = loop {
+			match events[0].socket().accept() {
+				Ok(r2) => break r2,
+				Err(e) => assert_eq!(e.kind(), ErrorKind::EAgain),
+			}
+		};
+		let mut r3 = loop {
+			match events[0].socket().accept() {
+				Ok(r3) => break r3,
+				Err(e) => assert_eq!(e.kind(), ErrorKind::EAgain),
+			}
+		};
 
 		// no more to accept
 		assert_eq!(
