@@ -91,7 +91,7 @@ mod test {
 	use super::*;
 
 	#[test]
-	fn test_bible1() -> Result<(), Error> {
+	fn test_bible1() -> ResultGen<()> {
 		let bible = Bible::new();
 
 		// first verse
