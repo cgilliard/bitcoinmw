@@ -51,27 +51,36 @@ char *gen_backtrace() {
 	}
 
 	FILE *fp = popen(command, "r");
+	if (fp == NULL)
+		return NULL;
 	char buffer[MAX_LINE_LEN] = {0};
+	int allocated = 0;
+	const char *stack_backtrace_message = "stack backtrace: ";
 	while (fgets(buffer, sizeof(buffer), fp) != NULL) {
-		int len = strlen(buffer);
+		int needed = strlen(buffer);
 		if (ret == NULL) {
-			ret = alloc(len + 30);
+			allocated = needed + 1 + strlen(stack_backtrace_message);
+			ret = alloc(allocated);
 			if (ret == NULL) {
+				pclose(fp);
 				return NULL;
 			}
-			strcpy(ret, "stack backtrace: ");
+			strcpy(ret, stack_backtrace_message);
 			strcat(ret, buffer);
 		} else {
-			int nsize = strlen(ret) + len + 2;
-			char *tmp = resize(ret, nsize);
+			allocated += needed + 1;
+			char *tmp = resize(ret, allocated);
 			if (tmp == NULL) {
 				release(ret);
+				pclose(fp);
 				return NULL;
 			}
 			ret = tmp;
 			strcat(ret, buffer);
 		}
 	}
+
+	pclose(fp);
 
 	return ret;
 }
