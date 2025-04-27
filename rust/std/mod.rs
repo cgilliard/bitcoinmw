@@ -2,6 +2,7 @@
 mod macros;
 
 mod as_raw;
+mod backtrace;
 mod boxed;
 mod channel;
 mod clone;
@@ -9,6 +10,7 @@ mod constants;
 mod cstring;
 mod display;
 mod error;
+pub mod error2;
 mod format;
 mod lock;
 mod ptr;
@@ -23,6 +25,7 @@ pub(crate) mod sliceext;
 pub(crate) mod strext;
 
 pub use std::as_raw::AsRaw;
+pub use std::backtrace::Backtrace;
 pub use std::boxed::Box;
 pub use std::channel::{channel, Receiver, Sender};
 pub use std::clone::TryClone;

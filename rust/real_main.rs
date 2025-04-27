@@ -7,6 +7,8 @@ pub extern "C" fn real_main(argc: i32, _argv: *const *const u8) -> i32 {
 	let verse = bible.find_mod(0);
 	if argc > 0 {
 		println!("{}", verse);
+		let e = err!(crate::std::error2::IO);
+		println!("e={}", e);
 	}
 	0
 }

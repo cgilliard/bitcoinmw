@@ -52,4 +52,7 @@ extern "C" {
 	pub fn channel_handle_size() -> usize;
 	pub fn channel_destroy(channel: *const u8) -> i32;
 	pub fn channel_pending(channel: *const u8) -> i32;
+
+	// backtrace
+	pub fn gen_backtrace() -> *const u8;
 }

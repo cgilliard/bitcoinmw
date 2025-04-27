@@ -1,11 +1,13 @@
 #ifndef _STD_H__
 #define _STD_H__
 
+#include <stdio.h>
+
 void *malloc(unsigned long);
 void *realloc(void *ptr, unsigned long);
 void free(void *);
 int getentropy(void *buf, unsigned long long length);
-int snprintf(char *s, unsigned long n, const char *format, ...);
+// int snprintf(char *s, unsigned long n, const char *format, ...);
 
 void *alloc(unsigned long size);
 void release(void *ptr);

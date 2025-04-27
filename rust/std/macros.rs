@@ -1,4 +1,13 @@
 #[macro_export]
+macro_rules! err {
+	($e:expr) => {{
+		let mut e = $e;
+		e.bt = Backtrace::new();
+		e
+	}};
+}
+
+#[macro_export]
 macro_rules! aadd {
 	($a:expr, $v:expr) => {{
 		use std::ffi::atomic_fetch_add_u64;
