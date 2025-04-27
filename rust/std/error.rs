@@ -8,7 +8,8 @@ errors!(
 	IO,
 	CcapacityExceeded,
 	Utf8Error,
-	Alloc
+	Alloc,
+	Todo
 );
 
 #[derive(Clone)]
