@@ -5,10 +5,6 @@
 #define NULL ((void *)0)
 #endif
 
-#ifdef TEST
-extern int __fd_count;
-#endif	// TEST
-
 unsigned long long multiplex_size() { return sizeof(Multiplex); }
 
 unsigned long long event_size() {
@@ -29,9 +25,6 @@ int multiplex_init(Multiplex *multiplex) {
 #endif	// __linux__
 	if (multiplex->fd < 0) return ERROR_MULTIPLEX_INIT;
 
-#ifdef TEST
-	__atomic_fetch_add(&__fd_count, 1, __ATOMIC_SEQ_CST);
-#endif	// TEST
 	return 0;
 }
 
@@ -142,9 +135,6 @@ int multiplex_wait(Multiplex *multiplex, void *events, int max_events,
 
 int multiplex_close(Multiplex *m) {
 	int ret = close(m->fd);
-#ifdef TEST
-	if (ret == 0) __atomic_fetch_sub(&__fd_count, 1, __ATOMIC_SEQ_CST);
-#endif	// TEST
 	return ret;
 }
 

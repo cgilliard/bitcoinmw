@@ -43,8 +43,4 @@ void event_handle(Socket *s, Event *event);
 _Bool event_is_read(Event *event);
 _Bool event_is_write(Event *event);
 
-#ifdef TEST
-long long getfdcount();
-#endif	// TEST
-
 #endif	// _NET_H__

@@ -9,16 +9,11 @@
 
 #include "nettypes.h"
 
-#ifdef TEST
-long long __fd_count = 0;
+_Thread_local long long __fd_count = 0;
 long long getfdcount() { return __fd_count; }
-#endif	// TEST
 
 int close_impl(int fd) {
 	int ret = close(fd);
-#ifdef TEST
-	if (ret == 0) __atomic_fetch_sub(&__fd_count, 1, __ATOMIC_SEQ_CST);
-#endif	// TEST
 	return ret;
 }
 
@@ -27,9 +22,6 @@ unsigned long long int socket_size() { return sizeof(Socket); }
 int socket_connect(Socket* s, unsigned char addr[4], int port) {
 	s->fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (s->fd < 0) return ERROR_SOCKET;
-#ifdef TEST
-	__atomic_fetch_add(&__fd_count, 1, __ATOMIC_SEQ_CST);
-#endif	// TEST
 
 	struct sockaddr_in serv_addr;
 	memset(&serv_addr, 0, sizeof(serv_addr));
@@ -62,9 +54,7 @@ int socket_listen(Socket* s, unsigned char addr[4], int port, int backlog) {
 
 	s->fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (s->fd < 0) return ERROR_SOCKET;
-#ifdef TEST
-	__atomic_fetch_add(&__fd_count, 1, __ATOMIC_SEQ_CST);
-#endif	// TEST
+
 	if (setsockopt(s->fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
 		close_impl(s->fd);
 		return ERROR_SETSOCKOPT;
@@ -119,10 +109,6 @@ int socket_accept(Socket* s, Socket* accepted) {
 		}
 		return ERROR_ACCEPT;
 	}
-
-#ifdef TEST
-	__atomic_fetch_add(&__fd_count, 1, __ATOMIC_SEQ_CST);
-#endif	// TEST
 
 	int flags = fcntl(accepted->fd, F_GETFL, 0);
 

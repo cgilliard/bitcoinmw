@@ -14,9 +14,6 @@ extern "C" {
 	// formatting errors
 	pub fn format_err(kind: *const u8, len: usize) -> *mut u8;
 
-	// get number of allocations
-	pub fn getalloccount() -> usize;
-
 	// other functions
 	pub fn write(fd: i32, buf: *const u8, len: usize) -> i32;
 	pub fn ptr_add(p: *mut u8, v: i64);
@@ -55,4 +52,8 @@ extern "C" {
 
 	// backtrace
 	pub fn gen_backtrace() -> *const u8;
+}
+
+pub unsafe fn getalloccount() -> usize {
+	0
 }

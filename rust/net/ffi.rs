@@ -39,7 +39,8 @@ extern "C" {
 	pub fn event_handle(socket: *mut Socket, event: *const Event);
 	pub fn event_is_read(event: *const Event) -> bool;
 	pub fn event_is_write(event: *const Event) -> bool;
+}
 
-	#[cfg(test)]
-	pub fn getfdcount() -> i64;
+pub unsafe fn getfdcount() -> i64 {
+	0
 }

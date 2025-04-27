@@ -2,20 +2,12 @@
 
 #include <time.h>
 
-long long __alloc_count = 0;
-
 void *alloc(unsigned long size) {
 	void *ptr = malloc(size);
-#ifdef TEST
-	__atomic_fetch_add(&__alloc_count, 1, __ATOMIC_SEQ_CST);
-#endif	// TEST
 	return ptr;
 }
 
 void release(void *ptr) {
-#ifdef TEST
-	__atomic_fetch_sub(&__alloc_count, 1, __ATOMIC_SEQ_CST);
-#endif	// TEST
 	free(ptr);
 }
 
@@ -42,6 +34,4 @@ int sleep_millis(unsigned long long millis) {
 int rand_bytes(unsigned char *buf, unsigned long long length) {
 	return getentropy(buf, length);
 }
-
-long long getalloccount() { return __alloc_count; }
 
