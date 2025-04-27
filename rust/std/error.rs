@@ -7,6 +7,7 @@ errors!(
 	IllegalState,
 	IO,
 	CcapacityExceeded,
+	OperationFailed,
 	Utf8Error,
 	Alloc,
 	ThreadJoin,
