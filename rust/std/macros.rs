@@ -11,21 +11,40 @@ macro_rules! err {
 macro_rules! errors {
     ($($error:ident),*) => {
         define_errors_inner!(@count 0, simple_hash(file!(), line!()), $($error),*);
+        #[cfg(test)]
+        mod unique_test_mod {
+            #[test]
+            fn print_hash_value() {
+                #[cfg(printhashes)]
+                {
+                    use std::misc::simple_hash;
+                    use prelude::*;
+                    println!("hash value = {}", simple_hash(file!(), line!()));
+                }
+            }
+        }
     };
 }
 
 #[macro_export]
 macro_rules! define_errors_inner {
-        (@count $index:expr, $file_hash:expr, $head:ident $(, $tail:ident)*) => {
-                #[allow(non_upper_case_globals)]
-                pub const $head: ErrorGen = ErrorGen::new(
-                    $file_hash + $index,
-                    || -> &'static str { stringify!($head) },
-                    Backtrace::init()
-                );
-                define_errors_inner!(@count $index + 1, $file_hash, $($tail),*);
-        };
-        (@count $index:expr, $file_hash:expr,) => {};
+    (@count $index:expr, $file_hash:expr, $head:ident $(, $tail:ident)*) => {
+        #[allow(non_upper_case_globals)]
+        pub const $head: ErrorGen = ErrorGen::new(
+            $file_hash + $index,
+            || -> &'static str { stringify!($head) },
+            Backtrace::init()
+        );
+        define_errors_inner!(@count $index + 1, $file_hash, $($tail),*);
+    };
+    (@count $index:expr, $file_hash:expr,) => {};
+    (@test [$($processed:ident),*] [$head:ident $(, $tail:ident)*] $($rest:ident),*) => {
+        $(
+            assert_ne!($head.code(), $processed.code(), "Error codes for {} and {} must be distinct", stringify!($head), stringify!($processed));
+        )*
+        define_errors_inner!(@test [$($processed,)* $head] [$($tail),*] $($rest),*);
+    };
+    (@test [$($processed:ident),*] [] $($rest:ident),*) => {};
 }
 
 #[macro_export]

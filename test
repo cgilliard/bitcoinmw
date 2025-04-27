@@ -47,7 +47,7 @@ cd macros
 rustc --crate-type=proc-macro --edition=2021 lib.rs -o ../.obj/libbitcoinmw_macros${MACRO_EXT} || exit 1;
 cd ..
 
-# build tests
+# build tests (to print out hashes for confirming no collisions use --cfg printhashes
 rustc -C debuginfo=2 --test rust/mod.rs \
 	-o bin/test_bmw \
 	-L .obj \
