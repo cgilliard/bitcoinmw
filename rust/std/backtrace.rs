@@ -30,7 +30,7 @@ impl Backtrace {
 
 	pub fn as_str(&self) -> &str {
 		if self.0.is_null() {
-			""
+			"Backtrace disabled. To enable set evn variable: export RUST_BACKTRACE=1."
 		} else if self.0 == 0x1 as *const u8 {
 			"backtrace not possible. Use err!(<err>) to enable backtrace!"
 		} else {
