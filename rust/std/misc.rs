@@ -9,22 +9,6 @@ pub struct MyStruct {
 	y: u64,
 }
 
-/*
-pub const fn simple_hash(s: &str, line: u32) -> u64 {
-	let mut hash = 0_u64;
-	let bytes = s.as_bytes();
-	let mut i = 0;
-	while i < bytes.len() {
-		hash = hash ^ (bytes[i] as u64);
-		hash = (hash << 3) ^ (hash >> 2);
-		i += 1;
-	}
-	hash = hash ^ (line as u64);
-	hash = (hash << 5) ^ (hash >> 1);
-	hash
-}
-*/
-
 pub const fn wrapping_mul(a: u64, b: u64) -> u64 {
 	// Split a and b into high and low 32-bit parts
 	let a_low = (a & 0xFFFFFFFF) as u32;
