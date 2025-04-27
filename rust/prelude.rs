@@ -1,4 +1,5 @@
 // Internal
+/*
 pub use std::misc::simple_hash;
 pub use std::sliceext::SliceExt;
 pub use std::strext::StrExt;
@@ -9,6 +10,7 @@ pub use std::{
 
 // macros
 pub use bitcoinmw_macros::Dummy;
+*/
 
 // External
 pub use core::clone::Clone;
