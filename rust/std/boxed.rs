@@ -168,26 +168,19 @@ impl<T: ?Sized> Box<T> {
 mod test {
 	use super::*;
 	use core::ops::Fn;
-	use std::ffi::getalloccount;
 
 	#[test]
 	fn test_box1() {
-		let initial = unsafe { getalloccount() };
-		{
-			let mut x = Box::new(4).unwrap();
-			let y = x.as_ref();
-			assert_eq!(*y, 4);
+		let mut x = Box::new(4).unwrap();
+		let y = x.as_ref();
+		assert_eq!(*y, 4);
 
-			let z = x.as_mut();
-			*z = 10;
-			assert_eq!(*z, 10);
-			let a = x.try_clone().unwrap();
-			let b = a.as_ref();
-			assert_eq!(*b, 10);
-		}
-		unsafe {
-			assert_eq!(initial, getalloccount());
-		}
+		let z = x.as_mut();
+		*z = 10;
+		assert_eq!(*z, 10);
+		let a = x.try_clone().unwrap();
+		let b = a.as_ref();
+		assert_eq!(*b, 10);
 	}
 
 	trait GetData {
@@ -206,23 +199,16 @@ mod test {
 
 	#[test]
 	fn test_box2() {
-		let initial = unsafe { getalloccount() };
-		{
-			let mut b1: Box<TestSample> = Box::new(TestSample { data: 1 }).unwrap();
-			b1.leak();
-			let b2: Box<dyn GetData> = Box::from_raw(Ptr::new(b1.as_ptr().raw()));
-			assert_eq!(b2.get_data(), 1);
+		let mut b1: Box<TestSample> = Box::new(TestSample { data: 1 }).unwrap();
+		b1.leak();
+		let b2: Box<dyn GetData> = Box::from_raw(Ptr::new(b1.as_ptr().raw()));
+		assert_eq!(b2.get_data(), 1);
 
-			let b3 = box_dyn!(TestSample { data: 2 }, GetData);
-			assert_eq!(b3.get_data(), 2);
+		let b3 = box_dyn!(TestSample { data: 2 }, GetData);
+		assert_eq!(b3.get_data(), 2);
 
-			let b4 = Box::new(|x| 5 + x).unwrap();
-			assert_eq!(b4(5), 10);
-		}
-
-		unsafe {
-			assert_eq!(initial, getalloccount());
-		}
+		let b4 = Box::new(|x| 5 + x).unwrap();
+		assert_eq!(b4(5), 10);
 	}
 
 	struct BoxTest<CLOSURE>
@@ -240,81 +226,63 @@ mod test {
 
 	#[test]
 	fn test_box3() {
-		let initial = unsafe { getalloccount() };
-		{
-			let x = BoxTest {
-				x: box_dyn!(TestSample { data: 8 }, GetData),
-				y: Box::new(|x| x + 4).unwrap(),
-				z: box_slice!(3u8, 32),
-			};
-			assert_eq!(x.x.get_data(), 8);
-			assert_eq!((x.y)(14), 18);
-			assert_eq!(x.z[5], 3u8);
+		let x = BoxTest {
+			x: box_dyn!(TestSample { data: 8 }, GetData),
+			y: Box::new(|x| x + 4).unwrap(),
+			z: box_slice!(3u8, 32),
+		};
+		assert_eq!(x.x.get_data(), 8);
+		assert_eq!((x.y)(14), 18);
+		assert_eq!(x.z[5], 3u8);
 
-			let v: Box<[u64]> = box_slice!(1u64, 10);
-			let y = BoxTest2 { v };
-			assert_eq!(y.v[2], 1u64);
+		let v: Box<[u64]> = box_slice!(1u64, 10);
+		let y = BoxTest2 { v };
+		assert_eq!(y.v[2], 1u64);
 
-			let z: Box<[u64]> = box_slice!(7999u64, 10);
-			assert_eq!(z[9], 7999u64);
+		let z: Box<[u64]> = box_slice!(7999u64, 10);
+		assert_eq!(z[9], 7999u64);
 
-			let z: Box<[u8]> = box_slice!(4u8, 10);
-			assert_eq!(z[0], 4);
+		let z: Box<[u8]> = box_slice!(4u8, 10);
+		assert_eq!(z[0], 4);
 
-			let z: Box<[i8]> = box_slice!(-9i8, 20);
-			assert_eq!(z[1], -9i8);
-		}
-		unsafe {
-			assert_eq!(initial, getalloccount());
-		}
+		let z: Box<[i8]> = box_slice!(-9i8, 20);
+		assert_eq!(z[1], -9i8);
 	}
 
 	#[test]
 	fn test_try_box_dyn() {
-		let initial = unsafe { getalloccount() };
-		{
-			let x = try_box_dyn!(TestSample { data: 89 }, GetData).unwrap();
-			assert_eq!(x.get_data(), 89);
+		let x = try_box_dyn!(TestSample { data: 89 }, GetData).unwrap();
+		assert_eq!(x.get_data(), 89);
 
-			let x: Box<[u64]> = try_box_slice!(7u64, 30).unwrap();
-			assert_eq!(x[4], 7u64);
+		let x: Box<[u64]> = try_box_slice!(7u64, 30).unwrap();
+		assert_eq!(x[4], 7u64);
 
-			let x: Box<[i128]> = try_box_slice!(-7i128, 30).unwrap();
-			assert_eq!(x[29], -7i128);
-			assert_eq!(x.len(), 30);
-		}
-		unsafe {
-			assert_eq!(initial, getalloccount());
-		}
+		let x: Box<[i128]> = try_box_slice!(-7i128, 30).unwrap();
+		assert_eq!(x[29], -7i128);
+		assert_eq!(x.len(), 30);
 	}
 
 	#[test]
 	fn test_box4() {
-		let initial = unsafe { getalloccount() };
-		{
-			let mut box1 = Box::new([9u8; 992]).unwrap();
-			for i in 0..992 {
-				assert_eq!(9u8, box1.as_ref()[i]);
-			}
-			let box1_mut = box1.as_mut();
-			for i in 0..992 {
-				box1_mut[i] = 8;
-			}
-			for i in 0..992 {
-				assert_eq!(8u8, box1.as_ref()[i]);
-			}
-
-			let mut box2: Box<[u8]> = box_slice!(0u8, 20000);
-			for i in 0..20000 {
-				box2.as_mut()[i] = 10;
-			}
-
-			for i in 0..20000 {
-				assert_eq!(box2.as_ref()[i], 10);
-			}
+		let mut box1 = Box::new([9u8; 992]).unwrap();
+		for i in 0..992 {
+			assert_eq!(9u8, box1.as_ref()[i]);
 		}
-		unsafe {
-			assert_eq!(initial, getalloccount());
+		let box1_mut = box1.as_mut();
+		for i in 0..992 {
+			box1_mut[i] = 8;
+		}
+		for i in 0..992 {
+			assert_eq!(8u8, box1.as_ref()[i]);
+		}
+
+		let mut box2: Box<[u8]> = box_slice!(0u8, 20000);
+		for i in 0..20000 {
+			box2.as_mut()[i] = 10;
+		}
+
+		for i in 0..20000 {
+			assert_eq!(box2.as_ref()[i], 10);
 		}
 	}
 
@@ -335,17 +303,12 @@ mod test {
 
 	#[test]
 	fn test_drop_box() {
-		let initial = unsafe { getalloccount() };
 		{
 			let _big: Box<[u8]> = box_slice!(0u8, 100000);
 			let _v = Box::new(DropBox { x: 1 }).unwrap();
 			assert_eq!(unsafe { COUNT }, 0);
 		}
 		assert_eq!(unsafe { COUNT }, 1);
-
-		unsafe {
-			assert_eq!(initial, getalloccount());
-		}
 	}
 
 	static mut CLONE_DROP_COUNT: i32 = 0;

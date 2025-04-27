@@ -41,6 +41,3 @@ pub use std::rc::Rc;
 pub use std::string::String;
 pub use std::thread::{spawn, spawnj};
 pub use std::vec::Vec;
-
-#[cfg(test)]
-pub use std::ffi::getalloccount;

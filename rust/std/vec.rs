@@ -528,7 +528,6 @@ mod test {
 	#![allow(unused_mut)]
 
 	use super::*;
-	use std::ffi::getalloccount;
 
 	#[test]
 	fn test_vec1() {
@@ -546,64 +545,52 @@ mod test {
 
 	#[test]
 	fn test_vec2() {
-		let initial = unsafe { getalloccount() };
-		{
-			let mut v1 = Vec::new();
-			for i in 0..100000 {
-				assert!(v1.push(i).is_ok());
-				assert_eq!(v1[i], i);
-			}
-
-			for i in 0..100000 {
-				v1[i] = i + 100;
-			}
-			for i in 0..100000 {
-				assert_eq!(v1[i], i + 100);
-			}
-
-			let v2 = vec![1, 2, 3].unwrap();
-			let mut count = 0;
-			for x in v2 {
-				count += 1;
-				assert_eq!(x, count);
-			}
-			assert_eq!(count, 3);
+		let mut v1 = Vec::new();
+		for i in 0..100000 {
+			assert!(v1.push(i).is_ok());
+			assert_eq!(v1[i], i);
 		}
-		unsafe {
-			assert_eq!(initial, getalloccount());
+
+		for i in 0..100000 {
+			v1[i] = i + 100;
 		}
+		for i in 0..100000 {
+			assert_eq!(v1[i], i + 100);
+		}
+
+		let v2 = vec![1, 2, 3].unwrap();
+		let mut count = 0;
+		for x in v2 {
+			count += 1;
+			assert_eq!(x, count);
+		}
+		assert_eq!(count, 3);
 	}
 
 	#[test]
 	fn test_vec_append() {
-		let initial = unsafe { getalloccount() };
-		{
-			let mut v1 = vec![1u64, 2, 3].unwrap();
-			let v2 = vec![4u64, 5, 6].unwrap();
-			assert!(v1.extend_from_slice(&v2).is_ok());
-			assert_eq!(v1.len(), 6);
-			assert_eq!(v2.len(), 3);
+		let mut v1 = vec![1u64, 2, 3].unwrap();
+		let v2 = vec![4u64, 5, 6].unwrap();
+		assert!(v1.extend_from_slice(&v2).is_ok());
+		assert_eq!(v1.len(), 6);
+		assert_eq!(v2.len(), 3);
 
-			assert_eq!(v1, vec![1, 2, 3, 4, 5, 6].unwrap());
-			assert!(v1 != vec![1, 2, 3, 4, 6, 6].unwrap());
-			assert!(v1 == vec![1, 2, 3, 4, 5, 6].unwrap());
-			assert!(v1 != v2);
+		assert_eq!(v1, vec![1, 2, 3, 4, 5, 6].unwrap());
+		assert!(v1 != vec![1, 2, 3, 4, 6, 6].unwrap());
+		assert!(v1 == vec![1, 2, 3, 4, 5, 6].unwrap());
+		assert!(v1 != v2);
 
-			// try a u8 version
-			let mut v1 = vec![1u8, 2, 3].unwrap();
-			let v2 = vec![4u8, 5, 6].unwrap();
-			assert!(v1.extend_from_slice(&v2).is_ok());
+		// try a u8 version
+		let mut v1 = vec![1u8, 2, 3].unwrap();
+		let v2 = vec![4u8, 5, 6].unwrap();
+		assert!(v1.extend_from_slice(&v2).is_ok());
 
-			assert_eq!(v1, vec![1, 2, 3, 4, 5, 6].unwrap());
-			assert!(v1 != vec![1, 2, 3, 4, 6, 6].unwrap());
-			assert!(v1 == vec![1, 2, 3, 4, 5, 6].unwrap());
-			assert!(v1 != v2);
-			assert_eq!(v1.len(), 6);
-			assert_eq!(v2.len(), 3);
-		}
-		unsafe {
-			assert_eq!(initial, getalloccount());
-		}
+		assert_eq!(v1, vec![1, 2, 3, 4, 5, 6].unwrap());
+		assert!(v1 != vec![1, 2, 3, 4, 6, 6].unwrap());
+		assert!(v1 == vec![1, 2, 3, 4, 5, 6].unwrap());
+		assert!(v1 != v2);
+		assert_eq!(v1.len(), 6);
+		assert_eq!(v2.len(), 3);
 	}
 
 	struct DropTest {
@@ -622,10 +609,9 @@ mod test {
 
 	#[test]
 	fn test_vec_drop() {
-		let x = DropTest { x: 8 };
-
-		let initial = unsafe { getalloccount() };
 		{
+			let x = DropTest { x: 8 };
+
 			let mut v: Vec<DropTest> = vec![].unwrap();
 			assert!(v.resize(1).is_ok());
 			v[0] = x;
@@ -633,59 +619,35 @@ mod test {
 		}
 
 		assert_eq!(unsafe { VTEST }, 2);
-		unsafe {
-			assert_eq!(initial, getalloccount());
-		}
 	}
 
 	#[test]
 	fn test_vec_iter_drop() {
-		let initial = unsafe { getalloccount() };
-		{
-			unsafe {
-				VTEST = 0;
-			}
-			{
-				let v = vec![DropTest { x: 1 }, DropTest { x: 2 }, DropTest { x: 3 }].unwrap();
-				for y in v {
-					let _z = y;
-				}
-			}
-			assert_eq!(unsafe { VTEST }, 3);
-		}
 		unsafe {
-			assert_eq!(initial, getalloccount());
+			VTEST = 0;
 		}
+		{
+			let v = vec![DropTest { x: 1 }, DropTest { x: 2 }, DropTest { x: 3 }].unwrap();
+			for y in v {
+				let _z = y;
+			}
+		}
+		assert_eq!(unsafe { VTEST }, 3);
 	}
 
 	#[test]
 	fn test_set_min0() {
-		let initial = unsafe { getalloccount() };
-		{
-			let mut v = Vec::new();
-			v.allow_zero_alloc(true);
-			assert!(v.push(1).is_ok());
-			assert!(v.resize(128).is_ok());
-			assert!(v.resize(0).is_ok());
+		let mut v = Vec::new();
+		v.allow_zero_alloc(true);
+		assert!(v.push(1).is_ok());
+		assert!(v.resize(128).is_ok());
+		assert!(v.resize(0).is_ok());
 
-			// already 0
-			unsafe {
-				assert_eq!(initial, getalloccount());
-			}
-
-			let mut v = Vec::new();
-			assert!(v.push(1).is_ok());
-			v.allow_zero_alloc(true);
-			assert!(v.resize(128).is_ok());
-			assert!(v.resize(0).is_ok());
-
-			unsafe {
-				assert_eq!(initial, getalloccount());
-			}
-		}
-		unsafe {
-			assert_eq!(initial, getalloccount());
-		}
+		let mut v = Vec::new();
+		assert!(v.push(1).is_ok());
+		v.allow_zero_alloc(true);
+		assert!(v.resize(128).is_ok());
+		assert!(v.resize(0).is_ok());
 	}
 
 	#[test]
@@ -741,49 +703,37 @@ mod test {
 
 	#[test]
 	fn test_try_clone() -> Result<(), Error> {
-		let initial = unsafe { getalloccount() };
-		{
-			let v1 = vec![1, 2, 3, 4]?;
-			let v2 = v1.try_clone()?;
-			assert_eq!(v1, v2);
+		let v1 = vec![1, 2, 3, 4]?;
+		let v2 = v1.try_clone()?;
+		assert_eq!(v1, v2);
 
-			let x1 = vec![1, 2, 3]?;
-			let x2 = vec![4, 5, 6]?;
-			let x3 = vec![7, 8, 9]?;
+		let x1 = vec![1, 2, 3]?;
+		let x2 = vec![4, 5, 6]?;
+		let x3 = vec![7, 8, 9]?;
 
-			let y1 = vec![9, 9, 9, 9]?;
-			let y2 = vec![10, 10, 10]?;
-			let y3 = vec![11, 11]?;
-			let y4 = vec![12]?;
+		let y1 = vec![9, 9, 9, 9]?;
+		let y2 = vec![10, 10, 10]?;
+		let y3 = vec![11, 11]?;
+		let y4 = vec![12]?;
 
-			let y = vec![y1, y2, y3, y4]?;
-			let x = vec![x1, x2, x3]?;
+		let y = vec![y1, y2, y3, y4]?;
+		let x = vec![x1, x2, x3]?;
 
-			let z1 = vec![y, x]?;
-			let z2 = z1.try_clone()?;
-			assert_eq!(z1, z2);
+		let z1 = vec![y, x]?;
+		let z2 = z1.try_clone()?;
+		assert_eq!(z1, z2);
 
-			assert_eq!(z1[1][2][1], 8);
-			assert_eq!(z2[1][1][0], 4);
-		}
-		unsafe {
-			assert_eq!(initial, getalloccount());
-		}
+		assert_eq!(z1[1][2][1], 8);
+		assert_eq!(z2[1][1][0], 4);
 		Ok(())
 	}
 
 	#[test]
 	fn test_extend_from_slice() -> Result<(), Error> {
-		let initial = unsafe { getalloccount() };
-		{
-			let mut v1 = vec![1, 2, 3, 4]?;
-			let v2 = vec![5, 6, 7, 8, 9, 10]?;
-			v1.extend_from_slice(v2.as_ref())?;
-			assert_eq!(v1, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]?);
-		}
-		unsafe {
-			assert_eq!(initial, getalloccount());
-		}
+		let mut v1 = vec![1, 2, 3, 4]?;
+		let v2 = vec![5, 6, 7, 8, 9, 10]?;
+		v1.extend_from_slice(v2.as_ref())?;
+		assert_eq!(v1, vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10]?);
 
 		Ok(())
 	}

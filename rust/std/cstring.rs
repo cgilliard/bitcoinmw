@@ -153,13 +153,9 @@ mod test {
 		c1.copy_to_slice(&mut slice, 2)?;
 		assert_eq!(slice, ['s' as u8, 't' as u8, 'r' as u8]);
 
-		let init = unsafe { getalloccount() };
-		{
-			let x1 = unsafe { alloc(100) };
-			let _c1 = CString::from_ptr(x1, true);
-			let _c2 = CString::from_ptr(x1, false);
-		}
-		assert_eq!(unsafe { getalloccount() }, init);
+		let x1 = unsafe { alloc(100) };
+		let _c1 = CString::from_ptr(x1, true);
+		let _c2 = CString::from_ptr(x1, false);
 
 		Ok(())
 	}

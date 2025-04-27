@@ -202,47 +202,42 @@ impl<K: PartialEq + Hash, V, S: BuildHasher + Default> Hashtable<K, V, S> {
 #[cfg(test)]
 mod test {
 	use prelude::*;
-	use std::ffi::getalloccount;
-	use util::{Hashtable, Murmur3Hasher, HashtableNode};
+	use util::{Hashtable, HashtableNode, Murmur3Hasher};
 
 	#[test]
 	fn test_hashtable1() -> Result<(), Error> {
-		let initial = unsafe { getalloccount() };
-		{
-			let mut hashtable: Hashtable<u64, i32> = Hashtable::new(1024)?;
-			let node = Ptr::alloc(HashtableNode::new(1, 2))?;
-			assert!(hashtable.insert(node).is_ok());
-			let v = hashtable.find(&1).unwrap();
-			assert_eq!(*v, 2);
-			let n = hashtable.remove(&1).unwrap();
-			assert_eq!(n.key, 1);
-			assert_eq!(n.value, 2);
-			n.release();
+		let mut hashtable: Hashtable<u64, i32> = Hashtable::new(1024)?;
+		let node = Ptr::alloc(HashtableNode::new(1, 2))?;
+		assert!(hashtable.insert(node).is_ok());
+		let v = hashtable.find(&1).unwrap();
+		assert_eq!(*v, 2);
+		let n = hashtable.remove(&1).unwrap();
+		assert_eq!(n.key, 1);
+		assert_eq!(n.value, 2);
+		n.release();
 
-			let node = Ptr::alloc(HashtableNode::new(1, 2))?;
-			assert!(hashtable.insert(node).is_ok());
-			let node = Ptr::alloc(HashtableNode::new(9, 9))?;
-			assert!(hashtable.insert(node).is_ok());
-			let mut count = 0;
-			for n in &hashtable {
-				if n.key == 9 {
-					assert_eq!(n.value, 9);
-					count += 1;
-				} else if n.key == 1 {
-					assert_eq!(n.value, 2);
-					count += 1;
-				} else {
-					return Err(Error::new(IllegalState));
-				}
+		let node = Ptr::alloc(HashtableNode::new(1, 2))?;
+		assert!(hashtable.insert(node).is_ok());
+		let node = Ptr::alloc(HashtableNode::new(9, 9))?;
+		assert!(hashtable.insert(node).is_ok());
+		let mut count = 0;
+		for n in &hashtable {
+			if n.key == 9 {
+				assert_eq!(n.value, 9);
+				count += 1;
+			} else if n.key == 1 {
+				assert_eq!(n.value, 2);
+				count += 1;
+			} else {
+				return Err(Error::new(IllegalState));
 			}
-
-			assert_eq!(hashtable.len(), 2);
-			assert_eq!(count, 2);
-			hashtable.remove(&1).unwrap().release();
-			hashtable.remove(&9).unwrap().release();
-			assert_eq!(hashtable.len(), 0);
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+
+		assert_eq!(hashtable.len(), 2);
+		assert_eq!(count, 2);
+		hashtable.remove(&1).unwrap().release();
+		hashtable.remove(&9).unwrap().release();
+		assert_eq!(hashtable.len(), 0);
 
 		Ok(())
 	}
@@ -254,34 +249,28 @@ mod test {
 
 	#[test]
 	fn test_hashtable2() -> Result<(), Error> {
-		let initial = unsafe { getalloccount() };
-		{
-			let hasher = Murmur3Hasher { seed: 1234 };
-			let mut hash = Hashtable::with_hasher(1024, hasher).unwrap();
-			let node = Ptr::alloc(HashtableNode::new(101, TestValue { x: 1, y: 2 }))?;
-			hash.insert(node)?;
-			let x = hash.find(&101).unwrap();
-			assert_eq!(x.x, 1);
-			assert_eq!(x.y, 2);
-			let mut count = 0;
-			for value in &hash {
-				assert_eq!(value.key, 101);
-				assert_eq!(value.value.x, 1);
-				assert_eq!(value.value.y, 2);
-				count += 1;
-			}
-			assert_eq!(count, 1);
-			hash.remove(&101).unwrap().release();
+		let hasher = Murmur3Hasher { seed: 1234 };
+		let mut hash = Hashtable::with_hasher(1024, hasher).unwrap();
+		let node = Ptr::alloc(HashtableNode::new(101, TestValue { x: 1, y: 2 }))?;
+		hash.insert(node)?;
+		let x = hash.find(&101).unwrap();
+		assert_eq!(x.x, 1);
+		assert_eq!(x.y, 2);
+		let mut count = 0;
+		for value in &hash {
+			assert_eq!(value.key, 101);
+			assert_eq!(value.value.x, 1);
+			assert_eq!(value.value.y, 2);
+			count += 1;
 		}
-		assert_eq!(unsafe { getalloccount() }, initial);
+		assert_eq!(count, 1);
+		hash.remove(&101).unwrap().release();
 
 		Ok(())
 	}
 
 	#[test]
 	fn test_hashtable_collisions() {
-		let initial = unsafe { getalloccount() };
-
 		let v1 = Ptr::alloc(HashtableNode::new(1, TestValue { x: 1, y: 2 })).unwrap();
 		let v2 = Ptr::alloc(HashtableNode::new(2, TestValue { x: 2, y: 3 })).unwrap();
 		let v3 = Ptr::alloc(HashtableNode::new(3, TestValue { x: 3, y: 4 })).unwrap();
@@ -340,39 +329,34 @@ mod test {
 			assert!(hash.remove(&3i32.into()).is_none());
 			n.release();
 		}
-		assert_eq!(unsafe { getalloccount() }, initial);
 	}
 
 	#[test]
 	fn test_hashtable_iter() -> Result<(), Error> {
-		let initial = unsafe { getalloccount() };
-		{
-			let hasher = Murmur3Hasher::new(105);
-			let mut hash = Hashtable::with_hasher(3, hasher)?;
-			for i in 0..10 {
-				let v = Ptr::alloc(HashtableNode::new(i, TestValue { x: i, y: i + 1 })).unwrap();
-				hash.insert(v)?;
-			}
-
-			let mut check: Vec<u32> = vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0]?;
-			for mut x in &hash {
-				check[x.value.x as usize] += 1;
-				x.value.y += 1;
-			}
-
-			for x in &hash {
-				check[x.value.x as usize] += 1;
-				assert_eq!(x.value.y, x.value.x + 2);
-			}
-			for i in 0..10 {
-				assert_eq!(check[i], 2);
-			}
-
-			for i in 0..10 {
-				hash.remove(&i).unwrap().release();
-			}
+		let hasher = Murmur3Hasher::new(105);
+		let mut hash = Hashtable::with_hasher(3, hasher)?;
+		for i in 0..10 {
+			let v = Ptr::alloc(HashtableNode::new(i, TestValue { x: i, y: i + 1 })).unwrap();
+			hash.insert(v)?;
 		}
-		assert_eq!(unsafe { getalloccount() }, initial);
+
+		let mut check: Vec<u32> = vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0]?;
+		for mut x in &hash {
+			check[x.value.x as usize] += 1;
+			x.value.y += 1;
+		}
+
+		for x in &hash {
+			check[x.value.x as usize] += 1;
+			assert_eq!(x.value.y, x.value.x + 2);
+		}
+		for i in 0..10 {
+			assert_eq!(check[i], 2);
+		}
+
+		for i in 0..10 {
+			hash.remove(&i).unwrap().release();
+		}
 
 		Ok(())
 	}

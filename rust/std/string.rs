@@ -194,54 +194,46 @@ impl String {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use std::ffi::getalloccount;
 
 	#[test]
 	fn test_strings2() {
-		let initial = unsafe { getalloccount() };
-		{
-			let x1 = String::new("abcdefghijkl").unwrap();
-			assert_eq!(x1.len(), 12);
-			assert_eq!(x1.as_str(), "abcdefghijkl");
-			assert_eq!(x1.substring(3, 6).unwrap().as_str(), "def");
-			let x2 = x1.substring(3, 9).unwrap();
-			assert_eq!(x2.as_str(), "defghi");
-			assert_eq!(x2, String::new("defghi").unwrap());
-			assert_eq!(x1, String::new("abcdefghijkl").unwrap());
-			assert_eq!(x1.find("bc"), Some(1));
-			assert_eq!(x1.find("aa"), None);
-			assert_eq!(x1.find(""), Some(0));
-			let x2 = String::new("").unwrap();
-			assert_eq!(x2.len(), 0);
-			let x3 = String::new("aaabbbcccaaa").unwrap();
-			assert_eq!(x3.rfind("aaa"), Some(9));
-			assert_eq!(x3.rfind("ajlsfdjklasdjlfalsjkdfjklasdf"), None);
-			assert_eq!(x3.rfind("aaaa"), None);
-			assert_eq!(x3.find("ajlsfdjklasdjlfalsjkdfjklasdf"), None);
-			let x4 = String::new("0123456789012345678901234567890123456789").unwrap();
-			assert_eq!(x4.find("012"), Some(0));
+		let x1 = String::new("abcdefghijkl").unwrap();
+		assert_eq!(x1.len(), 12);
+		assert_eq!(x1.as_str(), "abcdefghijkl");
+		assert_eq!(x1.substring(3, 6).unwrap().as_str(), "def");
+		let x2 = x1.substring(3, 9).unwrap();
+		assert_eq!(x2.as_str(), "defghi");
+		assert_eq!(x2, String::new("defghi").unwrap());
+		assert_eq!(x1, String::new("abcdefghijkl").unwrap());
+		assert_eq!(x1.find("bc"), Some(1));
+		assert_eq!(x1.find("aa"), None);
+		assert_eq!(x1.find(""), Some(0));
+		let x2 = String::new("").unwrap();
+		assert_eq!(x2.len(), 0);
+		let x3 = String::new("aaabbbcccaaa").unwrap();
+		assert_eq!(x3.rfind("aaa"), Some(9));
+		assert_eq!(x3.rfind("ajlsfdjklasdjlfalsjkdfjklasdf"), None);
+		assert_eq!(x3.rfind("aaaa"), None);
+		assert_eq!(x3.find("ajlsfdjklasdjlfalsjkdfjklasdf"), None);
+		let x4 = String::new("0123456789012345678901234567890123456789").unwrap();
+		assert_eq!(x4.find("012"), Some(0));
 
-			let x5 = x4.clone();
-			assert_eq!(x5.find("012"), Some(0));
-			assert_eq!(x5.rfind("012"), Some(30));
+		let x5 = x4.clone();
+		assert_eq!(x5.find("012"), Some(0));
+		assert_eq!(x5.rfind("012"), Some(30));
 
-			let x6 = x5.substring(5, 15).unwrap();
-			let x7 = x6.as_str().as_bytes();
-			assert_eq!(x7.len(), 10);
-			assert_eq!(x7[0], b'5');
-			let x8 = x5.substring(6, 6).unwrap();
-			assert_eq!(x8.len(), 0);
+		let x6 = x5.substring(5, 15).unwrap();
+		let x7 = x6.as_str().as_bytes();
+		assert_eq!(x7.len(), 10);
+		assert_eq!(x7[0], b'5');
+		let x8 = x5.substring(6, 6).unwrap();
+		assert_eq!(x8.len(), 0);
 
-			let x9 = match String::new("test") {
-				Ok(s) => s,
-				Err(_e) => String::new("").unwrap(),
-			};
-			assert_eq!(x9.len(), 4);
-		}
-
-		unsafe {
-			assert_eq!(initial, getalloccount());
-		}
+		let x9 = match String::new("test") {
+			Ok(s) => s,
+			Err(_e) => String::new("").unwrap(),
+		};
+		assert_eq!(x9.len(), 4);
 	}
 
 	#[test]

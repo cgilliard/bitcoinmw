@@ -191,7 +191,6 @@ impl<T: Display> Display for &[T] {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use std::ffi::getalloccount;
 
 	#[test]
 	fn test_formatter1() {
@@ -262,59 +261,47 @@ mod test {
 
 	#[test]
 	fn test_format() {
-		let init = unsafe { getalloccount() };
-		{
-			let mut f = Formatter::new();
-			writef!(
-				&mut f,
-				"test {} {} {} {} {} {} {} end",
-				1,
-				-2,
-				3,
-				4.5,
-				true,
-				"ok",
-				String::new("xyz").unwrap()
-			)
-			.unwrap();
-			assert_eq!(f.as_str(), "test 1 -2 3 4.50000 true ok xyz end");
+		let mut f = Formatter::new();
+		writef!(
+			&mut f,
+			"test {} {} {} {} {} {} {} end",
+			1,
+			-2,
+			3,
+			4.5,
+			true,
+			"ok",
+			String::new("xyz").unwrap()
+		)
+		.unwrap();
+		assert_eq!(f.as_str(), "test 1 -2 3 4.50000 true ok xyz end");
 
-			let x = format!("this is a test {} {}", 7, 8).unwrap();
-			assert_eq!(x.as_str(), "this is a test 7 8");
-		}
-		assert_eq!(init, unsafe { getalloccount() });
+		let x = format!("this is a test {} {}", 7, 8).unwrap();
+		assert_eq!(x.as_str(), "this is a test 7 8");
 	}
 
 	#[test]
 	fn test_grow_formatter() -> Result<(), Error> {
-		let init = unsafe { getalloccount() };
-		{
-			let mut f = Formatter::with_capacity(64)?;
-			writef!(&mut f, "abc")?;
-			writef!(&mut f, "def")?;
-			let x = 101;
-			writef!(&mut f, "{}", x)?;
+		let mut f = Formatter::with_capacity(64)?;
+		writef!(&mut f, "abc")?;
+		writef!(&mut f, "def")?;
+		let x = 101;
+		writef!(&mut f, "{}", x)?;
 
-			assert_eq!(f.as_str(), "abcdef101");
-		}
-		assert_eq!(init, unsafe { getalloccount() });
+		assert_eq!(f.as_str(), "abcdef101");
 
 		Ok(())
 	}
 
 	#[test]
 	fn test_formatter_with_string() -> Result<(), Error> {
-		let init = unsafe { getalloccount() };
-		{
-			let mut f = Formatter::with_capacity(64)?;
-			writef!(&mut f, "abc")?;
-			writef!(&mut f, "def")?;
-			let x = 101;
-			writef!(&mut f, "{} {}", x, "123")?;
+		let mut f = Formatter::with_capacity(64)?;
+		writef!(&mut f, "abc")?;
+		writef!(&mut f, "def")?;
+		let x = 101;
+		writef!(&mut f, "{} {}", x, "123")?;
 
-			assert_eq!(f.as_string()?, String::new("abcdef101 123")?);
-		}
-		assert_eq!(init, unsafe { getalloccount() });
+		assert_eq!(f.as_string()?, String::new("abcdef101 123")?);
 
 		Ok(())
 	}

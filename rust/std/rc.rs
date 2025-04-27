@@ -77,27 +77,20 @@ mod test {
 	#![allow(unknown_lints)]
 	#![allow(static_mut_refs)]
 	use super::*;
-	use std::ffi::getalloccount;
 
 	#[test]
 	fn test_rc1() {
-		let initial = unsafe { getalloccount() };
-		{
-			let mut x1 = Rc::new(1).unwrap();
-			assert!(x1.get_mut().is_some());
-			let mut x2 = x1.clone();
-			assert!(x1.get_mut().is_none());
-			assert!(x2.get_mut().is_none());
+		let mut x1 = Rc::new(1).unwrap();
+		assert!(x1.get_mut().is_some());
+		let mut x2 = x1.clone();
+		assert!(x1.get_mut().is_none());
+		assert!(x2.get_mut().is_none());
 
-			unsafe {
-				*x1.get_mut_unchecked() += 1;
-			}
-			assert_eq!(*x1.get(), 2);
-			assert_eq!(*x2.get(), 2);
-		}
 		unsafe {
-			assert_eq!(initial, getalloccount());
+			*x1.get_mut_unchecked() += 1;
 		}
+		assert_eq!(*x1.get(), 2);
+		assert_eq!(*x2.get(), 2);
 	}
 
 	static mut VTEST: usize = 0;
@@ -116,29 +109,22 @@ mod test {
 
 	#[test]
 	fn test_rc2() {
-		let initial = unsafe { getalloccount() };
 		{
+			let x = Rc::new(MyType { v: 1 }).unwrap();
+			assert_eq!(x.get().v, 1);
 			{
-				let x = Rc::new(MyType { v: 1 }).unwrap();
-				assert_eq!(x.get().v, 1);
-				{
-					let _y = x.clone();
-					let _z = MyType { v: 2 };
-					unsafe {
-						assert_eq!(VTEST, 0);
-					}
-				}
+				let _y = x.clone();
+				let _z = MyType { v: 2 };
 				unsafe {
-					assert_eq!(VTEST, 1);
+					assert_eq!(VTEST, 0);
 				}
 			}
 			unsafe {
-				assert_eq!(VTEST, 2);
+				assert_eq!(VTEST, 1);
 			}
 		}
-
 		unsafe {
-			assert_eq!(initial, getalloccount());
+			assert_eq!(VTEST, 2);
 		}
 	}
 }

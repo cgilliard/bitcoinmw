@@ -106,122 +106,106 @@ where
 #[cfg(test)]
 mod test {
 	use super::*;
-	use std::ffi::{getalloccount, sleep_millis};
+	use std::ffi::sleep_millis;
 
 	#[test]
 	fn test_threads() {
-		let initial = unsafe { getalloccount() };
-		{
-			let lock = lock!();
-			let mut x = 1u32;
-			let rc = Rc::new(1).unwrap();
-			let mut rc_clone = rc.clone();
-			let mut jh = spawnj(|| {
-				let _v = lock.write();
-				x += 1;
+		let lock = lock!();
+		let mut x = 1u32;
+		let rc = Rc::new(1).unwrap();
+		let mut rc_clone = rc.clone();
+		let mut jh = spawnj(|| {
+			let _v = lock.write();
+			x += 1;
+			assert_eq!(x, 2);
+			assert_eq!(*rc_clone, 1);
+			*rc_clone += 1;
+			assert_eq!(*rc_clone, 2);
+		})
+		.unwrap();
+
+		loop {
+			let _v = lock.write();
+			if *rc != 1 {
+				assert_eq!(*rc, 2);
 				assert_eq!(x, 2);
-				assert_eq!(*rc_clone, 1);
-				*rc_clone += 1;
-				assert_eq!(*rc_clone, 2);
-			})
-			.unwrap();
-
-			loop {
-				let _v = lock.write();
-				if *rc != 1 {
-					assert_eq!(*rc, 2);
-					assert_eq!(x, 2);
-					break;
-				}
+				break;
 			}
-
-			assert!(jh.join().is_ok());
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+
+		assert!(jh.join().is_ok());
 	}
 	#[test]
 	fn test_threads2() {
-		let initial = unsafe { getalloccount() };
-		{
-			let lock = lock!();
-			let mut x = 1u32;
-			let mut jh = spawnj(|| {
-				let _v = lock.write();
-				unsafe {
-					sleep_millis(50);
-				}
-				x += 1;
-				assert_eq!(x, 2);
-			})
-			.unwrap();
-
-			loop {
-				let _v = lock.write();
-				if x != 1 {
-					assert_eq!(x, 2);
-					break;
-				}
+		let lock = lock!();
+		let mut x = 1u32;
+		let mut jh = spawnj(|| {
+			let _v = lock.write();
+			unsafe {
+				sleep_millis(50);
 			}
+			x += 1;
+			assert_eq!(x, 2);
+		})
+		.unwrap();
 
-			assert!(jh.join().is_ok());
+		loop {
+			let _v = lock.write();
+			if x != 1 {
+				assert_eq!(x, 2);
+				break;
+			}
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+
+		assert!(jh.join().is_ok());
 	}
 
 	#[test]
 	fn test_thread_join() {
-		let initial = unsafe { getalloccount() };
-		{
-			let lock = lock!();
-			let mut x = 1;
-			let rc = Rc::new(1).unwrap();
-			let mut rc_clone = rc.clone();
-			let mut jh = spawnj(|| {
-				let _v = lock.read(); // memory fence only
-				x += 1;
-				assert_eq!(x, 2);
-				assert_eq!(*rc_clone, 1);
-				unsafe {
-					sleep_millis(100);
-				}
-				*rc_clone += 1;
-				assert_eq!(*rc_clone, 2);
-			})
-			.unwrap();
+		let lock = lock!();
+		let mut x = 1;
+		let rc = Rc::new(1).unwrap();
+		let mut rc_clone = rc.clone();
+		let mut jh = spawnj(|| {
+			let _v = lock.read(); // memory fence only
+			x += 1;
+			assert_eq!(x, 2);
+			assert_eq!(*rc_clone, 1);
+			unsafe {
+				sleep_millis(100);
+			}
+			*rc_clone += 1;
+			assert_eq!(*rc_clone, 2);
+		})
+		.unwrap();
 
-			assert!(jh.join().is_ok());
-			assert_eq!(*rc, 2);
-		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		assert!(jh.join().is_ok());
+		assert_eq!(*rc, 2);
 	}
 
 	#[test]
 	fn test_spawn() {
-		let initial = unsafe { getalloccount() };
-		{
-			let lock = lock!();
-			let mut x = 1u32;
-			spawn(|| {
-				let _v = lock.write();
-				unsafe {
-					sleep_millis(50);
-				}
-				x += 1;
-				assert_eq!(x, 2);
-			})
-			.unwrap();
-
-			loop {
-				let _v = lock.write();
-				if x != 1 {
-					assert_eq!(x, 2);
-					break;
-				}
-			}
+		let lock = lock!();
+		let mut x = 1u32;
+		spawn(|| {
+			let _v = lock.write();
 			unsafe {
-				sleep_millis(100);
+				sleep_millis(50);
+			}
+			x += 1;
+			assert_eq!(x, 2);
+		})
+		.unwrap();
+
+		loop {
+			let _v = lock.write();
+			if x != 1 {
+				assert_eq!(x, 2);
+				break;
 			}
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
+		unsafe {
+			sleep_millis(100);
+		}
 	}
 }

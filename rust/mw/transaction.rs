@@ -356,72 +356,66 @@ mod test {
 
 	#[test]
 	fn test_interactive() -> Result<(), Error> {
-		let init = unsafe { getalloccount() };
-		{
-			let ctx_user1 = Ctx::new()?;
-			let mut ctx_user2 = Ctx::new()?;
+		let ctx_user1 = Ctx::new()?;
+		let mut ctx_user2 = Ctx::new()?;
 
-			// User 1: input and change
-			let offset = SecretKey::gen(&ctx_user1);
-			let blind_input = SecretKey::gen(&ctx_user1);
-			let blind_change = SecretKey::gen(&ctx_user1);
-			let input = ctx_user1.commit(5_000, &blind_input)?;
-			let change_output = ctx_user1.commit(1_000, &blind_change)?;
-			let change_range_proof = ctx_user1.range_proof(1_000, &blind_change)?;
-			let nonce_user1 = SecretKey::gen(&ctx_user1);
-			let pub_nonce_user1 = PublicKey::from(&ctx_user1, &nonce_user1)?;
-			let excess_blind_user1 =
-				ctx_user1.blind_sum(&[&blind_input], &[&blind_change, &offset])?;
-			let pub_blind_user1 = PublicKey::from(&ctx_user1, &excess_blind_user1)?;
-			let excess_user1 = ctx_user1.commit(0, &excess_blind_user1)?;
-			let fee = 50;
+		// User 1: input and change
+		let offset = SecretKey::gen(&ctx_user1);
+		let blind_input = SecretKey::gen(&ctx_user1);
+		let blind_change = SecretKey::gen(&ctx_user1);
+		let input = ctx_user1.commit(5_000, &blind_input)?;
+		let change_output = ctx_user1.commit(1_000, &blind_change)?;
+		let change_range_proof = ctx_user1.range_proof(1_000, &blind_change)?;
+		let nonce_user1 = SecretKey::gen(&ctx_user1);
+		let pub_nonce_user1 = PublicKey::from(&ctx_user1, &nonce_user1)?;
+		let excess_blind_user1 = ctx_user1.blind_sum(&[&blind_input], &[&blind_change, &offset])?;
+		let pub_blind_user1 = PublicKey::from(&ctx_user1, &excess_blind_user1)?;
+		let excess_user1 = ctx_user1.commit(0, &excess_blind_user1)?;
+		let fee = 50;
 
-			// User 2: output
-			let blind_output = SecretKey::gen(&ctx_user2);
-			let output = ctx_user2.commit(3_950, &blind_output)?;
-			let range_proof = ctx_user2.range_proof(3_950, &blind_output)?;
-			let nonce_user2 = SecretKey::gen(&ctx_user2);
-			let pub_nonce_user2 = PublicKey::from(&ctx_user2, &nonce_user2)?;
-			let excess_blind_user2 = ctx_user2.blind_sum(&[], &[&blind_output])?;
-			let pub_blind_user2 = PublicKey::from(&ctx_user2, &excess_blind_user2)?;
-			let excess_user2 = ctx_user2.commit(0, &excess_blind_user2)?;
+		// User 2: output
+		let blind_output = SecretKey::gen(&ctx_user2);
+		let output = ctx_user2.commit(3_950, &blind_output)?;
+		let range_proof = ctx_user2.range_proof(3_950, &blind_output)?;
+		let nonce_user2 = SecretKey::gen(&ctx_user2);
+		let pub_nonce_user2 = PublicKey::from(&ctx_user2, &nonce_user2)?;
+		let excess_blind_user2 = ctx_user2.blind_sum(&[], &[&blind_output])?;
+		let pub_blind_user2 = PublicKey::from(&ctx_user2, &excess_blind_user2)?;
+		let excess_user2 = ctx_user2.commit(0, &excess_blind_user2)?;
 
-			// Aggregate
-			let pubnonce_sum = pub_nonce_user1.combine(&ctx_user2, &pub_nonce_user2)?;
-			let pubblind_sum = pub_blind_user1.combine(&ctx_user2, &pub_blind_user2)?;
-			let excess_sum = excess_user2.combine(&ctx_user2, &excess_user1)?;
-			let msg = Kernel::message_for(&excess_sum, fee, 0);
+		// Aggregate
+		let pubnonce_sum = pub_nonce_user1.combine(&ctx_user2, &pub_nonce_user2)?;
+		let pubblind_sum = pub_blind_user1.combine(&ctx_user2, &pub_blind_user2)?;
+		let excess_sum = excess_user2.combine(&ctx_user2, &excess_user1)?;
+		let msg = Kernel::message_for(&excess_sum, fee, 0);
 
-			let sig2 = ctx_user2.sign(
-				&msg,
-				&excess_blind_user2,
-				&nonce_user2,
-				&pubnonce_sum,
-				&pubblind_sum,
-			)?;
-			let sig1 = ctx_user1.sign(
-				&msg,
-				&excess_blind_user1,
-				&nonce_user1,
-				&pubnonce_sum,
-				&pubblind_sum,
-			)?;
+		let sig2 = ctx_user2.sign(
+			&msg,
+			&excess_blind_user2,
+			&nonce_user2,
+			&pubnonce_sum,
+			&pubblind_sum,
+		)?;
+		let sig1 = ctx_user1.sign(
+			&msg,
+			&excess_blind_user1,
+			&nonce_user1,
+			&pubnonce_sum,
+			&pubblind_sum,
+		)?;
 
-			let partial_sigs = vec![&sig1, &sig2]?;
-			let aggsig =
-				ctx_user1.aggregate_signatures(&partial_sigs.slice(0, 2), &pubnonce_sum)?;
+		let partial_sigs = vec![&sig1, &sig2]?;
+		let aggsig = ctx_user1.aggregate_signatures(&partial_sigs.slice(0, 2), &pubnonce_sum)?;
 
-			// Build transaction
-			let kernel = Kernel::new(excess_sum, aggsig, fee, 0);
-			let mut tx = Transaction::new(offset);
-			tx.add_kernel(kernel)?;
-			tx.add_output(change_output, change_range_proof)?;
-			tx.add_output(output, range_proof)?;
-			tx.add_input(input)?;
+		// Build transaction
+		let kernel = Kernel::new(excess_sum, aggsig, fee, 0);
+		let mut tx = Transaction::new(offset);
+		tx.add_kernel(kernel)?;
+		tx.add_output(change_output, change_range_proof)?;
+		tx.add_output(output, range_proof)?;
+		tx.add_input(input)?;
 
-			assert!(tx.validate(&mut ctx_user2, 0).is_ok());
-		}
-		assert_eq!(init, unsafe { getalloccount() });
+		assert!(tx.validate(&mut ctx_user2, 0).is_ok());
 		Ok(())
 	}
 

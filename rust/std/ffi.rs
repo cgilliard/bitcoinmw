@@ -53,7 +53,3 @@ extern "C" {
 	// backtrace
 	pub fn gen_backtrace() -> *const u8;
 }
-
-pub unsafe fn getalloccount() -> usize {
-	0
-}

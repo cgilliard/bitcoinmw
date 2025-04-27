@@ -143,7 +143,6 @@ mod test {
 	use super::*;
 	use core::mem::size_of;
 	use core::ptr::write;
-	use std::ffi::getalloccount;
 
 	#[derive(Clone)]
 	struct MyBox<T: ?Sized> {
@@ -182,31 +181,27 @@ mod test {
 
 	#[test]
 	fn test_pointer() {
-		let init = unsafe { getalloccount() };
-		{
-			let mut b = MyBox::new(123);
-			b.set_bit(false);
-			assert!(!b.get_bit());
-			assert_eq!(b.as_ref(), &123);
+		let mut b = MyBox::new(123);
+		b.set_bit(false);
+		assert!(!b.get_bit());
+		assert_eq!(b.as_ref(), &123);
 
-			let mut b2 = MyBox::new(456);
-			b2.set_bit(true);
-			assert!(b2.get_bit());
-			assert_eq!(b2.as_ref(), &456);
+		let mut b2 = MyBox::new(456);
+		b2.set_bit(true);
+		assert!(b2.get_bit());
+		assert_eq!(b2.as_ref(), &456);
 
-			let ptr = Ptr::alloc(1usize).unwrap();
-			let ptr2 = Ptr::new(ptr.raw());
-			let ptr3 = Ptr::alloc(2usize).unwrap();
-			let ptr4 = Ptr::alloc(2usize).unwrap();
+		let ptr = Ptr::alloc(1usize).unwrap();
+		let ptr2 = Ptr::new(ptr.raw());
+		let ptr3 = Ptr::alloc(2usize).unwrap();
+		let ptr4 = Ptr::alloc(2usize).unwrap();
 
-			assert!(ptr == ptr2);
-			assert!(ptr != ptr3);
-			assert!(ptr != ptr4);
-			assert!(ptr3 != ptr4);
-			ptr.release();
-			ptr3.release();
-			ptr4.release();
-		}
-		assert_eq!(init, unsafe { getalloccount() });
+		assert!(ptr == ptr2);
+		assert!(ptr != ptr3);
+		assert!(ptr != ptr4);
+		assert!(ptr3 != ptr4);
+		ptr.release();
+		ptr3.release();
+		ptr4.release();
 	}
 }

@@ -130,11 +130,10 @@ impl<T> Receiver<T> {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use std::ffi::{getalloccount, sleep_millis};
+	use std::ffi::sleep_millis;
 
 	#[test]
 	fn test_channel_std() {
-		let initial = unsafe { getalloccount() };
 		{
 			let (sender, receiver) = channel().unwrap();
 			let lock = lock!();
@@ -166,23 +165,19 @@ mod test {
 			}
 			assert!(jh.join().is_ok());
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
 	}
 
 	#[test]
 	fn test_channel_clone() {
-		let initial = unsafe { getalloccount() };
 		{
 			let (sender, receiver) = channel().unwrap();
 			let _sender2: Sender<i32> = sender.clone();
 			let _recevier2: Receiver<i32> = receiver.clone();
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
 	}
 
 	#[test]
 	fn test_channel_move_std() {
-		let initial = unsafe { getalloccount() };
 		{
 			let (sender, receiver) = channel().unwrap();
 			let lock = lock_box!().unwrap();
@@ -216,12 +211,10 @@ mod test {
 			}
 			assert!(jh.join().is_ok());
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
 	}
 
 	#[test]
 	fn test_channel_result() {
-		let initial = unsafe { getalloccount() };
 		{
 			let (sender, receiver) = channel().unwrap();
 			let (sender2, receiver2) = channel().unwrap();
@@ -248,7 +241,6 @@ mod test {
 
 			assert!(jh.join().is_ok());
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
 	}
 
 	struct DropTest {
@@ -269,7 +261,6 @@ mod test {
 
 	#[test]
 	fn test_channel_drop() {
-		let initial = unsafe { getalloccount() };
 		{
 			let (sender, receiver) = channel().unwrap();
 			let (sender2, receiver2) = channel().unwrap();
@@ -298,25 +289,21 @@ mod test {
 			assert!(jh.join().is_ok());
 			assert_eq!(unsafe { DROPCOUNT }, 1);
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
 		assert_eq!(unsafe { DROPCOUNT }, 2);
 		assert_eq!(unsafe { DROPSUM }, 305);
 	}
 
 	#[test]
 	fn test_cleanup() {
-		let initial = unsafe { getalloccount() };
 		{
 			let (send, _recv) = channel().unwrap();
 			send.send(0).unwrap();
 			send.send(0).unwrap();
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
 	}
 
 	#[test]
 	fn test_multisend_chan() {
-		let initial = unsafe { getalloccount() };
 		{
 			let (channel, recv) = channel().unwrap();
 			channel.send(0).unwrap();
@@ -333,6 +320,5 @@ mod test {
 			// still pending at this point
 			assert!(recv.pending());
 		}
-		assert_eq!(initial, unsafe { getalloccount() });
 	}
 }

@@ -27,6 +27,3 @@ pub use core::result::{Result, Result::Err, Result::Ok};
 #[allow(unused)]
 #[cfg(test)]
 pub use core::panic;
-
-#[cfg(test)]
-pub use std::getalloccount;

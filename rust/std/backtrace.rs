@@ -50,16 +50,11 @@ impl Backtrace {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use std::ffi::getalloccount;
 
 	#[test]
 	fn test_backtrace1() -> Result<(), Error> {
-		let init = unsafe { getalloccount() };
-		{
-			let _bt = Backtrace::new();
-			//println!("bt='{}'", bt.as_str());
-		}
-		assert_eq!(unsafe { getalloccount() }, init);
+		let _bt = Backtrace::new();
+		//println!("bt='{}'", bt.as_str());
 		Ok(())
 	}
 }
