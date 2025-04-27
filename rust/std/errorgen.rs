@@ -4,9 +4,9 @@ use prelude::*;
 
 #[derive(Clone)]
 pub struct ErrorGen {
-	pub code: u64,
-	pub display: fn() -> &'static str,
-	pub bt: Backtrace,
+	code: u64,
+	display: fn() -> &'static str,
+	bt: Backtrace,
 }
 
 impl PartialEq for ErrorGen {
@@ -50,16 +50,37 @@ impl Display for ErrorGen {
 	}
 }
 
+impl ErrorGen {
+	pub const fn new(code: u64, display: fn() -> &'static str, bt: Backtrace) -> Self {
+		Self { code, display, bt }
+	}
+	pub fn code(&self) -> u64 {
+		self.code
+	}
+	pub fn display(&self) -> &'static str {
+		(self.display)()
+	}
+	pub fn set_bt(&mut self, bt: Backtrace) {
+		self.bt = bt;
+	}
+}
+
 pub type ResultGen<T> = Result<T, ErrorGen>;
 
-errors!(IO, IllegalArgument, OutOfBounds);
-errors!(IllegalState, OutOfMemory, OperationFailed);
+errors!(
+	IO,
+	IllegalArgument,
+	OutOfBounds,
+	IllegalState,
+	OutOfMemory,
+	OperationFailed
+);
 
 #[cfg(test)]
 mod test {
-	/*
 	use super::*;
 
+	/*
 	#[test]
 	fn test_error_simple() -> ResultGen<()> {
 		err!(IO)
@@ -106,4 +127,25 @@ mod test {
 		Ok(())
 	}
 	*/
+
+	fn try_errors(x: u32) -> ResultGen<()> {
+		if x == 1 {
+			err!(OutOfBounds)
+		} else if x == 2 {
+			err!(OperationFailed)
+		} else if x == 3 {
+			err!(OutOfMemory)
+		} else {
+			Ok(())
+		}
+	}
+
+	#[test]
+	fn test_error_ret() -> ResultGen<()> {
+		assert_eq!(try_errors(1), err!(OutOfBounds));
+		assert_eq!(try_errors(2), err!(OperationFailed));
+		assert_eq!(try_errors(3), err!(OutOfMemory));
+		assert_ne!(try_errors(3), err!(OutOfBounds));
+		Ok(())
+	}
 }

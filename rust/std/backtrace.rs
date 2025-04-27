@@ -5,7 +5,7 @@ use prelude::*;
 use std::ffi::{gen_backtrace, release};
 
 #[derive(Clone)]
-pub struct Backtrace(pub *const u8);
+pub struct Backtrace(*const u8);
 
 impl Drop for Backtrace {
 	fn drop(&mut self) {
@@ -22,6 +22,10 @@ impl Backtrace {
 	pub fn new() -> Self {
 		let ret = unsafe { gen_backtrace() };
 		Self(ret)
+	}
+
+	pub const fn init() -> Self {
+		Self(0x1 as *const u8)
 	}
 
 	pub fn as_str(&self) -> &str {

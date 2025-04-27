@@ -2,7 +2,7 @@
 macro_rules! err {
 	($e:expr) => {{
 		let mut e = $e;
-		e.bt = Backtrace::new();
+		e.set_bt(Backtrace::new());
 		Err(e)
 	}};
 }
@@ -18,11 +18,11 @@ macro_rules! errors {
 macro_rules! define_errors_inner {
         (@count $index:expr, $file_hash:expr, $head:ident $(, $tail:ident)*) => {
                 #[allow(non_upper_case_globals)]
-                pub const $head: ErrorGen = ErrorGen{
-                    code: $file_hash + $index,
-                    display: || -> &'static str { stringify!($head) },
-                    bt: Backtrace (0x1 as *const u8),
-                };
+                pub const $head: ErrorGen = ErrorGen::new(
+                    $file_hash + $index,
+                    || -> &'static str { stringify!($head) },
+                    Backtrace::init()
+                );
                 define_errors_inner!(@count $index + 1, $file_hash, $($tail),*);
         };
         (@count $index:expr, $file_hash:expr,) => {};
