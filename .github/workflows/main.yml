@@ -48,6 +48,10 @@ jobs:
         run: |
           ./build clean
           ./test
+      - name: address sanitize
+        run: |
+          ./build clean
+          ./asan
       - name: code coverage
         run: |
           cargo install grcov --version 0.8.22
