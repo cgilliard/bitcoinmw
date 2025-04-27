@@ -38,13 +38,6 @@ macro_rules! define_errors_inner {
         define_errors_inner!(@count $index + 1, $file_hash, $($tail),*);
     };
     (@count $index:expr, $file_hash:expr,) => {};
-    (@test [$($processed:ident),*] [$head:ident $(, $tail:ident)*] $($rest:ident),*) => {
-        $(
-            assert_ne!($head.code(), $processed.code(), "Error codes for {} and {} must be distinct", stringify!($head), stringify!($processed));
-        )*
-        define_errors_inner!(@test [$($processed,)* $head] [$($tail),*] $($rest),*);
-    };
-    (@test [$($processed:ident),*] [] $($rest:ident),*) => {};
 }
 
 #[macro_export]
