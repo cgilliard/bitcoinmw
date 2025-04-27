@@ -40,7 +40,3 @@ extern "C" {
 	pub fn event_is_read(event: *const Event) -> bool;
 	pub fn event_is_write(event: *const Event) -> bool;
 }
-
-pub unsafe fn getfdcount() -> i64 {
-	0
-}

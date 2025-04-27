@@ -175,14 +175,10 @@ impl Multiplex {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use net::ffi::getfdcount;
 	use std::ffi::sleep_millis;
 
 	#[test]
 	fn test_multiplex1() -> Result<(), Error> {
-		// get initial file descriptor count
-		let initial_fds = unsafe { getfdcount() };
-
 		// create a multiplex
 		let mut m1 = Multiplex::new()?;
 
@@ -287,17 +283,11 @@ mod test {
 		s1.close()?;
 		m1.close()?;
 
-		// assert that no file descriptors are open
-		assert_eq!(unsafe { getfdcount() }, initial_fds);
-
 		Ok(())
 	}
 
 	#[test]
 	fn test_multiple_events() -> Result<(), Error> {
-		// get initial file descriptor count
-		let initial_fds = unsafe { getfdcount() };
-
 		// create a multiplex
 		let mut m1 = Multiplex::new()?;
 
@@ -434,17 +424,11 @@ mod test {
 		listen.close()?;
 		m1.close()?;
 
-		// assert that no file descriptors are open
-		assert_eq!(unsafe { getfdcount() }, initial_fds);
-
 		Ok(())
 	}
 
 	#[test]
 	fn test_multiplex_shutdown() -> Result<(), Error> {
-		// get initial file descriptor count
-		let initial_fds = unsafe { getfdcount() };
-
 		// create a multiplex
 		let mut m1 = Multiplex::new()?;
 
@@ -532,17 +516,11 @@ mod test {
 		s1.close()?; // listener
 		m1.close()?; // multiplex
 
-		// assert that no file descriptors are open
-		assert_eq!(unsafe { getfdcount() }, initial_fds);
-
 		Ok(())
 	}
 
 	#[test]
 	fn test_multiplex_write() -> Result<(), Error> {
-		// get initial file descriptor count
-		let initial_fds = unsafe { getfdcount() };
-
 		// create a multiplex
 		let mut m1 = Multiplex::new()?;
 
@@ -645,17 +623,11 @@ mod test {
 
 		assert!(s3.close().is_err());
 
-		// assert that no file descriptors are open
-		assert_eq!(unsafe { getfdcount() }, initial_fds);
-
 		Ok(())
 	}
 
 	#[test]
 	fn test_multiplex_read_write() -> Result<(), Error> {
-		// get initial file descriptor count
-		let initial_fds = unsafe { getfdcount() };
-
 		// create a multiplex
 		let mut m1 = Multiplex::new()?;
 
@@ -801,9 +773,6 @@ mod test {
 		s3.close()?;
 
 		assert!(s3.close().is_err());
-
-		// assert that no file descriptors are open
-		assert_eq!(unsafe { getfdcount() }, initial_fds);
 
 		Ok(())
 	}

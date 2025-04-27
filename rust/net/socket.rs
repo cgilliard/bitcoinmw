@@ -166,11 +166,9 @@ impl Socket {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use net::ffi::getfdcount;
 
 	#[test]
 	fn test_socket1() -> Result<(), Error> {
-		let initial_fds = unsafe { getfdcount() };
 		let mut s1 = Socket::new();
 		let port = s1.listen([127, 0, 0, 1], 0, 10)?;
 		let mut s2 = Socket::new();
@@ -216,8 +214,6 @@ mod test {
 		assert!(x.recv(&mut []).is_err());
 		assert!(x.send(&[]).is_err());
 		assert!(x.shutdown().is_err());
-
-		assert_eq!(unsafe { getfdcount() }, initial_fds);
 
 		Ok(())
 	}
