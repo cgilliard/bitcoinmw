@@ -228,9 +228,9 @@ macro_rules! writef {
         writef!($f, "{}", $fmt)
     }};
     ($f:expr, $fmt:expr, $($t:expr),*) => {{
-        use std::strext::StrExt;
+        use std::StrExt;
         use core::str::from_utf8_unchecked;
-        use std::misc::subslice;
+        use std::subslice;
 
         let mut err = Error::new(Unknown.code(), || { "Unknown" }, Backtrace::init());
         let fmt_str = $fmt;

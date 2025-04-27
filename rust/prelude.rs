@@ -4,7 +4,7 @@ extern crate bitcoinmw_macros;
 pub use self::bitcoinmw_macros::Dummy;
 pub use std::error::*;
 pub use std::{
-	Backtrace, Box, CString, Display, Formatter, Ptr, Rc, Result, String, TryClone, Vec,
+	Backtrace, Box, CString, Display, Formatter, Ptr, Rc, Result, StrExt, String, TryClone, Vec,
 };
 /*
 pub use std::misc::simple_hash;
