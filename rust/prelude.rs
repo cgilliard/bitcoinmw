@@ -1,4 +1,11 @@
 // Internal
+extern crate bitcoinmw_macros;
+
+pub use self::bitcoinmw_macros::Dummy;
+pub use std::error::*;
+pub use std::{
+	Backtrace, Box, CString, Display, Formatter, Ptr, Rc, Result, String, TryClone, Vec,
+};
 /*
 pub use std::misc::simple_hash;
 pub use std::sliceext::SliceExt;
@@ -17,13 +24,15 @@ pub use core::clone::Clone;
 pub use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
 pub use core::convert::{AsRef, From, Into, TryFrom};
 pub use core::default::Default;
+pub use core::fmt::Formatter as CoreFormatter;
+pub use core::fmt::Result as FmtResult;
 pub use core::fmt::{Debug, Error as FmtError};
 pub use core::hash::{BuildHasher, Hash, Hasher};
 pub use core::iter::{IntoIterator, Iterator};
 pub use core::marker::{Copy, Sized};
 pub use core::ops::Drop;
 pub use core::option::{Option, Option::None, Option::Some};
-pub use core::result::{Result, Result::Err, Result::Ok};
+pub use core::result::Result::{Err, Ok};
 
 // test
 #[allow(unused)]
