@@ -6,6 +6,7 @@ pub mod std;
 
 pub mod bible;
 pub mod crypto;
+pub mod lmdb;
 pub mod prelude;
 mod real_main;
 pub mod util;
