@@ -104,8 +104,10 @@ jobs:
       - name: macos build (mrustc)
         run: |
           export LIBRARY_PATH="$(brew --prefix gmp)/lib:$LIBRARY_PATH"
-          export CXX=/opt/homebrew/bin/g++-13
-          export CC=/opt/homebrew/bin/gcc-13
+          #export CXX=/opt/homebrew/bin/g++-13
+          #export CC=/opt/homebrew/bin/gcc-13
+          export CXX=clang++
+          export CC=clang
           mkdir ../famc
           cd ../famc
           wget https://github.com/cgilliard/famc/releases/download/0.0.1/famc_macos.tar.gz

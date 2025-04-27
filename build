@@ -1,8 +1,8 @@
 #!/bin/sh
 
 export CC="${CC:-clang}"
-export OUTPUT="${OUTPUT:-../rust-bins/macos/output}"
-export MRUSTC="${MRUSTC:-../rust-bins/macos/mrustc}"
+export OUTPUT="${OUTPUT:-../famc/output-1.29.0}"
+export MRUSTC="${MRUSTC:-../famc/bin/mrustc}"
 
 
 OS=$(uname -s)
