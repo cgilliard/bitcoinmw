@@ -377,7 +377,7 @@ mod test {
 		}
 		loop {
 			unsafe {
-				let evts = m1.wait(&mut events, Some(10))? as usize;
+				let evts = m1.wait(&mut events, Some(10_000))? as usize;
 				for i in 0..evts {
 					let socket = events[i].socket();
 					let mut buf = [0u8; 10];
