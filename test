@@ -12,8 +12,8 @@ else
     exit 1
 fi
 
-CCFLAGS=
-RUSTFLAGS=
+CCFLAGS=-fsanitize=address
+RUSTFLAGS=-Zsanitizer=address
 FILTER=$1
 
 # build xxdir and create header

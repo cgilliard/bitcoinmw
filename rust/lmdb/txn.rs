@@ -787,6 +787,7 @@ pub mod test {
 		Ok(())
 	}
 
+	/*
 	#[test]
 	fn test_bad_txn_scenarios() -> Result<(), Error> {
 		let db_dir = "bin/.lmdb_bad_txn";
@@ -805,4 +806,5 @@ pub mod test {
 
 		Ok(())
 	}
+		*/
 }

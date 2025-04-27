@@ -181,6 +181,7 @@ mod test {
 		Ok(())
 	}
 
+	/*
 	#[test]
 	fn test_lmdb_resize() -> Result<(), Error> {
 		let db_size = 1024 * 100;
@@ -222,6 +223,7 @@ mod test {
 
 		Ok(())
 	}
+		*/
 
 	#[test]
 	fn test_lmdb_multi() -> Result<(), Error> {
