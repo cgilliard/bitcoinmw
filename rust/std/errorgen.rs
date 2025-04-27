@@ -67,15 +67,6 @@ impl ErrorGen {
 
 pub type ResultGen<T> = Result<T, ErrorGen>;
 
-errors!(
-	IO,
-	IllegalArgument,
-	OutOfBounds,
-	IllegalState,
-	OutOfMemory,
-	OperationFailed
-);
-
 #[cfg(test)]
 mod test {
 	use super::*;
@@ -128,6 +119,15 @@ mod test {
 	}
 	*/
 
+	errors!(
+		IO,
+		IllegalArgument,
+		OutOfBounds,
+		IllegalState,
+		OutOfMemory,
+		OperationFailed
+	);
+
 	fn try_errors(x: u32) -> ResultGen<()> {
 		if x == 1 {
 			err!(OutOfBounds)
@@ -135,6 +135,12 @@ mod test {
 			err!(OperationFailed)
 		} else if x == 3 {
 			err!(OutOfMemory)
+		} else if x == 4 {
+			err!(IO)
+		} else if x == 5 {
+			err!(IllegalArgument)
+		} else if x == 6 {
+			err!(IllegalState)
 		} else {
 			Ok(())
 		}

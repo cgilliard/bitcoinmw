@@ -381,7 +381,10 @@ mod test {
 				for i in 0..evts {
 					let socket = events[i].socket();
 					let mut buf = [0u8; 10];
-					assert_eq!(socket.recv(&mut buf)?, 5);
+					let res = socket.recv(&mut buf);
+					assert!(res.is_ok());
+					let res = res?;
+					assert_eq!(res, 5);
 					assert_eq!(buf[0], b't');
 					assert_eq!(buf[1], b'e');
 					assert_eq!(buf[2], b's');
