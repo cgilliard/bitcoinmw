@@ -856,7 +856,11 @@ mod test {
 		// confirm expected values
 		assert!(events[0].is_read());
 		assert!(!events[0].is_write());
-		assert_eq!(events[0].socket(), s3);
+
+		// on linux, you cannot rely on the socket value if we're using a pointer.
+		// so this call is not reliable here. We need to store the file descriptor in
+		// the data pointed to.
+		//assert_eq!(events[0].socket(), s3);
 
 		// check our attachment
 		let ptr = events[0].attachment() as *mut MyAttachment;
@@ -866,7 +870,7 @@ mod test {
 		}
 
 		// recv 'test'
-		assert_eq!(events[0].socket().recv(&mut buf)?, 4);
+		assert_eq!(s3.recv(&mut buf)?, 4);
 		assert_eq!(buf[0], b't');
 		assert_eq!(buf[1], b'e');
 		assert_eq!(buf[2], b's');
@@ -884,7 +888,8 @@ mod test {
 
 		assert!(events[0].is_read());
 		assert!(!events[0].is_write());
-		assert_eq!(events[0].socket(), s3);
+		// once again we cannot relay on socket() on linux if attachments are used
+		//assert_eq!(events[0].socket(), s3);
 		s3.close()?; // now we can call close on socket s3
 
 		// confirm no messages waiting

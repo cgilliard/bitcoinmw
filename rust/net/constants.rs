@@ -20,3 +20,5 @@ pub const EVENT_SIZE: usize = 12;
 	target_os = "netbsd"
 ))]
 pub const EVENT_SIZE: usize = 32;
+
+pub const EVH_MAX_EVENTS: usize = 128;
