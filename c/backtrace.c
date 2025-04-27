@@ -51,16 +51,14 @@ char *gen_backtrace() {
 	}
 
 	FILE *fp = popen(command, "r");
-	char buffer[MAX_LINE_LEN];
-	int cur_alloc = 0;
+	char buffer[MAX_LINE_LEN] = {0};
 	while (fgets(buffer, sizeof(buffer), fp) != NULL) {
 		int len = strlen(buffer);
-		if (cur_alloc == 0) {
-			ret = alloc(len + 2);
+		if (ret == NULL) {
+			ret = alloc(len + 30);
 			if (ret == NULL) {
 				return NULL;
 			}
-			cur_alloc += len + 30;
 			strcpy(ret, "stack backtrace: ");
 			strcat(ret, buffer);
 		} else {

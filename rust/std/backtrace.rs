@@ -54,7 +54,7 @@ mod test {
 	#[test]
 	fn test_backtrace1() -> Result<(), Error> {
 		let _bt = Backtrace::new();
-		//println!("bt='{}'", bt.as_str());
+		//println!("bt='{}'", _bt.as_str());
 		Ok(())
 	}
 }
