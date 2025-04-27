@@ -3,8 +3,27 @@ use prelude::*;
 
 errors!(CapacityExceeded, ArrayIndexOutOfBounds, Timeout);
 
-fn test_err() -> ResultGen<()> {
-	Err(err!(Timeout))
+fn test_err1(x: u32) -> ResultGen<()> {
+	if x == 1 {
+		err!(Timeout)
+	} else {
+		Ok(())
+	}
+}
+
+fn test_err2(x: u32) -> ResultGen<()> {
+	if x == 1 {
+		Ok(())
+	} else {
+		err!(CapacityExceeded)
+	}
+}
+
+fn test_err3(x: u32) -> ResultGen<()> {
+	if x == 1 {
+		return err!(ArrayIndexOutOfBounds);
+	}
+	Ok(())
 }
 
 #[no_mangle]
@@ -13,14 +32,18 @@ pub extern "C" fn real_main(argc: i32, _argv: *const *const u8) -> i32 {
 	let verse = bible.find_mod(0);
 	if argc > 0 {
 		println!("{}", verse);
-		match test_err() {
+		match test_err1(1) {
 			Ok(_) => {}
-			Err(e1) => println!("e1={}", e1),
-		};
-		let e2 = err!(CapacityExceeded);
-		println!("e2={}", e2);
-		let e3 = err!(ArrayIndexOutOfBounds);
-		println!("e3={}", e3);
+			Err(e) => println!("e1={}", e),
+		}
+		match test_err2(1) {
+			Ok(_) => {}
+			Err(e) => println!("e2={}", e),
+		}
+		match test_err3(2) {
+			Ok(_) => {}
+			Err(e) => println!("e3={}", e),
+		}
 	}
 	0
 }

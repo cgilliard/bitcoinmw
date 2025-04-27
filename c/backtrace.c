@@ -60,8 +60,9 @@ char *gen_backtrace() {
 			if (ret == NULL) {
 				return NULL;
 			}
-			cur_alloc += len + 2;
-			strcpy(ret, buffer);
+			cur_alloc += len + 30;
+			strcpy(ret, "stack backtrace: ");
+			strcat(ret, buffer);
 		} else {
 			int nsize = strlen(ret) + len + 2;
 			char *tmp = resize(ret, nsize);

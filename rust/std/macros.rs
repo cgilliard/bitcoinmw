@@ -3,7 +3,7 @@ macro_rules! err {
 	($e:expr) => {{
 		let mut e = $e;
 		e.bt = Backtrace::new();
-		e
+		Err(e)
 	}};
 }
 

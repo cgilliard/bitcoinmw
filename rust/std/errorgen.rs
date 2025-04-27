@@ -25,7 +25,7 @@ impl Debug for ErrorGen {
 				write!(_f, "ErrorKind={}\n{}", kind_str,
 				"Backtrace disabled. To view backtrace set env variable; export RUST_BACKTRACE=1.")?;
 			} else {
-				write!(_f, "ErrorKind={}\nstack backtrace: {}", kind_str, bt_text)?;
+				write!(_f, "ErrorKind={}\n{}", kind_str, bt_text)?;
 			}
 		}
 		Ok(())
@@ -44,7 +44,7 @@ impl Display for ErrorGen {
 				"Backtrace disabled. To view backtrace set env variable; export RUST_BACKTRACE=1."
 			)?;
 		} else {
-			writef!(f, "ErrorKind={}\nstack backtrace: {}", kind_str, bt_text)?;
+			writef!(f, "ErrorKind={}\n{}", kind_str, bt_text)?;
 		}
 		Ok(())
 	}
@@ -62,28 +62,28 @@ mod test {
 
 	#[test]
 	fn test_error_simple() -> ResultGen<()> {
-		Err(IO)
+		err!(IO)
 	}
 
 	#[test]
 	fn test_error_simple2() -> ResultGen<()> {
 		//panic!("1");
-		Err(err!(IllegalArgument))
+		err!(IllegalArgument)
 	}
 
 	#[test]
 	fn test_error_simple3() -> ResultGen<()> {
-		Err(OutOfBounds)
+		err!(OutOfBounds)
 	}
 
 	#[test]
 	fn test_error_simple4() -> ResultGen<()> {
-		Err(IllegalState)
+		err!(IllegalState)
 	}
 
 	#[test]
 	fn test_error_simple5() -> ResultGen<()> {
-		Err(OutOfMemory)
+		err!(OutOfMemory)
 	}
 
 	#[test]
@@ -92,7 +92,7 @@ mod test {
 	}
 
 	fn test1() -> ResultGen<()> {
-		Err(err!(OperationFailed))
+		err!(OperationFailed)
 	}
 	#[test]
 	fn test_error_simple7() -> ResultGen<()> {
@@ -105,5 +105,5 @@ mod test {
 		println!("test");
 		Ok(())
 	}
-		*/
+	*/
 }
