@@ -1,9 +1,10 @@
 // Internal
+pub use std::misc::simple_hash;
 pub use std::sliceext::SliceExt;
 pub use std::strext::StrExt;
 pub use std::{
-	spawn, spawnj, AsRaw, Backtrace, Box, Display, Error, ErrorKind, ErrorKind::*, Formatter, Lock,
-	LockBox, Ptr, Rc, String, TryClone, Vec,
+	spawn, spawnj, AsRaw, Backtrace, Box, Display, Error, ErrorGen, ErrorKind, ErrorKind::*,
+	Formatter, Lock, LockBox, Ptr, Rc, ResultGen, String, TryClone, Vec,
 };
 
 // macros

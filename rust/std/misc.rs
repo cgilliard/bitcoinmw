@@ -9,6 +9,20 @@ pub struct MyStruct {
 	y: u64,
 }
 
+pub const fn simple_hash(s: &str, line: u32) -> u64 {
+	let mut hash = 0_u64;
+	let bytes = s.as_bytes();
+	let mut i = 0;
+	while i < bytes.len() {
+		hash = hash ^ (bytes[i] as u64);
+		hash = (hash << 3) ^ (hash >> 2);
+		i += 1;
+	}
+	hash = hash ^ (line as u64);
+	hash = (hash << 5) ^ (hash >> 1);
+	hash
+}
+
 pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N], Error> {
 	if off > n.len() || len.checked_add(off).map_or(true, |end| end > n.len()) {
 		Err(Error::new(OutOfBounds))

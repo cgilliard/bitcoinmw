@@ -9,7 +9,7 @@ pub struct Backtrace(pub *const u8);
 
 impl Drop for Backtrace {
 	fn drop(&mut self) {
-		if !self.0.is_null() {
+		if !self.0.is_null() && self.0 != 0x1 as *const u8 {
 			unsafe {
 				release(self.0);
 			}
@@ -27,6 +27,8 @@ impl Backtrace {
 	pub fn as_str(&self) -> &str {
 		if self.0.is_null() {
 			""
+		} else if self.0 == 0x1 as *const u8 {
+			"backtrace not possible. Use err!(<err>) to enable backtrace!"
 		} else {
 			unsafe {
 				let mut len = 0;

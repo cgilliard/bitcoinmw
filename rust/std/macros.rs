@@ -8,6 +8,27 @@ macro_rules! err {
 }
 
 #[macro_export]
+macro_rules! errors {
+    ($($error:ident),*) => {
+        define_errors_inner!(@count 0, simple_hash(file!(), line!()), $($error),*);
+    };
+}
+
+#[macro_export]
+macro_rules! define_errors_inner {
+        (@count $index:expr, $file_hash:expr, $head:ident $(, $tail:ident)*) => {
+                #[allow(non_upper_case_globals)]
+                pub const $head: ErrorGen = ErrorGen{
+                    code: $file_hash + $index,
+                    display: || -> &'static str { stringify!($head) },
+                    bt: Backtrace (0x1 as *const u8),
+                };
+                define_errors_inner!(@count $index + 1, $file_hash, $($tail),*);
+        };
+        (@count $index:expr, $file_hash:expr,) => {};
+}
+
+#[macro_export]
 macro_rules! aadd {
 	($a:expr, $v:expr) => {{
 		use std::ffi::atomic_fetch_add_u64;
