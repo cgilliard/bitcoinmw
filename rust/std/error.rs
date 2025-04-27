@@ -9,6 +9,11 @@ errors!(
 	CcapacityExceeded,
 	Utf8Error,
 	Alloc,
+	ThreadJoin,
+	ThreadCreate,
+	ThreadDetach,
+	ChannelInit,
+	ChannelSend,
 	Todo
 );
 

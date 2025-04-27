@@ -3,12 +3,6 @@ extern crate bitcoinmw_macros;
 
 pub use self::bitcoinmw_macros::Dummy;
 pub use std::error::*;
-/*
-pub use std::{
-	slice_copy, AsRaw, AsRawMut, Backtrace, Box, CString, Display, Formatter, Ptr, Rc, Result,
-	SliceExt, StrExt, String, TryClone, Vec,
-};
-*/
 pub use std::*;
 /*
 pub use std::misc::simple_hash;
