@@ -3,13 +3,17 @@
 #include <dlfcn.h>
 #include <execinfo.h>
 #include <limits.h>
-#include <mach-o/dyld.h>
-#include <mach/mach.h>
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#include <mach/mach.h>
+#endif	// __APPLE__
+
 #include "std.h"
 
+#ifdef __APPLE__
 char *get_binary_path() {
 	static char path[PATH_MAX];
 	uint32_t size = sizeof(path);
@@ -72,3 +76,13 @@ char *gen_backtrace() {
 
 	return ret;
 }
+#endif	// __APPLE__
+#ifdef __linux__
+char *gen_backtrace() {
+	char *ret = alloc(1000);
+	if (ret != NULL) {
+		strcpy(ret, "Backtrace not enaabled on linux yet");
+	}
+	return ret;
+}
+#endif	// __linux__
