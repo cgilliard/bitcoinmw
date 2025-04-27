@@ -620,18 +620,32 @@ mod test {
 		assert_eq!(unsafe { VTEST }, 2);
 	}
 
+	struct DropTest2 {
+		x: u32,
+	}
+
+	static mut VTEST2: u32 = 0;
+
+	impl Drop for DropTest2 {
+		fn drop(&mut self) {
+			unsafe {
+				VTEST2 += 1;
+			}
+		}
+	}
+
 	#[test]
 	fn test_vec_iter_drop() {
 		unsafe {
-			VTEST = 0;
+			VTEST2 = 0;
 		}
 		{
-			let v = vec![DropTest { x: 1 }, DropTest { x: 2 }, DropTest { x: 3 }].unwrap();
+			let v = vec![DropTest2 { x: 1 }, DropTest2 { x: 2 }, DropTest2 { x: 3 }].unwrap();
 			for y in v {
 				let _z = y;
 			}
 		}
-		assert_eq!(unsafe { VTEST }, 3);
+		assert_eq!(unsafe { VTEST2 }, 3);
 	}
 
 	#[test]
