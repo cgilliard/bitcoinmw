@@ -1,0 +1,60 @@
+#!/bin/sh
+
+export CC="${CC:-clang}"
+
+OS=$(uname -s)
+if [ "$OS" = "Linux" ]; then
+    MACRO_EXT=.so
+elif [ "$OS" = "Darwin" ]; then
+    MACRO_EXT=.dylib
+else
+    echo "Unsupported platform: $OS"
+    exit 1
+fi
+
+CCFLAGS=-fsanitize=address
+RUSTFLAGS=-Zsanitizer=address
+FILTER=$1
+
+# build xxdir and create header
+if [ ! -e bin/xxdir ] || [ build_utils/xxdir.c -nt  bin/xxdir ]; then
+	echo "${CC} -o bin/xxdir build_utils/xxdir.c"
+	${CC} -o bin/xxdir build_utils/xxdir.c
+fi
+if [ ! -e c/bin.h ] || [ -n "$(find resources -type f -newer c/bin.h)" ]; then
+    ./bin/xxdir ./resources c/bin.h
+    touch c/bible.c
+fi
+
+echo "Running tests..."
+./scripts/secp256k1zkp.sh || exit 1;
+
+cd c
+for file in *.c
+do
+	if [ "${file}" != "main.c" ]; then
+		if [ ! -e ../.obj/${file%.c}.o ] || [ ${file} -nt ../.obj/${file%.c}.o ]; then
+			echo "${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file}";
+			${CC} ${CCFLAGS} -o ../.obj/${file%.c}.o -c -Ic ${file} || exit 1;
+		fi
+	fi
+done
+cd ..
+ar rcs .obj/libtest.a .obj/*.o || exit 1;
+
+# build macros
+cd macros
+rustc --crate-type=proc-macro --edition=2021 lib.rs -o ../.obj/libbitcoinmw_macros${MACRO_EXT} || exit 1;
+cd ..
+
+# build tests (to print out hashes for confirming no collisions use --cfg printhashes
+rustc -C debuginfo=2 --test rust/mod.rs \
+	-o bin/test_bmw \
+	-L .obj \
+	-l static=test \
+	-l static=secp256k1 \
+	-l static=gmp \
+	--extern bitcoinmw_macros=.obj/libbitcoinmw_macros${MACRO_EXT} \
+	${RUSTFLAGS} --verbose ||  exit 1;
+./bin/test_bmw ${FILTER} --test-threads=4 || exit 1;
+
