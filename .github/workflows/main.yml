@@ -109,8 +109,6 @@ jobs:
       - name: macos build (mrustc)
         run: |
           export LIBRARY_PATH="$(brew --prefix gmp)/lib:$LIBRARY_PATH"
-          #export CXX=/opt/homebrew/bin/g++-13
-          #export CC=/opt/homebrew/bin/gcc-13
           export CXX=clang++
           export CC=clang
           mkdir ../famc
