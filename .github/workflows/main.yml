@@ -34,10 +34,14 @@ jobs:
       - name: linux build (mrustc)
         run: |
           export CC=gcc
-          git clone https://github.com/cgilliard/rust-bins ../rust-bins
+          mkdir ../famc
+          cd ../famc
+          wget https://github.com/cgilliard/famc/releases/download/0.0.1/famc_linux.tar.gz
+          gzip -dc famc_linux.tar.gz | tar xvf -
+          cd ../bitcoinmw
           ./build clean
-          export MRUSTC=../rust-bins/linux/mrustc
-          export OUTPUT=../rust-bins/linux/output
+          export MRUSTC=../famc/bin/mrustc
+          export OUTPUT=../famc/output-1.29.0
           ./build mrustc || exit 1;
           ./bin/bmw || exit 1;
       - name: linux tests
