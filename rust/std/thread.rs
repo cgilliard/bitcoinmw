@@ -2,8 +2,15 @@ use core::ops::FnOnce;
 use core::ptr;
 use prelude::*;
 use std::ffi::{
-	release, thread_create, thread_create_joinable, thread_detach, thread_handle_size, thread_join,
+	release, sleep_millis, thread_create, thread_create_joinable, thread_detach,
+	thread_handle_size, thread_join,
 };
+
+pub fn park() {
+	unsafe {
+		sleep_millis(0xFFFFFFFFFFFFFFFF);
+	}
+}
 
 pub struct JoinHandle {
 	handle: [u8; 8],

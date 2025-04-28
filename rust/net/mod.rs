@@ -1,6 +1,6 @@
 mod constants;
 mod errors;
-//mod evh;
+mod evh;
 mod ffi;
 mod multiplex;
 mod socket;

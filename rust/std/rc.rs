@@ -70,6 +70,23 @@ impl<T> Rc<T> {
 			Err(e) => Err(e),
 		}
 	}
+
+	pub fn from_raw(ptr: *const u8) -> Self {
+		Self {
+			inner: Box::from_raw(Ptr::new(ptr as *const RcInner<T>)),
+		}
+	}
+
+	pub unsafe fn incr(&mut self) {
+		aadd!(&mut self.inner.count, 1);
+	}
+
+	pub fn into_raw(self) -> *const u8 {
+		let ret = self.inner.as_ptr().raw() as *const u8;
+		use core::mem::forget;
+		forget(self);
+		ret
+	}
 }
 
 #[cfg(test)]

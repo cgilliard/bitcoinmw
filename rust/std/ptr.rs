@@ -1,11 +1,21 @@
 use core::mem::size_of;
 use core::ops::{Deref, DerefMut};
 use core::ptr::{null, write};
+use core::str::from_utf8_unchecked;
 use prelude::*;
 use std::ffi::{alloc, ptr_add, release, resize};
 
 pub struct Ptr<T: ?Sized> {
 	ptr: *const T,
+}
+
+impl<T: ?Sized> Display for Ptr<T> {
+	fn format(&self, f: &mut Formatter) -> Result<()> {
+		let bytes = pointer_to_bytes(self.ptr as *const u8);
+		let bytes = bytes_to_hex_8(&bytes);
+		let bstr = unsafe { from_utf8_unchecked(&bytes) };
+		writef!(f, "0x{}", bstr)
+	}
 }
 
 impl<T: ?Sized> PartialEq for Ptr<T> {

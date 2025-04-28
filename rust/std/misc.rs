@@ -240,6 +240,35 @@ fn nibble_to_hex(nibble: u8) -> u8 {
 	}
 }
 
+pub fn pointer_to_bytes(ptr: *const u8) -> [u8; 8] {
+	let addr = ptr as usize; // Cast pointer to usize
+	[
+		(addr >> 0) as u8,
+		(addr >> 8) as u8,
+		(addr >> 16) as u8,
+		(addr >> 24) as u8,
+		(addr >> 32) as u8,
+		(addr >> 40) as u8,
+		(addr >> 48) as u8,
+		(addr >> 56) as u8,
+	]
+}
+
+pub fn bytes_to_hex_8(bytes: &[u8; 8]) -> [u8; 16] {
+	let mut hex = [0u8; 16];
+
+	for i in 0..8 {
+		let byte = bytes[i];
+		let high = (byte >> 4) & 0x0F;
+		let low = byte & 0x0F;
+
+		hex[2 * i] = nibble_to_hex(high);
+		hex[2 * i + 1] = nibble_to_hex(low);
+	}
+
+	hex
+}
+
 pub fn bytes_to_hex_33(bytes: &[u8; 33]) -> [u8; 66] {
 	let mut hex = [0u8; 66];
 

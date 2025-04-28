@@ -87,6 +87,10 @@ impl Multiplex {
 		}
 	}
 
+	pub fn uninit() -> Self {
+		Self(-1)
+	}
+
 	pub fn register(
 		&mut self,
 		socket: Socket,
@@ -136,7 +140,7 @@ impl Multiplex {
 		}
 	}
 
-	pub fn wait(&self, events: &mut [Event], timeout: Option<i64>) -> Result<u64> {
+	pub fn wait(&self, events: &mut [Event], timeout: Option<i64>) -> Result<usize> {
 		let timeout = match &timeout {
 			Some(t) => *t,
 			None => -1,
@@ -154,7 +158,7 @@ impl Multiplex {
 			)
 		};
 		if res >= 0 {
-			Ok(res as u64)
+			Ok(res as usize)
 		} else {
 			err!(OperationFailed)
 		}

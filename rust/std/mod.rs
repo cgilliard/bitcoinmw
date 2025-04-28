@@ -41,5 +41,5 @@ pub use std::rc::Rc;
 pub use std::sliceext::SliceExt;
 pub use std::strext::StrExt;
 pub use std::string::String;
-pub use std::thread::{spawn, spawnj};
+pub use std::thread::{park, spawn, spawnj};
 pub use std::vec::Vec;
