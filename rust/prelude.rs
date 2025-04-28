@@ -4,18 +4,6 @@ extern crate bitcoinmw_macros;
 pub use self::bitcoinmw_macros::Dummy;
 pub use std::error::*;
 pub use std::*;
-/*
-pub use std::misc::simple_hash;
-pub use std::sliceext::SliceExt;
-pub use std::strext::StrExt;
-pub use std::{
-	spawn, spawnj, AsRaw, Backtrace, Box, Display, Error, ErrorGen, ErrorKind, ErrorKind::*,
-	Formatter, Lock, LockBox, Ptr, Rc, ResultGen, String, TryClone, Vec,
-};
-
-// macros
-pub use bitcoinmw_macros::Dummy;
-*/
 
 // External
 pub use core::clone::Clone;

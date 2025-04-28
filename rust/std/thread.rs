@@ -47,7 +47,7 @@ impl JoinHandle {
 	}
 }
 
-extern "C" fn start_thread<F>(ptr: *mut u8)
+extern "C" fn start_thread<F>(ptr: *mut u8) -> *mut u8
 where
 	F: FnOnce(),
 {
@@ -60,6 +60,7 @@ where
 		ret
 	};
 	closure();
+	ptr::null_mut()
 }
 
 pub fn spawn<F>(f: F) -> Result<()>

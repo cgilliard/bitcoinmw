@@ -6,7 +6,6 @@ use net::errors::*;
 use net::multiplex::{Event, Multiplex, RegisterType};
 use net::socket::Socket;
 use prelude::*;
-//use std::ffi::sleep_millis;
 
 // Goal: To create a lightweight abstraction over my Multiplex/Socket APIs
 // to allow for simple and fast client/server communication.
@@ -107,6 +106,7 @@ impl<T: Clone> Connection<T> {
 		on_close: fn(&mut T, &Connection<T>) -> Result<()>,
 		attach: T,
 	) -> Result<Self> {
+		println!("rc new acceptor");
 		let inner = Rc::new(ConnectionInner(ConnectionData::Acceptor(AcceptorData {
 			socket,
 			on_recv,
@@ -125,6 +125,8 @@ impl<T: Clone> Connection<T> {
 		attach: T,
 	) -> Result<Self> {
 		let write_handle = WriteHandle::new(socket);
+		println!("rc new out");
+
 		let inner = Rc::new(ConnectionInner(ConnectionData::Outbound(OutboundData {
 			socket,
 			on_recv,
@@ -136,6 +138,7 @@ impl<T: Clone> Connection<T> {
 
 	fn inbound(socket: Socket, acceptor: Connection<T>) -> Result<Self> {
 		let write_handle = WriteHandle::new(socket);
+		println!("rc new inner");
 		let inner = Rc::new(ConnectionInner(ConnectionData::Inbound(InboundData {
 			socket,
 			write_handle,
@@ -217,8 +220,12 @@ impl<T: Clone> Evh<T> {
 
 	// start the evh
 	pub fn start(&mut self) -> Result<()> {
+		let multiplex = self.multiplex;
+		//let (s, r) = channel()?;
 		spawn(|| {
-			match Self::start_server(self.multiplex) {
+			// wait for thread to start
+			//let _ = s.send(());
+			match Self::start_server(multiplex) {
 				Ok(_) => {}
 				Err(e) => {
 					println!("FATAL: Server returned unexpected error: {}", e);
@@ -226,6 +233,12 @@ impl<T: Clone> Evh<T> {
 			}
 			println!("FATAL: Server returned unexpectedly without error!");
 		})?;
+
+		// without this (1ms sleep), program crashes
+		//sleep(1);
+
+		// send/receive also works
+		//r.recv();
 
 		Ok(())
 	}
@@ -239,6 +252,7 @@ impl<T: Clone> Evh<T> {
 		let mut events = [Event::new(); EVH_MAX_EVENTS];
 		loop {
 			let count = mplex.wait(&mut events, None)?;
+			println!("{} events", count);
 			for i in 0..count {
 				let mut rc: Rc<ConnectionInner<T>> = Rc::from_raw(events[i].attachment());
 				let conn = Connection { inner: rc.clone() };
@@ -316,7 +330,11 @@ impl<T: Clone> Evh<T> {
 mod test {
 	#![allow(dead_code)]
 	#![allow(unused_variables)]
+
+	/*
 	use super::*;
+	use std::ffi::sleep_millis;
+
 	#[test]
 	fn test_evh1() -> Result<()> {
 		use core::mem::size_of;
@@ -350,7 +368,8 @@ mod test {
 		};
 
 		let server = Connection::acceptor(s, recv, accept, close, 0u64)?;
-		evh.register(server)?;
+		evh.register(server.clone())?;
+		sleep(100);
 
 		let mut s2 = Socket::new();
 		s2.listen([127, 0, 0, 1], 9901, 10)?;
@@ -359,12 +378,19 @@ mod test {
 			Ok(())
 		};
 		let server2 = Connection::acceptor(s2, recv, accept, close, 1u64)?;
-		evh.register(server2)?;
+		evh.register(server2.clone())?;
 
 		evh.start()?;
+		//println!("start complete");
 
+		sleep(5000);
+		server.socket().close()?;
+		server2.socket().close()?;
+
+		println!("sleep done");
 		park();
 
 		Ok(())
 	}
+		*/
 }

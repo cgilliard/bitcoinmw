@@ -1,12 +1,19 @@
 use core::ptr::copy;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
+use std::ffi::sleep_millis;
 
 #[derive(Dummy)]
 #[allow(dead_code)]
 pub struct MyStruct {
 	x: u32,
 	y: u64,
+}
+
+pub fn sleep(millis: u64) {
+	unsafe {
+		sleep_millis(millis);
+	}
 }
 
 pub const fn wrapping_mul(a: u64, b: u64) -> u64 {

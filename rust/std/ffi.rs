@@ -32,10 +32,10 @@ extern "C" {
 	pub fn cas_release(ptr: *mut u64, expect: *const u64, desired: u64) -> bool;
 
 	// thread
-	pub fn thread_create(start_routine: extern "C" fn(*mut u8), arg: *mut u8) -> i32;
+	pub fn thread_create(start_routine: extern "C" fn(*mut u8) -> *mut u8, arg: *mut u8) -> i32;
 	pub fn thread_create_joinable(
 		handle: *const u8,
-		start_routine: extern "C" fn(*mut u8),
+		start_routine: extern "C" fn(*mut u8) -> *mut u8,
 		arg: *mut u8,
 	) -> i32;
 	pub fn thread_join(handle: *const u8) -> i32;
