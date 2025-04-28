@@ -22,3 +22,4 @@ pub const EVENT_SIZE: usize = 12;
 pub const EVENT_SIZE: usize = 32;
 
 pub const EVH_MAX_EVENTS: usize = 128;
+pub const EVH_MAX_BYTES_PER_READ: usize = 16 * 1024;

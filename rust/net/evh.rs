@@ -2,6 +2,7 @@
 use core::marker::PhantomData;
 use core::mem::forget;
 use net::constants::*;
+use net::errors::*;
 use net::multiplex::{Event, Multiplex, RegisterType};
 use net::socket::Socket;
 use prelude::*;
@@ -43,17 +44,21 @@ impl WriteHandle {
 	pub fn close(&self) -> Result<()> {
 		err!(Todo)
 	}
+
+	fn set_multiplex(&mut self, multiplex: Multiplex) {
+		self.multiplex = multiplex;
+	}
 }
 
 // internal representation for Inbound connection (one that is accepted by another connection (i.e.
 // a listener)).
-struct InboundData<T> {
+struct InboundData<T: Clone> {
 	socket: Socket,            // socket
 	write_handle: WriteHandle, // write handle associated with this connection
 	acceptor: Connection<T>,   // the connection that accepted this inbound connection
 }
 
-struct OutboundData<T> {
+struct OutboundData<T: Clone> {
 	// socket
 	socket: Socket,
 	// closure the Evh will call when this outbound connection reads data
@@ -65,7 +70,7 @@ struct OutboundData<T> {
 	attach: T,
 }
 
-struct AcceptorData<T> {
+struct AcceptorData<T: Clone> {
 	// socket
 	socket: Socket,
 	// closure the Evh will call when a connection that was accepted by this acceptor recvs
@@ -79,21 +84,21 @@ struct AcceptorData<T> {
 	attach: T,
 }
 
-enum ConnectionData<T> {
+enum ConnectionData<T: Clone> {
 	Inbound(InboundData<T>),
 	Outbound(OutboundData<T>),
 	Acceptor(AcceptorData<T>),
 }
 
-struct ConnectionInner<T>(ConnectionData<T>);
+struct ConnectionInner<T: Clone>(ConnectionData<T>);
 
 // Main connection type used to create outbound connections and servers.
 #[derive(Clone)]
-pub struct Connection<T> {
+pub struct Connection<T: Clone> {
 	inner: Rc<ConnectionInner<T>>,
 }
 
-impl<T> Connection<T> {
+impl<T: Clone> Connection<T> {
 	// create an acceptor with the specified socket, callbacks, and attachment
 	pub fn acceptor(
 		socket: Socket,
@@ -129,6 +134,16 @@ impl<T> Connection<T> {
 		Ok(Self { inner })
 	}
 
+	fn inbound(socket: Socket, acceptor: Connection<T>) -> Result<Self> {
+		let write_handle = WriteHandle::new(socket);
+		let inner = Rc::new(ConnectionInner(ConnectionData::Inbound(InboundData {
+			socket,
+			write_handle,
+			acceptor,
+		})))?;
+		Ok(Self { inner })
+	}
+
 	// return the write handle associated with this connection.
 	pub fn write_handle(&self) -> Result<&WriteHandle> {
 		match &self.inner.0 {
@@ -143,22 +158,38 @@ impl<T> Connection<T> {
 	pub fn wakeup(&self, _on_write_event: fn(Connection<T>) -> Result<()>) -> Result<()> {
 		err!(Todo)
 	}
+
+	pub fn socket(&self) -> Socket {
+		match &self.inner.0 {
+			ConnectionData::Inbound(x) => x.socket,
+			ConnectionData::Outbound(x) => x.socket,
+			ConnectionData::Acceptor(x) => x.socket,
+		}
+	}
+
+	fn write_handle_mut(&mut self) -> Result<&mut WriteHandle> {
+		match &mut self.inner.0 {
+			ConnectionData::Inbound(ib) => Ok(&mut ib.write_handle),
+			ConnectionData::Outbound(ob) => Ok(&mut ob.write_handle),
+			ConnectionData::Acceptor(_acc) => err!(IllegalState),
+		}
+	}
 }
 
 // The event handler struct
-pub struct Evh<T> {
+pub struct Evh<T: Clone> {
 	multiplex: Multiplex,
 	count: u64,
 	_phantom_data: PhantomData<T>,
 }
 
-impl<T> Drop for Evh<T> {
+impl<T: Clone> Drop for Evh<T> {
 	fn drop(&mut self) {
 		let _ = self.stop();
 	}
 }
 
-impl<T> Evh<T> {
+impl<T: Clone> Evh<T> {
 	// create a new event handler instance
 	pub fn new() -> Result<Self> {
 		let multiplex = Multiplex::new()?;
@@ -187,8 +218,13 @@ impl<T> Evh<T> {
 	// start the evh
 	pub fn start(&mut self) -> Result<()> {
 		spawn(|| {
-			//println!("in start");
-			let _ = Self::start_server(self.multiplex);
+			match Self::start_server(self.multiplex) {
+				Ok(_) => {}
+				Err(e) => {
+					println!("FATAL: Server returned unexpected error: {}", e);
+				}
+			}
+			println!("FATAL: Server returned unexpectedly without error!");
 		})?;
 
 		Ok(())
@@ -200,31 +236,77 @@ impl<T> Evh<T> {
 	}
 
 	fn start_server(mplex: Multiplex) -> Result<()> {
-		//println!("in start_server");
 		let mut events = [Event::new(); EVH_MAX_EVENTS];
 		loop {
 			let count = mplex.wait(&mut events, None)?;
-			//println!("got {} events", count);
 			for i in 0..count {
 				let evt = events[i];
 				let attachment = evt.attachment();
-				println!("att={}", Ptr::new(attachment));
-				let rc: Rc<ConnectionInner<T>> = Rc::from_raw(attachment);
-				match &rc.0 {
-					ConnectionData::Acceptor(_acc) => {
-						//println!("acc {}", acc.socket);
+				let mut rc: Rc<ConnectionInner<T>> = Rc::from_raw(attachment);
+				let conn = Connection { inner: rc.clone() };
+				let drop = match &mut rc.0 {
+					ConnectionData::Acceptor(acc) => {
+						Self::proc_accept(mplex, acc, conn)?;
+						false
 					}
-					ConnectionData::Outbound(_ob) => {
-						//println!("ob {}", ob.socket);
-					}
-					ConnectionData::Inbound(_ib) => {
-						//println!("inb {}", ib.socket);
-						return Ok(());
+					ConnectionData::Outbound(_ob) => false,
+					ConnectionData::Inbound(ib) => Self::proc_event(ib, conn)?,
+				};
+				// we don't want to drop the rc now unless the connection closed
+				if !drop {
+					forget(rc);
+				}
+			}
+		}
+	}
+
+	fn proc_accept(
+		mut mplex: Multiplex,
+		acc: &mut AcceptorData<T>,
+		conn: Connection<T>,
+	) -> Result<()> {
+		let nsock = acc.socket.accept()?;
+		let mut conn = Connection::inbound(nsock, conn)?;
+		let wh = conn.write_handle_mut()?;
+		wh.set_multiplex(mplex);
+		let inner_clone = conn.inner.clone();
+		let ptr = inner_clone.into_raw();
+		mplex.register(nsock, RegisterType::Read, Some(ptr))?;
+		(acc.on_accept)(&mut acc.attach, conn)?;
+		Ok(())
+	}
+
+	// keep reading from connection until EAGAIN.
+	// Return whether to drop the connection or not (close case)
+	fn proc_event(ib: &mut InboundData<T>, conn: Connection<T>) -> Result<bool> {
+		let mut bytes = [0u8; EVH_MAX_BYTES_PER_READ];
+		loop {
+			let len = match ib.socket.recv(&mut bytes) {
+				Ok(len) => len,
+				Err(e) => {
+					match e == EAgain {
+						true => return Ok(false),
+						false => 0, // close on other errors
 					}
 				}
-				//println!("is_read={},is_write={}", evt.is_read(), evt.is_write());
-				// we don't want to drop the rc now.
-				forget(rc);
+			};
+			if len == 0 {
+				match &mut ib.acceptor.inner.0 {
+					ConnectionData::Acceptor(acc) => {
+						let _ = (acc.on_close)(&mut acc.attach, conn.clone());
+					}
+					_ => {}
+				}
+				ib.socket.close()?;
+				return Ok(true);
+			} else {
+				match &mut ib.acceptor.inner.0 {
+					ConnectionData::Acceptor(acc) => {
+						let _ =
+							(acc.on_recv)(&mut acc.attach, conn.clone(), bytes.subslice(0, len)?);
+					}
+					_ => {}
+				}
 			}
 		}
 	}
@@ -237,41 +319,53 @@ mod test {
 	use super::*;
 	#[test]
 	fn test_evh1() -> Result<()> {
+		/*
 		use core::mem::size_of;
 		let _x = size_of::<u8>();
-		/*
 		println!(
 			"sz InboundData = {}, sz OutboundData = {}, sz AcceptorData = {}",
 			size_of::<InboundData<u64>>(),
 			size_of::<OutboundData<u64>>(),
 			size_of::<AcceptorData<u64>>()
 		);
-				*/
 
-		/*
 		let mut evh = Evh::new()?;
 
 		let mut s = Socket::new();
-		//println!("s.socket={}", s);
 		let port = s.listen([127, 0, 0, 1], 9900, 10)?;
-		//println!("s.socket={}", s);
-		//println!("listen on port {}", port);
-		let recv = |attach: &mut u64, conn: Connection<u64>, bytes: &[u8]| -> Result<()> { Ok(()) };
-		let accept = |attach: &mut u64, conn: Connection<u64>| -> Result<()> { Ok(()) };
-		let close = |attach: &mut u64, conn: Connection<u64>| -> Result<()> { Ok(()) };
+		let recv = |attach: &mut u64, conn: Connection<u64>, bytes: &[u8]| -> Result<()> {
+			unsafe {
+				use core::str::from_utf8_unchecked;
+				let s = from_utf8_unchecked(bytes);
+				println!("recv[{}]: '{}'", conn.socket(), s);
+			}
+			Ok(())
+		};
+		let accept = |attach: &mut u64, conn: Connection<u64>| -> Result<()> {
+			println!("accept: {}", conn.socket());
+			Ok(())
+		};
+		let close = |attach: &mut u64, conn: Connection<u64>| -> Result<()> {
+			println!("close: {}", conn.socket());
+			Ok(())
+		};
 
 		let server = Connection::acceptor(s, recv, accept, close, 0u64)?;
 		evh.register(server)?;
 
 		let mut s2 = Socket::new();
 		s2.listen([127, 0, 0, 1], 9901, 10)?;
+		let accept = |attach: &mut u64, conn: Connection<u64>| -> Result<()> {
+			println!("accept2: {}", conn.socket());
+			Ok(())
+		};
 		let server2 = Connection::acceptor(s2, recv, accept, close, 1u64)?;
 		evh.register(server2)?;
 
 		evh.start()?;
-				*/
 
-		//park();
+		park();
+			*/
 
 		Ok(())
 	}

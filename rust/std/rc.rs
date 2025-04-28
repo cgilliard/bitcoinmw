@@ -1,3 +1,4 @@
+use core::mem::forget;
 use core::ops::{Deref, DerefMut};
 use prelude::*;
 
@@ -83,7 +84,6 @@ impl<T> Rc<T> {
 
 	pub fn into_raw(self) -> *const u8 {
 		let ret = self.inner.as_ptr().raw() as *const u8;
-		use core::mem::forget;
 		forget(self);
 		ret
 	}
