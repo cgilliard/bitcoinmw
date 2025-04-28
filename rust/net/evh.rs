@@ -62,7 +62,7 @@ struct OutboundData<T: Clone> {
 	// socket
 	socket: Socket,
 	// closure the Evh will call when this outbound connection reads data
-	on_recv: fn(&mut T, Connection<T>, &[u8]) -> Result<()>,
+	on_recv: fn(&mut T, &Connection<T>, &[u8]) -> Result<()>,
 	// write handle to use to write data for this connection
 	write_handle: WriteHandle,
 	// an attachment for this outbound connection that will be passed to the on_recv function
@@ -75,12 +75,12 @@ struct AcceptorData<T: Clone> {
 	socket: Socket,
 	// closure the Evh will call when a connection that was accepted by this acceptor recvs
 	// data.
-	on_recv: fn(&mut T, Connection<T>, &[u8]) -> Result<()>,
+	on_recv: fn(&mut T, &Connection<T>, &[u8]) -> Result<()>,
 	// closure the Evh will call when the acceptor accepts a new connection.
-	on_accept: fn(&mut T, Connection<T>) -> Result<()>,
+	on_accept: fn(&mut T, &Connection<T>) -> Result<()>,
 	// closure the Evh will call when the acceptor closes a connection that was associated with
 	// this acceptor.
-	on_close: fn(&mut T, Connection<T>) -> Result<()>,
+	on_close: fn(&mut T, &Connection<T>) -> Result<()>,
 	attach: T,
 }
 
@@ -102,9 +102,9 @@ impl<T: Clone> Connection<T> {
 	// create an acceptor with the specified socket, callbacks, and attachment
 	pub fn acceptor(
 		socket: Socket,
-		on_recv: fn(&mut T, Connection<T>, &[u8]) -> Result<()>,
-		on_accept: fn(&mut T, Connection<T>) -> Result<()>,
-		on_close: fn(&mut T, Connection<T>) -> Result<()>,
+		on_recv: fn(&mut T, &Connection<T>, &[u8]) -> Result<()>,
+		on_accept: fn(&mut T, &Connection<T>) -> Result<()>,
+		on_close: fn(&mut T, &Connection<T>) -> Result<()>,
 		attach: T,
 	) -> Result<Self> {
 		let inner = Rc::new(ConnectionInner(ConnectionData::Acceptor(AcceptorData {
@@ -121,7 +121,7 @@ impl<T: Clone> Connection<T> {
 	// create an outbound connection with the specified socket, callback, and attachment
 	pub fn outbound(
 		socket: Socket,
-		on_recv: fn(&mut T, Connection<T>, &[u8]) -> Result<()>,
+		on_recv: fn(&mut T, &Connection<T>, &[u8]) -> Result<()>,
 		attach: T,
 	) -> Result<Self> {
 		let write_handle = WriteHandle::new(socket);
@@ -155,7 +155,7 @@ impl<T: Clone> Connection<T> {
 
 	// this function can be used to instruct the Evh to issue a callback to continue write
 	// operations.
-	pub fn wakeup(&self, _on_write_event: fn(Connection<T>) -> Result<()>) -> Result<()> {
+	pub fn wakeup(&self, _on_write_event: fn(&Connection<T>) -> Result<()>) -> Result<()> {
 		err!(Todo)
 	}
 
@@ -240,17 +240,18 @@ impl<T: Clone> Evh<T> {
 		loop {
 			let count = mplex.wait(&mut events, None)?;
 			for i in 0..count {
-				let evt = events[i];
-				let attachment = evt.attachment();
-				let mut rc: Rc<ConnectionInner<T>> = Rc::from_raw(attachment);
+				let mut rc: Rc<ConnectionInner<T>> = Rc::from_raw(events[i].attachment());
 				let conn = Connection { inner: rc.clone() };
 				let drop = match &mut rc.0 {
 					ConnectionData::Acceptor(acc) => {
-						Self::proc_accept(mplex, acc, conn)?;
+						match Self::proc_accept(mplex, acc, conn) {
+							Ok(_) => {}
+							Err(e) => println!("WARNING: proc_accept generated error: {}", e),
+						}
 						false
 					}
 					ConnectionData::Outbound(_ob) => false,
-					ConnectionData::Inbound(ib) => Self::proc_event(ib, conn)?,
+					ConnectionData::Inbound(ib) => Self::proc_event(ib, &conn)?,
 				};
 				// we don't want to drop the rc now unless the connection closed
 				if !drop {
@@ -272,13 +273,13 @@ impl<T: Clone> Evh<T> {
 		let inner_clone = conn.inner.clone();
 		let ptr = inner_clone.into_raw();
 		mplex.register(nsock, RegisterType::Read, Some(ptr))?;
-		(acc.on_accept)(&mut acc.attach, conn)?;
+		(acc.on_accept)(&mut acc.attach, &conn)?;
 		Ok(())
 	}
 
 	// keep reading from connection until EAGAIN.
 	// Return whether to drop the connection or not (close case)
-	fn proc_event(ib: &mut InboundData<T>, conn: Connection<T>) -> Result<bool> {
+	fn proc_event(ib: &mut InboundData<T>, conn: &Connection<T>) -> Result<bool> {
 		let mut bytes = [0u8; EVH_MAX_BYTES_PER_READ];
 		loop {
 			let len = match ib.socket.recv(&mut bytes) {
@@ -293,17 +294,16 @@ impl<T: Clone> Evh<T> {
 			if len == 0 {
 				match &mut ib.acceptor.inner.0 {
 					ConnectionData::Acceptor(acc) => {
-						let _ = (acc.on_close)(&mut acc.attach, conn.clone());
+						let _ = (acc.on_close)(&mut acc.attach, conn);
 					}
 					_ => {}
 				}
-				ib.socket.close()?;
+				let _ = ib.socket.close();
 				return Ok(true);
 			} else {
 				match &mut ib.acceptor.inner.0 {
 					ConnectionData::Acceptor(acc) => {
-						let _ =
-							(acc.on_recv)(&mut acc.attach, conn.clone(), bytes.subslice(0, len)?);
+						let _ = (acc.on_recv)(&mut acc.attach, conn, bytes.subslice(0, len)?);
 					}
 					_ => {}
 				}
@@ -319,7 +319,6 @@ mod test {
 	use super::*;
 	#[test]
 	fn test_evh1() -> Result<()> {
-		/*
 		use core::mem::size_of;
 		let _x = size_of::<u8>();
 		println!(
@@ -333,7 +332,7 @@ mod test {
 
 		let mut s = Socket::new();
 		let port = s.listen([127, 0, 0, 1], 9900, 10)?;
-		let recv = |attach: &mut u64, conn: Connection<u64>, bytes: &[u8]| -> Result<()> {
+		let recv = |attach: &mut u64, conn: &Connection<u64>, bytes: &[u8]| -> Result<()> {
 			unsafe {
 				use core::str::from_utf8_unchecked;
 				let s = from_utf8_unchecked(bytes);
@@ -341,11 +340,11 @@ mod test {
 			}
 			Ok(())
 		};
-		let accept = |attach: &mut u64, conn: Connection<u64>| -> Result<()> {
+		let accept = |attach: &mut u64, conn: &Connection<u64>| -> Result<()> {
 			println!("accept: {}", conn.socket());
 			Ok(())
 		};
-		let close = |attach: &mut u64, conn: Connection<u64>| -> Result<()> {
+		let close = |attach: &mut u64, conn: &Connection<u64>| -> Result<()> {
 			println!("close: {}", conn.socket());
 			Ok(())
 		};
@@ -355,7 +354,7 @@ mod test {
 
 		let mut s2 = Socket::new();
 		s2.listen([127, 0, 0, 1], 9901, 10)?;
-		let accept = |attach: &mut u64, conn: Connection<u64>| -> Result<()> {
+		let accept = |attach: &mut u64, conn: &Connection<u64>| -> Result<()> {
 			println!("accept2: {}", conn.socket());
 			Ok(())
 		};
@@ -365,7 +364,6 @@ mod test {
 		evh.start()?;
 
 		park();
-			*/
 
 		Ok(())
 	}
