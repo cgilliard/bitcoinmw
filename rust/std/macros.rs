@@ -368,7 +368,7 @@ macro_rules! lock {
 #[macro_export]
 macro_rules! lock_box {
 	() => {{
-		use std::lock::LockBox;
+		use std::LockBox;
 		LockBox::new()
 	}};
 }

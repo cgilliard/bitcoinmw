@@ -45,10 +45,11 @@ impl Socket {
 		Socket(-1)
 	}
 
-	pub fn connect(&mut self, addr: [u8; 4], port: u16) -> Result<()> {
-		let res = unsafe { socket_connect(self as *mut Socket, addr.as_ptr(), port) };
+	pub fn connect(addr: [u8; 4], port: u16) -> Result<Self> {
+		let mut socket = Self::new();
+		let res = unsafe { socket_connect(&mut socket as *mut Socket, addr.as_ptr(), port) };
 		if res == 0 {
-			Ok(())
+			Ok(socket)
 		} else if res == ERROR_SOCKET {
 			err!(SocketError)
 		} else if res == ERROR_CONNECT {
@@ -60,10 +61,16 @@ impl Socket {
 		}
 	}
 
-	pub fn listen(&mut self, addr: [u8; 4], port: u16, backlog: i32) -> Result<u16> {
-		let res = unsafe { socket_listen(self as *mut Socket, addr.as_ptr(), port, backlog) };
+	pub fn listen(addr: [u8; 4], port: u16, backlog: i32) -> Result<Self> {
+		if port == 0 || backlog <= 0 {
+			return err!(IllegalArgument);
+		}
+
+		let mut socket = Self::new();
+		let res =
+			unsafe { socket_listen(&mut socket as *mut Socket, addr.as_ptr(), port, backlog) };
 		if res >= 0 && res <= 0xFFFF {
-			Ok(res as u16)
+			Ok(socket)
 		} else if res == ERROR_SOCKET {
 			err!(SocketError)
 		} else if res == ERROR_SETSOCKOPT {
@@ -81,12 +88,37 @@ impl Socket {
 		}
 	}
 
-	pub fn accept(&mut self) -> Result<Socket> {
+	pub fn listen_rand(addr: [u8; 4], backlog: i32) -> Result<(u16, Self)> {
+		if backlog <= 0 {
+			return err!(IllegalArgument);
+		}
+		let mut socket = Self::new();
+		let res = unsafe { socket_listen(&mut socket as *mut Socket, addr.as_ptr(), 0, backlog) };
+		if res >= 0 && res <= 0xFFFF {
+			Ok((res as u16, socket))
+		} else if res == ERROR_SOCKET {
+			err!(SocketError)
+		} else if res == ERROR_SETSOCKOPT {
+			err!(SetSockOpt)
+		} else if res == ERROR_FCNTL {
+			err!(FcntlError)
+		} else if res == ERROR_BIND {
+			err!(BindError)
+		} else if res == ERROR_LISTEN {
+			err!(ListenError)
+		} else if res == ERROR_GETSOCKNAME {
+			err!(GetSockNameError)
+		} else {
+			err!(Unknown)
+		}
+	}
+
+	pub fn accept(&self) -> Result<Self> {
 		if self.0 < 0 {
 			return err!(IllegalState);
 		}
 		let mut ret = Socket::new();
-		let res = unsafe { socket_accept(self as *mut Socket, &mut ret as *mut Socket) };
+		let res = unsafe { socket_accept(self as *const Socket, &mut ret as *mut Socket) };
 		if res == 0 {
 			Ok(ret)
 		} else if res == ERROR_ACCEPT {
@@ -141,6 +173,7 @@ impl Socket {
 			return err!(IllegalState);
 		}
 		let res = unsafe { socket_close(self as *const Socket) };
+
 		if res == 0 {
 			self.0 = -1; // prevent double close
 			Ok(())
@@ -168,10 +201,8 @@ mod test {
 
 	#[test]
 	fn test_socket1() -> Result<()> {
-		let mut s1 = Socket::new();
-		let port = s1.listen([127, 0, 0, 1], 0, 10)?;
-		let mut s2 = Socket::new();
-		s2.connect([127, 0, 0, 1], port)?;
+		let (port, mut s1) = Socket::listen_rand([127, 0, 0, 1], 1)?;
+		let mut s2 = Socket::connect([127, 0, 0, 1], port)?;
 		let mut s3 = loop {
 			match s1.accept() {
 				Ok(s3) => break s3,
@@ -208,7 +239,7 @@ mod test {
 		assert!(s2.close().is_err());
 		assert!(s3.close().is_err());
 
-		let mut x = Socket::new();
+		let x = Socket::new();
 		assert!(x.accept().is_err());
 		assert!(x.recv(&mut []).is_err());
 		assert!(x.send(&[]).is_err());

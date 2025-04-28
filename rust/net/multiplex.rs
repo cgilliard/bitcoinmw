@@ -20,6 +20,12 @@ pub enum RegisterType {
 	RW,
 }
 
+impl Display for Multiplex {
+	fn format(&self, f: &mut Formatter) -> Result<()> {
+		writef!(f, "Multiplex[fd={}]", self.0)
+	}
+}
+
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Event([u8; EVENT_SIZE]);
@@ -91,12 +97,7 @@ impl Multiplex {
 		Self(-1)
 	}
 
-	pub fn register(
-		&mut self,
-		socket: Socket,
-		rt: RegisterType,
-		opt: Option<*const u8>,
-	) -> Result<()> {
+	pub fn register(&self, socket: Socket, rt: RegisterType, opt: Option<*const u8>) -> Result<()> {
 		let flag = match rt {
 			RegisterType::Read => MULTIPLEX_REGISTER_TYPE_FLAG_READ,
 			RegisterType::Write => MULTIPLEX_REGISTER_TYPE_FLAG_WRITE,
@@ -183,20 +184,18 @@ mod test {
 	#[test]
 	fn test_multiplex1() -> Result<()> {
 		// create a multiplex
-		let mut m1 = Multiplex::new()?;
+		let m1 = Multiplex::new()?;
 
 		// create a socket
-		let mut s1 = Socket::new();
+		//let mut s1 = Socket::new();
 		// start listening on the socket (allow system to choose unused port)
-		let port = s1.listen([127, 0, 0, 1], 0, 1)?;
+		let (port, mut s1) = Socket::listen_rand([127, 0, 0, 1], 1)?;
 
 		// register for read events (accept = read), no timeout
 		m1.register(s1, RegisterType::Read, None)?;
 
 		// create a new socket
-		let mut s2 = Socket::new();
-		// connect on the port we've bound to
-		s2.connect([127, 0, 0, 1], port)?;
+		let mut s2 = Socket::connect([127, 0, 0, 1], port)?;
 
 		// create an event slice and wait for events
 		let mut events = [Event::new(); 3];
@@ -292,30 +291,23 @@ mod test {
 	#[test]
 	fn test_multiple_events() -> Result<()> {
 		// create a multiplex
-		let mut m1 = Multiplex::new()?;
+		let m1 = Multiplex::new()?;
 
 		// create a socket
-		let mut listen = Socket::new();
 		// start listening on the socket (allow system to choose unused port)
-		let port = listen.listen([127, 0, 0, 1], 0, 3)?;
+		let (port, mut listen) = Socket::listen_rand([127, 0, 0, 1], 3)?;
 
 		// register for read events (accept = read), no timeout
 		m1.register(listen, RegisterType::Read, None)?;
 
 		// create a new socket
-		let mut c1 = Socket::new();
-		// connect on the port we've bound to
-		c1.connect([127, 0, 0, 1], port)?;
+		let mut c1 = Socket::connect([127, 0, 0, 1], port)?;
 
 		// create a new socket
-		let mut c2 = Socket::new();
-		// connect on the port we've bound to
-		c2.connect([127, 0, 0, 1], port)?;
+		let mut c2 = Socket::connect([127, 0, 0, 1], port)?;
 
 		// create a new socket
-		let mut c3 = Socket::new();
-		// connect on the port we've bound to
-		c3.connect([127, 0, 0, 1], port)?;
+		let mut c3 = Socket::connect([127, 0, 0, 1], port)?;
 
 		// create an event slice and wait for events
 		let mut events = [Event::new(); 5];
@@ -430,20 +422,16 @@ mod test {
 	#[test]
 	fn test_multiplex_shutdown() -> Result<()> {
 		// create a multiplex
-		let mut m1 = Multiplex::new()?;
+		let m1 = Multiplex::new()?;
 
 		// create a socket
-		let mut s1 = Socket::new();
-		// start listening on the socket (allow system to choose unused port)
-		let port = s1.listen([127, 0, 0, 1], 0, 1)?;
+		let (port, mut s1) = Socket::listen_rand([127, 0, 0, 1], 1)?;
 
 		// register for read events (accept = read), no timeout
 		m1.register(s1, RegisterType::Read, None)?;
 
 		// create a new socket
-		let mut s2 = Socket::new();
-		// connect on the port we've bound to
-		s2.connect([127, 0, 0, 1], port)?;
+		let mut s2 = Socket::connect([127, 0, 0, 1], port)?;
 
 		// create an event slice and wait for events
 		let mut events = [Event::new(); 3];
@@ -525,17 +513,13 @@ mod test {
 		let mut m1 = Multiplex::new()?;
 
 		// create a socket
-		let mut s1 = Socket::new();
-		// start listening on the socket (allow system to choose unused port)
-		let port = s1.listen([127, 0, 0, 1], 0, 1)?;
+		let (port, mut s1) = Socket::listen_rand([127, 0, 0, 1], 1)?;
 
 		// register for read events (accept = read), no timeout
 		m1.register(s1, RegisterType::Read, None)?;
 
 		// create a new socket
-		let mut s2 = Socket::new();
-		// connect on the port we've bound to
-		s2.connect([127, 0, 0, 1], port)?;
+		let mut s2 = Socket::connect([127, 0, 0, 1], port)?;
 
 		// create an event slice and wait for events
 		let mut events = [Event::new(); 3];
@@ -632,17 +616,13 @@ mod test {
 		let mut m1 = Multiplex::new()?;
 
 		// create a socket
-		let mut s1 = Socket::new();
-		// start listening on the socket (allow system to choose unused port)
-		let port = s1.listen([127, 0, 0, 1], 0, 1)?;
+		let (port, mut s1) = Socket::listen_rand([127, 0, 0, 1], 1)?;
 
 		// register for read events (accept = read), no timeout
 		m1.register(s1, RegisterType::Read, None)?;
 
 		// create a new socket
-		let mut s2 = Socket::new();
-		// connect on the port we've bound to
-		s2.connect([127, 0, 0, 1], port)?;
+		let mut s2 = Socket::connect([127, 0, 0, 1], port)?;
 
 		// create an event slice and wait for events
 		let mut events = [Event::new(); 3];
@@ -785,20 +765,16 @@ mod test {
 	#[test]
 	fn test_attachments() -> Result<()> {
 		// create a multiplex
-		let mut m1 = Multiplex::new()?;
+		let m1 = Multiplex::new()?;
 
 		// create a socket
-		let mut s1 = Socket::new();
-		// start listening on the socket (allow system to choose unused port)
-		let port = s1.listen([127, 0, 0, 1], 0, 1)?;
+		let (port, mut s1) = Socket::listen_rand([127, 0, 0, 1], 1)?;
 
 		let attach = MyAttachment { x: -1, y: 100 };
 		// register for read events (accept = read), no timeout
 		m1.register(s1, RegisterType::Read, None)?;
 		// create a new socket
-		let mut s2 = Socket::new();
-		// connect on the port we've bound to
-		s2.connect([127, 0, 0, 1], port)?;
+		let mut s2 = Socket::connect([127, 0, 0, 1], port)?;
 
 		// create an event slice and wait for events
 		let mut events = [Event::new(); 3];
