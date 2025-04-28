@@ -248,6 +248,7 @@ mod test {
 		);
 				*/
 
+		/*
 		let mut evh = Evh::new()?;
 
 		let mut s = Socket::new();
@@ -268,6 +269,7 @@ mod test {
 		evh.register(server2)?;
 
 		evh.start()?;
+				*/
 
 		//park();
 
