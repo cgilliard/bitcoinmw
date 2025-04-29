@@ -21,12 +21,12 @@ where
 	socket: Socket,
 	// closure the Evh will call when a connection that was accepted by this acceptor recvs
 	// data.
-	on_recv: OnRecv<T>,
+	on_recv: Rc<OnRecv<T>>,
 	// closure the Evh will call when the acceptor accepts a new connection.
-	on_accept: OnAccept<T>,
+	on_accept: Rc<OnAccept<T>>,
 	// closure the Evh will call when the acceptor closes a connection that was associated with
 	// this acceptor.
-	on_close: OnClose<T>,
+	on_close: Rc<OnClose<T>>,
 	// attachment passed on all requests - used for identifiers and context data.
 	attach: T,
 }
@@ -75,9 +75,9 @@ where
 {
 	pub fn acceptor(
 		socket: Socket,
-		on_recv: OnRecv<T>,
-		on_accept: OnAccept<T>,
-		on_close: OnClose<T>,
+		on_recv: Rc<OnRecv<T>>,
+		on_accept: Rc<OnAccept<T>>,
+		on_close: Rc<OnClose<T>>,
 		attach: T,
 	) -> Result<Self> {
 		let inner = Rc::new(ConnectionData::Acceptor(AcceptorData {
@@ -416,25 +416,31 @@ mod test {
 		let close_count_clone = close_count.clone();
 
 		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
-		let recv = Box::new(
+		let recv: OnRecv<u64> = Box::new(
 			move |attach: &u64, conn: &Connection<u64>, bytes: &[u8]| -> Result<()> {
 				let _l = lock_clone.write();
 				*count += 1;
 				Ok(())
 			},
 		)?;
-		let accept = Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
-			let _l = lock_clone2.write();
-			*acc_count += 1;
-			Ok(())
-		})?;
-		let close = Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
-			let _l = lock_clone3.write();
-			*close_count += 1;
-			Ok(())
-		})?;
+		let accept: OnAccept<u64> =
+			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
+				let _l = lock_clone2.write();
+				*acc_count += 1;
+				Ok(())
+			})?;
+		let close: OnClose<u64> =
+			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
+				let _l = lock_clone3.write();
+				*close_count += 1;
+				Ok(())
+			})?;
 
-		let mut server = Connection::acceptor(s, recv, accept, close, 0u64)?;
+		let rc_close = Rc::new(close)?;
+		let rc_accept = Rc::new(accept)?;
+		let rc_recv = Rc::new(recv)?;
+
+		let mut server = Connection::acceptor(s, rc_recv, rc_accept, rc_close, 0u64)?;
 		evh.register(server.clone())?;
 
 		evh.start()?;
@@ -500,7 +506,7 @@ mod test {
 		let mut count_clone = count.clone();
 
 		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
-		let recv = Box::new(
+		let recv: OnRecv<u64> = Box::new(
 			move |attach: &u64, conn: &Connection<u64>, bytes: &[u8]| -> Result<()> {
 				let len = loop {
 					match conn.write(bytes) {
@@ -513,15 +519,20 @@ mod test {
 				Ok(())
 			},
 		)?;
-		let accept =
+		let accept: OnAccept<u64> =
 			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
-		let close = Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
-			let _l = lock_clone.write();
-			*count_clone += 1;
-			Ok(())
-		})?;
+		let close: OnClose<u64> =
+			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
+				let _l = lock_clone.write();
+				*count_clone += 1;
+				Ok(())
+			})?;
 
-		let mut server = Connection::acceptor(s, recv, accept, close, 0u64)?;
+		let rc_close = Rc::new(close)?;
+		let rc_accept = Rc::new(accept)?;
+		let rc_recv = Rc::new(recv)?;
+
+		let mut server = Connection::acceptor(s, rc_recv, rc_accept, rc_close, 0u64)?;
 		evh.register(server.clone())?;
 
 		evh.start()?;
@@ -592,7 +603,7 @@ mod test {
 		let mut count_clone = count.clone();
 
 		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
-		let recv = Box::new(
+		let recv: OnRecv<u64> = Box::new(
 			move |attach: &u64, conn: &Connection<u64>, bytes: &[u8]| -> Result<()> {
 				let len = loop {
 					match conn.write(bytes) {
@@ -608,15 +619,20 @@ mod test {
 				Ok(())
 			},
 		)?;
-		let accept =
+		let accept: OnAccept<u64> =
 			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
-		let close = Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
-			let _l = lock_clone.write();
-			*count_clone += 1;
-			Ok(())
-		})?;
+		let close: OnClose<u64> =
+			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
+				let _l = lock_clone.write();
+				*count_clone += 1;
+				Ok(())
+			})?;
 
-		let mut server = Connection::acceptor(s, recv, accept, close, 0u64)?;
+		let rc_close = Rc::new(close)?;
+		let rc_accept = Rc::new(accept)?;
+		let rc_recv = Rc::new(recv)?;
+
+		let mut server = Connection::acceptor(s, rc_recv, rc_accept, rc_close, 0u64)?;
 		evh.register(server.clone())?;
 
 		evh.start()?;
@@ -693,4 +709,100 @@ mod test {
 
 		Ok(())
 	}
+
+	#[test]
+	fn test_evh2servers() -> Result<()> {
+		/*
+		let mut evh: Evh<u64> = Evh::new()?;
+
+		let (port1, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
+		println!("port1={}", port1);
+		let recv: OnRecv<u64> = Box::new(
+			move |attach: &u64, conn: &Connection<u64>, bytes: &[u8]| -> Result<()> {
+				println!(
+					"recv[{}][socket={}][len={}]='{}'",
+					attach,
+					conn.socket(),
+					bytes.len(),
+					unsafe { from_utf8_unchecked(bytes) }
+				);
+				Ok(())
+			},
+		)?;
+		let accept: OnAccept<u64> =
+			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
+				println!("accept[{}][{}]", attach, conn.socket());
+				Ok(())
+			})?;
+		let close: OnClose<u64> =
+			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
+				println!("close[{}][{}]", attach, conn.socket());
+				Ok(())
+			})?;
+
+		let rc_close = Rc::new(close)?;
+		let rc_accept = Rc::new(accept)?;
+		let rc_recv = Rc::new(recv)?;
+
+		let rc_close2 = rc_close.clone();
+		let rc_accept2 = rc_accept.clone();
+		let rc_recv2 = rc_recv.clone();
+
+		let mut server = Connection::acceptor(s, rc_recv, rc_accept, rc_close, 0u64)?;
+
+		evh.register(server.clone())?;
+
+		let (port2, mut s2) = Socket::listen_rand([127, 0, 0, 1], 10)?;
+		let mut server2 = Connection::acceptor(s2, rc_recv2, rc_accept2, rc_close2, 1u64)?;
+		evh.register(server2.clone())?;
+		println!("port2={}", port2);
+
+		evh.start()?;
+
+		park();
+			*/
+
+		Ok(())
+	}
+
+	/*
+
+		#[test]
+	fn test_show_sample() -> Result<()> {
+		let evh = evh!()?;
+		let l1 = listen!(Port(9090))?;
+		let l2 = listen!(Addr([0,0,0,0]), Port(8080))?;
+		let l3 = listen!(Backlog(10), Addr([0,0,0,0]), Port(9091))?;
+
+		let recv = recv!({
+			println!("recv[{}][{}][{}]", attach, conn.socket(), data);
+		Ok(())
+		})?;
+		let accept = accept!({
+			println!("accept[{}][{}]", attach, conn.socket());
+			Ok(())
+		})?;
+		let close = close!({
+			println!("close[{}][{}]", attach, conn.socket());
+			Ok(())
+		})?;
+
+		let accept2 = accept!({
+			println!("accept2[{}][{}]", attach, conn.socket());
+			Ok(())
+		})?;
+
+		let a1 = acceptor!(Attachment(0u64), Listener(l1), Recv(recv), Accept(accept))?;
+		let a2 = acceptor!(Listener(l2), Recv(recv), Accept(accept), Close(close))?;
+		let a3 =  acceptor!(Listener(l3), Recv(recv), Accept(accept2))?;
+		evh.register(a1)?;
+		evh.register(a2)?;
+		evh.register(a3)?;
+		evh.start()?;
+		park();
+
+	}
+
+
+				 */
 }
