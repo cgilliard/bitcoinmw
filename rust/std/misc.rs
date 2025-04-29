@@ -1,3 +1,7 @@
+use core::ptr::copy;
+use core::slice::{from_raw_parts, from_raw_parts_mut};
+use prelude::*;
+
 pub const fn wrapping_mul(a: u64, b: u64) -> u64 {
 	// Split a and b into high and low 32-bit parts
 	let a_low = (a & 0xFFFFFFFF) as u32;
@@ -42,4 +46,44 @@ pub const fn simple_hash(s: &str, line: u32) -> u64 {
 	hash = wrapping_mul(hash, PRIME);
 
 	hash
+}
+
+pub fn slice_copy<T: Copy>(src: &[T], dst: &mut [T], len: usize) -> Result<()> {
+	if dst.len() < len || src.len() < len {
+		err!(OutOfBounds)
+	} else {
+		unsafe { copy(src.as_ptr(), dst.as_mut_ptr(), len) }
+		Ok(())
+	}
+}
+
+pub fn slice_starts_with<N: PartialEq>(slice: &[N], prefix: &[N]) -> bool {
+	let slice_len = slice.len();
+	let prefix_len = prefix.len();
+	if slice_len < prefix_len {
+		false
+	} else {
+		for i in 0..prefix_len {
+			if slice[i] != prefix[i] {
+				return false;
+			}
+		}
+		true
+	}
+}
+
+pub fn subslice<N>(n: &[N], off: usize, len: usize) -> Result<&[N]> {
+	if off > n.len() || len.checked_add(off).map_or(true, |end| end > n.len()) {
+		err!(OutOfBounds)
+	} else {
+		Ok(unsafe { from_raw_parts(n.as_ptr().add(off), len) })
+	}
+}
+
+pub fn subslice_mut<N>(n: &mut [N], off: usize, len: usize) -> Result<&mut [N]> {
+	if off > n.len() || len.checked_add(off).map_or(true, |end| end > n.len()) {
+		err!(OutOfBounds)
+	} else {
+		Ok(unsafe { from_raw_parts_mut(n.as_mut_ptr().add(off), len) })
+	}
 }

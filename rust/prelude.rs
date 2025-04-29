@@ -4,11 +4,12 @@ pub use std::backtrace::Backtrace;
 pub use std::error::Error;
 pub use std::errors::*;
 pub use std::result::Result;
+pub use std::traits::{AsRaw, AsRawMut};
 
 // External
 pub use core::clone::Clone;
 pub use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
-pub use core::convert::{AsRef, From, Into, TryFrom};
+pub use core::convert::{AsMut, AsRef, From, Into, TryFrom};
 pub use core::default::Default;
 pub use core::fmt::Formatter as CoreFormatter;
 pub use core::fmt::Result as FmtResult;

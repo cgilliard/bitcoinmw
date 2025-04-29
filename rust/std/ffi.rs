@@ -11,4 +11,6 @@ extern "C" {
 
 	// util
 	pub fn cstring_len(ptr: *const u8) -> i32;
+	pub fn ptr_add(p: *mut u8, v: i64);
+
 }
