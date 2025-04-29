@@ -64,6 +64,18 @@ where
 	}
 }
 
+impl<T> AsRef<T> for Box<T> {
+	fn as_ref(&self) -> &T {
+		unsafe { &*self.ptr.raw() }
+	}
+}
+
+impl<T> AsMut<T> for Box<T> {
+	fn as_mut(&mut self) -> &mut T {
+		unsafe { &mut *self.ptr.raw() }
+	}
+}
+
 impl<T> Box<T> {
 	pub fn new(t: T) -> Result<Self> {
 		let size = size_of::<T>();
@@ -84,18 +96,6 @@ impl<T> Box<T> {
 			ptr
 		};
 		Ok(Box { ptr })
-	}
-}
-
-impl<T> AsRef<T> for Box<T> {
-	fn as_ref(&self) -> &T {
-		unsafe { &*self.ptr.raw() }
-	}
-}
-
-impl<T> AsMut<T> for Box<T> {
-	fn as_mut(&mut self) -> &mut T {
-		unsafe { &mut *self.ptr.raw() }
 	}
 }
 
