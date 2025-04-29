@@ -2,7 +2,7 @@ use core::convert::AsRef;
 use core::marker::{Sized, Unsize};
 use core::mem::size_of;
 use core::ops::CoerceUnsized;
-use core::ops::{Deref, DerefMut, Index, IndexMut};
+use core::ops::{Deref, DerefMut};
 use core::ptr::{drop_in_place, null_mut, write};
 use core::slice::from_raw_parts;
 use prelude::*;
@@ -55,17 +55,6 @@ impl<T: ?Sized> Drop for Box<T> {
 	}
 }
 
-/*
-impl<T: TryClone> TryClone for Box<T> {
-	fn try_clone(&self) -> Result<Self>
-	where
-		Self: Sized,
-	{
-		Box::new(self.as_ref().try_clone()?)
-	}
-}
-*/
-
 impl<T> Deref for Box<T>
 where
 	T: ?Sized,
@@ -109,6 +98,7 @@ impl<T> Box<T> {
 	}
 }
 
+/*
 impl<T> Index<usize> for Box<T> {
 	type Output = T;
 
@@ -144,6 +134,7 @@ impl<T> IndexMut<usize> for Box<[T]> {
 		unsafe { &mut *(self.ptr.raw() as *mut T).add(index) }
 	}
 }
+*/
 
 impl<T, U> CoerceUnsized<Box<U>> for Box<T>
 where
