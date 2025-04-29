@@ -712,33 +712,26 @@ mod test {
 
 	#[test]
 	fn test_evh2servers() -> Result<()> {
-		/*
 		let mut evh: Evh<u64> = Evh::new()?;
 
+		let lock = lock_box!()?;
+		let count = Rc::new(0)?;
+
+		let lock_clone = lock.clone();
+		let mut count_clone = count.clone();
+
 		let (port1, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
-		println!("port1={}", port1);
 		let recv: OnRecv<u64> = Box::new(
 			move |attach: &u64, conn: &Connection<u64>, bytes: &[u8]| -> Result<()> {
-				println!(
-					"recv[{}][socket={}][len={}]='{}'",
-					attach,
-					conn.socket(),
-					bytes.len(),
-					unsafe { from_utf8_unchecked(bytes) }
-				);
+				let _l = lock_clone.write();
+				*count_clone += attach;
 				Ok(())
 			},
 		)?;
 		let accept: OnAccept<u64> =
-			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
-				println!("accept[{}][{}]", attach, conn.socket());
-				Ok(())
-			})?;
+			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
 		let close: OnClose<u64> =
-			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
-				println!("close[{}][{}]", attach, conn.socket());
-				Ok(())
-			})?;
+			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
 
 		let rc_close = Rc::new(close)?;
 		let rc_accept = Rc::new(accept)?;
@@ -748,19 +741,55 @@ mod test {
 		let rc_accept2 = rc_accept.clone();
 		let rc_recv2 = rc_recv.clone();
 
-		let mut server = Connection::acceptor(s, rc_recv, rc_accept, rc_close, 0u64)?;
+		let mut server = Connection::acceptor(s, rc_recv, rc_accept, rc_close, 3u64)?;
 
 		evh.register(server.clone())?;
 
-		let (port2, mut s2) = Socket::listen_rand([127, 0, 0, 1], 10)?;
-		let mut server2 = Connection::acceptor(s2, rc_recv2, rc_accept2, rc_close2, 1u64)?;
+		let (port2, s2) = Socket::listen_rand([127, 0, 0, 1], 10)?;
+		let server2 = Connection::acceptor(s2, rc_recv2, rc_accept2, rc_close2, 7u64)?;
 		evh.register(server2.clone())?;
-		println!("port2={}", port2);
 
 		evh.start()?;
 
-		park();
-			*/
+		{
+			let _l = lock.read();
+			assert_eq!(*count, 0);
+		}
+
+		let mut client1 = Socket::connect([127, 0, 0, 1], port1)?;
+		loop {
+			match client1.send(b"hi") {
+				Ok(_) => break,
+				Err(e) => assert_eq!(e, EAgain),
+			}
+		}
+		client1.close()?;
+
+		let mut client2 = Socket::connect([127, 0, 0, 1], port2)?;
+
+		loop {
+			match client2.send(b"hi") {
+				Ok(_) => break,
+				Err(e) => assert_eq!(e, EAgain),
+			}
+		}
+		client2.close()?;
+
+		loop {
+			sleep(1);
+			let _l = lock.read();
+			if *count == 10 {
+				break;
+			}
+		}
+
+		evh.stop()?;
+		s.close()?;
+		// just to make address sanitizer report no memory leaks - normal case server just
+		// runs forever.
+		unsafe {
+			server.drop_rc();
+		}
 
 		Ok(())
 	}
