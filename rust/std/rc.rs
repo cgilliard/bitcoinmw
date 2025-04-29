@@ -87,6 +87,11 @@ impl<T> Rc<T> {
 		forget(self);
 		ret
 	}
+
+	pub unsafe fn set_to_drop(&mut self) {
+		let rci = self.inner.as_mut();
+		astore!(&mut rci.count, 1);
+	}
 }
 
 #[cfg(test)]

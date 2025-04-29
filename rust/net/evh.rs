@@ -100,6 +100,24 @@ where
 		}
 	}
 
+	pub unsafe fn drop_rc(&mut self) {
+		/*
+		let inner_clone = self.inner.clone();
+		match &*self.inner {
+			ConnectionData::Acceptor(s) => {
+				//let ptr = inner_clone.into_raw();
+				// drop twice
+				//let inner: Rc<ConnectionData<T>> = Rc::from_raw(ptr);
+				//let inner: Rc<ConnectionData<T>> = Rc::from_raw(ptr);
+
+				Ok(())
+			}
+			_ => err!(IllegalState),
+		}
+			*/
+		self.inner.set_to_drop();
+	}
+
 	fn from_inner(inner: Rc<ConnectionData<T>>) -> Self {
 		Self { inner }
 	}
@@ -383,7 +401,7 @@ mod test {
 
 	#[test]
 	fn test_evh1() -> Result<()> {
-		let mut evh = Evh::new()?;
+		let mut evh: Evh<u64> = Evh::new()?;
 		let lock = lock_box!()?;
 		let lock_clone = lock.clone();
 		let lock_clone2 = lock.clone();
@@ -417,8 +435,8 @@ mod test {
 			Ok(())
 		})?;
 
-		let server = Connection::acceptor(s, recv, accept, close, 0u64)?;
-		evh.register(server)?;
+		let mut server = Connection::acceptor(s, recv, accept, close, 0u64)?;
+		evh.register(server.clone())?;
 
 		evh.start()?;
 
@@ -467,7 +485,9 @@ mod test {
 		sleep(1000);
 		s.close()?;
 		sleep(1000);
-		//park();
+		unsafe {
+			server.drop_rc();
+		}
 
 		Ok(())
 	}
