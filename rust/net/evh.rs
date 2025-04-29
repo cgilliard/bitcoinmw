@@ -1087,6 +1087,9 @@ mod test {
 		client.close()?;
 		evh.stop()?;
 		s.close()?;
+
+		sleep(100);
+
 		// just to make address sanitizer report no memory leaks - normal case server just
 		// runs forever.
 		unsafe {
