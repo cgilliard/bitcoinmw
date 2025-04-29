@@ -49,7 +49,9 @@ where
 	T: Clone,
 {
 	socket: Socket,
-	_phantom_data: PhantomData<T>,
+	on_recv: Rc<OnRecv<T>>,
+	on_close: Rc<OnClose<T>>,
+	attach: T,
 }
 
 enum ConnectionData<T>
@@ -86,6 +88,22 @@ where
 			socket,
 			on_recv,
 			on_accept,
+			on_close,
+			attach,
+		}))?;
+
+		Ok(Self { inner })
+	}
+
+	pub fn outbound(
+		socket: Socket,
+		on_recv: Rc<OnRecv<T>>,
+		on_close: Rc<OnClose<T>>,
+		attach: T,
+	) -> Result<Self> {
+		let inner = Rc::new(ConnectionData::Outbound(OutboundData {
+			socket,
+			on_recv,
 			on_close,
 			attach,
 		}))?;
@@ -255,7 +273,13 @@ where
 					.register(s.socket, RegisterType::Read, Some(ptr))?;
 				Ok(())
 			}
-			_ => err!(Todo),
+			ConnectionData::Outbound(s) => {
+				let ptr = inner_clone.into_raw();
+				self.multiplex
+					.register(s.socket, RegisterType::Read, Some(ptr))?;
+				Ok(())
+			}
+			_ => err!(IllegalArgument),
 		}
 	}
 
@@ -375,7 +399,7 @@ where
 		let conn = Connection::from_inner(inner.clone());
 		let drop = match &mut *inner {
 			ConnectionData::Acceptor(_) => Self::proc_accept(conn, multiplex)?,
-			ConnectionData::Outbound(_) => false,
+			ConnectionData::Outbound(_) => Self::proc_recv(conn)?,
 			ConnectionData::Inbound(_) => Self::proc_recv(conn)?,
 			ConnectionData::Close => false,
 		};
@@ -400,16 +424,29 @@ where
 					}
 				}
 			};
-			if len == 0 {
-				let mut conn_clone = conn.clone();
-				let acc = conn_clone.get_acceptor()?;
-				acc.on_close(&conn)?;
-				let _ = socket.close();
-				return Ok(true);
-			} else {
-				let mut conn_clone = conn.clone();
-				let acc = conn_clone.get_acceptor()?;
-				acc.on_recv(&mut conn, bytes.subslice(0, len)?)?;
+			let mut conn_clone = conn.clone();
+			match &mut *conn.inner {
+				ConnectionData::Inbound(_) => {
+					if len == 0 {
+						let acc = conn_clone.get_acceptor()?;
+						acc.on_close(&conn)?;
+						let _ = socket.close();
+						return Ok(true);
+					} else {
+						let acc = conn_clone.get_acceptor()?;
+						acc.on_recv(&mut conn, bytes.subslice(0, len)?)?;
+					}
+				}
+				ConnectionData::Outbound(ob) => {
+					if len == 0 {
+						(ob.on_close)(&mut ob.attach, &mut conn_clone)?;
+						let _ = socket.close();
+						return Ok(true);
+					} else {
+						(ob.on_recv)(&mut ob.attach, &mut conn_clone, bytes.subslice(0, len)?)?;
+					}
+				}
+				_ => return err!(IllegalState),
 			}
 		}
 	}
@@ -888,13 +925,7 @@ mod test {
 				vec.extend_from_slice(bytes)?;
 
 				let on_writable = Box::new(move |conn: &mut Connection<u64>| -> Result<()> {
-					let len = loop {
-						match conn.write(vec.slice_all()) {
-							Ok(len) => break len,
-							Err(e) => assert_eq!(e, EAgain),
-						}
-					};
-					assert_eq!(len, 6);
+					assert_eq!(conn.write(vec.slice_all())?, 6);
 					Ok(())
 				})?;
 
@@ -963,6 +994,104 @@ mod test {
 		// runs forever.
 		unsafe {
 			server.drop_rc();
+		}
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_evh_client_reg() -> Result<()> {
+		let mut evh: Evh<u64> = Evh::new()?;
+		let lock = lock_box!()?;
+		let lock_clone = lock.clone();
+		let count = Rc::new(0)?;
+		let mut count_clone = count.clone();
+
+		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
+		let recv: OnRecv<u64> = Box::new(
+			move |attach: &u64, conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
+				let len = loop {
+					match conn.write(bytes) {
+						Ok(len) => break len,
+						Err(e) => assert_eq!(e, EAgain),
+					}
+				};
+				assert_eq!(len, 6);
+
+				Ok(())
+			},
+		)?;
+		let accept: OnAccept<u64> =
+			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
+		let close: OnClose<u64> =
+			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
+
+		let rc_close = Rc::new(close)?;
+		let rc_accept = Rc::new(accept)?;
+		let rc_recv = Rc::new(recv)?;
+
+		let mut server = Connection::acceptor(s, rc_recv, rc_accept, rc_close, 0u64)?;
+		evh.register(server.clone())?;
+
+		let mut client = Socket::connect([127, 0, 0, 1], port)?;
+
+		let recv_client: OnRecv<u64> = Box::new(
+			move |attach: &u64, conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
+				assert_eq!(bytes.len(), 6);
+				assert_eq!(bytes[0], b't');
+				assert_eq!(bytes[1], b'e');
+				assert_eq!(bytes[2], b's');
+				assert_eq!(bytes[3], b't');
+				assert_eq!(bytes[4], b'5');
+				assert_eq!(bytes[5], b'7');
+				let _l = lock_clone.write();
+				*count_clone += 1;
+				Ok(())
+			},
+		)?;
+		let close_client: OnClose<u64> =
+			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
+
+		let rc_recv_client = Rc::new(recv_client)?;
+		let rc_close_client = Rc::new(close_client)?;
+
+		let mut connector = Connection::outbound(client, rc_recv_client, rc_close_client, 1u64)?;
+		evh.register(connector.clone())?;
+
+		evh.start()?;
+
+		loop {
+			match client.send(b"test57") {
+				Ok(v) => {
+					assert_eq!(v, 6);
+					break;
+				}
+				Err(e) => {
+					if e == EAgain {
+						continue;
+					} else {
+						return err!(e);
+					}
+				}
+			}
+		}
+
+		loop {
+			sleep(1);
+			let _l = lock.read();
+			if *count == 1 {
+				break;
+			}
+		}
+
+		client.close()?;
+		evh.stop()?;
+		s.close()?;
+		// just to make address sanitizer report no memory leaks - normal case server just
+		// runs forever.
+		unsafe {
+			server.drop_rc();
+			connector.drop_rc();
 		}
 
 		Ok(())
