@@ -56,5 +56,5 @@ rustc -C debuginfo=2 --test rust/mod.rs \
 	-l static=gmp \
 	--extern bitcoinmw_macros=.obj/libbitcoinmw_macros${MACRO_EXT} \
 	${RUSTFLAGS} --verbose ||  exit 1;
-./bin/test_bmw ${FILTER} --test-threads=4 || exit 1;
+./bin/test_bmw ${FILTER} --test-threads=16 || exit 1;
 

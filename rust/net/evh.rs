@@ -101,20 +101,6 @@ where
 	}
 
 	pub unsafe fn drop_rc(&mut self) {
-		/*
-		let inner_clone = self.inner.clone();
-		match &*self.inner {
-			ConnectionData::Acceptor(s) => {
-				//let ptr = inner_clone.into_raw();
-				// drop twice
-				//let inner: Rc<ConnectionData<T>> = Rc::from_raw(ptr);
-				//let inner: Rc<ConnectionData<T>> = Rc::from_raw(ptr);
-
-				Ok(())
-			}
-			_ => err!(IllegalState),
-		}
-			*/
 		self.inner.set_to_drop();
 	}
 
@@ -482,6 +468,8 @@ mod test {
 
 		evh.stop()?;
 		s.close()?;
+		// just to make address sanitizer report no memory leaks - normal case server just
+		// runs forever.
 		unsafe {
 			server.drop_rc();
 		}
