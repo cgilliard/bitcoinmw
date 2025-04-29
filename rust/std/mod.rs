@@ -3,12 +3,16 @@ pub mod macros;
 
 pub mod backtrace;
 pub mod boxed;
-mod constants;
+pub mod cstring;
 pub mod error;
 pub mod errors;
 pub mod misc;
 pub mod ptr;
+pub mod rc;
 pub mod result;
+pub mod string;
 pub mod traits;
+pub mod vec;
 
+mod constants;
 mod ffi;

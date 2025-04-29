@@ -87,3 +87,60 @@ pub fn subslice_mut<N>(n: &mut [N], off: usize, len: usize) -> Result<&mut [N]> 
 		Ok(unsafe { from_raw_parts_mut(n.as_mut_ptr().add(off), len) })
 	}
 }
+
+pub fn is_utf8_valid(bytes: &[u8]) -> Result<()> {
+	let mut i = 0;
+	while i < bytes.len() {
+		let b = bytes[i];
+		let len = if b <= 0x7F {
+			// 1-byte (ASCII)
+			1
+		} else if (b & 0xE0) == 0xC0 {
+			// 2-byte
+			2
+		} else if (b & 0xF0) == 0xE0 {
+			// 3-byte
+			3
+		} else if (b & 0xF8) == 0xF0 {
+			// 4-byte
+			4
+		} else {
+			// Invalid leading byte
+			return err!(Utf8Error);
+		};
+
+		// Check if there are enough bytes
+		if i + len > bytes.len() {
+			return err!(Utf8Error);
+		}
+		// Check continuation bytes
+		for j in 1..len {
+			if i + j < bytes.len() && (bytes[i + j] & 0xC0) != 0x80 {
+				return err!(Utf8Error);
+			}
+		}
+
+		i += len;
+	}
+	Ok(())
+}
+
+pub fn strcmp(a: &str, b: &str) -> i32 {
+	let len = if a.len() > b.len() { b.len() } else { a.len() };
+	let x = a.as_bytes();
+	let y = b.as_bytes();
+
+	for i in 0..len {
+		if x[i] != y[i] {
+			return if x[i] > y[i] { 1 } else { -1 };
+		}
+	}
+
+	if a.len() < b.len() {
+		1
+	} else if a.len() > b.len() {
+		-1
+	} else {
+		0
+	}
+}

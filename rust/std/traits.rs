@@ -12,7 +12,7 @@ impl<T: Clone> TryClone for T {
 	}
 }
 
-pub trait AsRaw<T> {
+pub trait AsRaw<T: ?Sized> {
 	fn as_ptr(&self) -> Ptr<T>;
 }
 

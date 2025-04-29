@@ -99,12 +99,12 @@ impl<T: ?Sized> Ptr<T> {
 
 	pub fn release(&self) {
 		unsafe {
-			release(self.raw() as *const ());
+			release(self.raw() as *const u8);
 		}
 	}
 
 	pub fn resize<R>(&mut self, n: usize) -> Result<Ptr<R>> {
-		let ptr = unsafe { resize(self.raw() as *const (), n) };
+		let ptr = unsafe { resize(self.raw() as *const u8, n) };
 		if ptr.is_null() {
 			err!(Alloc)
 		} else {
@@ -157,7 +157,7 @@ mod test {
 	impl<T: ?Sized> Drop for MyBox<T> {
 		fn drop(&mut self) {
 			unsafe {
-				release(self.ptr.raw() as *const ());
+				release(self.ptr.raw() as *const u8);
 			}
 		}
 	}

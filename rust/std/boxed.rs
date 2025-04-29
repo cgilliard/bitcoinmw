@@ -30,7 +30,7 @@ impl<T: ?Sized> Drop for Box<T> {
 			if !value_ptr.is_null() {
 				unsafe {
 					drop_in_place(value_ptr);
-					release(value_ptr as *const ());
+					release(value_ptr as *const u8);
 				}
 				self.ptr.set_bit(true);
 			}
@@ -38,7 +38,10 @@ impl<T: ?Sized> Drop for Box<T> {
 	}
 }
 
-impl<T> AsRaw<T> for Box<T> {
+impl<T: ?Sized> AsRaw<T> for Box<T>
+where
+	Self: Sized,
+{
 	fn as_ptr(&self) -> Ptr<T> {
 		Ptr::new(self.ptr.raw())
 	}
@@ -100,11 +103,11 @@ impl<T> Box<T> {
 }
 
 impl<T: ?Sized> Box<T> {
-	pub fn leak(&mut self) {
+	pub unsafe fn leak(&mut self) {
 		self.ptr.set_bit(true);
 	}
 
-	pub fn unleak(&mut self) {
+	pub unsafe fn unleak(&mut self) {
 		self.ptr.set_bit(false);
 	}
 

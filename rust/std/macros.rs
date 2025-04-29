@@ -49,7 +49,9 @@ macro_rules! box_dyn {
 			Err(e) => exit!("box_dyn failed due to error: {}", e),
 		};
 		let ptr = boxed.ptr.raw();
-		boxed.leak();
+		unsafe {
+			boxed.leak();
+		}
 		Box {
 			ptr: Ptr::new(ptr as *mut dyn $trait),
 		}
@@ -62,7 +64,9 @@ macro_rules! try_box_dyn {
 		match Box::new($value) {
 			Ok(mut boxed) => {
 				let ptr = boxed.ptr.raw();
-				boxed.leak();
+				unsafe {
+					boxed.leak();
+				}
 				Ok(Box {
 					ptr: Ptr::new(ptr as *mut dyn $trait),
 				})
@@ -139,6 +143,87 @@ macro_rules! try_box_slice {
 			}
 		}
 	}};
+}
+
+#[macro_export]
+macro_rules! aadd {
+	($a:expr, $v:expr) => {{
+		use std::ffi::atomic_fetch_add_u64;
+		#[allow(unused_unsafe)]
+		unsafe {
+			atomic_fetch_add_u64($a, $v)
+		}
+	}};
+}
+
+#[macro_export]
+macro_rules! asub {
+	($a:expr, $v:expr) => {{
+		use std::ffi::atomic_fetch_sub_u64;
+		#[allow(unused_unsafe)]
+		unsafe {
+			atomic_fetch_sub_u64($a, $v)
+		}
+	}};
+}
+
+#[macro_export]
+macro_rules! aload {
+	($a:expr) => {{
+		use std::ffi::atomic_load_u64;
+		#[allow(unused_unsafe)]
+		unsafe {
+			atomic_load_u64($a)
+		}
+	}};
+}
+
+#[macro_export]
+macro_rules! astore {
+	($a:expr, $v:expr) => {{
+		use std::ffi::atomic_store_u64;
+		#[allow(unused_unsafe)]
+		unsafe {
+			atomic_store_u64($a, $v)
+		}
+	}};
+}
+
+#[macro_export]
+macro_rules! cas {
+	($v:expr, $expect:expr, $desired:expr) => {{
+		use std::ffi::cas_release;
+		#[allow(unused_unsafe)]
+		unsafe {
+			cas_release($v, $expect, $desired)
+		}
+	}};
+}
+
+#[macro_export]
+macro_rules! vec {
+        ($($elem:expr),*) => {{
+                let mut vec = Vec::new();
+                let mut err: Error = Error::new(
+                        Unknown.code(),
+                        || -> &'static str { "Unknown" },
+                        Backtrace::init(),
+                );
+
+                $(
+                                if err == Unknown {
+                                                match vec.push($elem) {
+                                                                Ok(_) => {},
+                                                                Err(e) => err = e,
+                                                }
+                                }
+                )*
+                if err != Unknown {
+                        Err(err)
+                } else {
+                        Ok(vec)
+                }
+        }};
 }
 
 #[macro_export]

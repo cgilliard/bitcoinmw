@@ -11,7 +11,7 @@ impl Drop for Backtrace {
 	fn drop(&mut self) {
 		if !self.0.is_null() && self.0 != BACKTRACE_INIT {
 			unsafe {
-				release(self.0 as *const ());
+				release(self.0 as *const u8);
 			}
 			self.0 = null();
 		}
