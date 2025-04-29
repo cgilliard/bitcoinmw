@@ -29,6 +29,7 @@ jobs:
           rustup update
       - name: linux build (rustc)
         run: |
+          rustup default nightly
           ./build
           ./bin/bmw || exit 1;
       - name: linux build (mrustc)
@@ -46,6 +47,7 @@ jobs:
           ./bin/bmw || exit 1;
       - name: linux tests
         run: |
+          rustup default nightly
           ./build clean
           ./test
       - name: address sanitize
@@ -104,6 +106,7 @@ jobs:
           sudo cp `brew --prefix gmp`/lib/libgmp.a /usr/local/lib
       - name: macos build (rustc)
         run: |
+          rustup default nightly
           ./build
           ./bin/bmw || exit 1;
       - name: macos build (mrustc)
@@ -123,6 +126,7 @@ jobs:
           ./bin/bmw || exit 1;
       - name: macos tests
         run: |
+          rustup default nightly
           ./build clean
           ./test
       - name: macos bootstrap (mrustc)
