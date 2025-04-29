@@ -1,5 +1,7 @@
 // Internal
 extern crate bitcoinmw_macros;
+pub use std::backtrace::Backtrace;
+pub use std::result::Result;
 
 // External
 pub use core::clone::Clone;
