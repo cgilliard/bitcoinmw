@@ -98,44 +98,6 @@ impl<T> Box<T> {
 	}
 }
 
-/*
-impl<T> Index<usize> for Box<T> {
-	type Output = T;
-
-	fn index(&self, index: usize) -> &Self::Output {
-		unsafe { &*self.ptr.raw().add(index) }
-	}
-}
-
-impl<T> IndexMut<usize> for Box<T> {
-	fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-		unsafe { &mut *self.ptr.raw().add(index) }
-	}
-}
-
-impl<T> Index<usize> for Box<[T]> {
-	type Output = T;
-
-	fn index(&self, index: usize) -> &Self::Output {
-		let len = unsafe { (*self.ptr.raw()).len() };
-		if index >= len {
-			exit!("Index out of bounds: {} >= {}", index, len);
-		}
-		unsafe { &*(self.ptr.raw() as *mut T).add(index) }
-	}
-}
-
-impl<T> IndexMut<usize> for Box<[T]> {
-	fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-		let len = unsafe { (*self.ptr.raw()).len() };
-		if index >= len {
-			exit!("Index out of bounds: {} >= {}", index, len);
-		}
-		unsafe { &mut *(self.ptr.raw() as *mut T).add(index) }
-	}
-}
-*/
-
 impl<T, U> CoerceUnsized<Box<U>> for Box<T>
 where
 	T: Unsize<U> + ?Sized,
@@ -391,6 +353,21 @@ mod test {
 		assert!(b(Connection { x: 2, y: 4 }, &[b'a']).is_ok());
 
 		assert_eq!(ww(), 1);
+
+		Ok(())
+	}
+
+	type ClosureTest = Box<dyn FnMut(u64) -> u64>;
+
+	#[test]
+	fn test_cloning2() -> Result<()> {
+		// Create the original closure
+		let closure: ClosureTest = Box::new(|x| -> u64 { x + 1 })?;
+		let mut rc = Rc::new(closure)?;
+		let mut rc2 = rc.clone();
+
+		assert_eq!((*rc)(1), 2);
+		assert_eq!((*rc2)(4), 5);
 
 		Ok(())
 	}
