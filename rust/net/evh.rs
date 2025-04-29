@@ -240,6 +240,8 @@ where
 	close_flag: Rc<bool>,
 	close_lock: LockBox,
 	close_socket: Socket,
+	close_recv_channel: Receiver<()>,
+	close_send_channel: Sender<()>,
 	_phantom_data: PhantomData<T>,
 }
 
@@ -250,6 +252,7 @@ where
 	pub fn new() -> Result<Self> {
 		let (close_port, close_socket) = Socket::listen_rand([127, 0, 0, 1], 10)?;
 		let multiplex = Multiplex::new()?;
+		let (close_send_channel, close_recv_channel) = channel()?;
 		let close_lock = lock_box!()?;
 		let close_flag = Rc::new(false)?;
 		let inner = Rc::new(ConnectionData::<T>::Close)?;
@@ -261,6 +264,8 @@ where
 			close_port,
 			close_lock,
 			close_socket,
+			close_send_channel,
+			close_recv_channel,
 			_phantom_data: PhantomData,
 		})
 	}
@@ -287,6 +292,7 @@ where
 		*self.close_flag = true;
 		let mut client = Socket::connect([127, 0, 0, 1], self.close_port)?;
 		client.close()?;
+		self.close_recv_channel.recv();
 		Ok(())
 	}
 
@@ -294,6 +300,7 @@ where
 		let multiplex = self.multiplex;
 		let close_flag = self.close_flag.clone();
 		let close_socket = self.close_socket.clone();
+		let close_send = self.close_send_channel.clone();
 		spawn(move || {
 			let mut events = [Event::new(); EVH_MAX_EVENTS];
 			let mut do_exit = false;
@@ -341,6 +348,7 @@ where
 				}
 			}
 			let _ = multiplex.close();
+			let _ = close_send.send(());
 		})?;
 
 		Ok(())
@@ -1087,8 +1095,6 @@ mod test {
 		client.close()?;
 		evh.stop()?;
 		s.close()?;
-
-		sleep(100);
 
 		// just to make address sanitizer report no memory leaks - normal case server just
 		// runs forever.
