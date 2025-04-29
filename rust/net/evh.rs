@@ -425,6 +425,7 @@ mod test {
 		evh.register(server.clone())?;
 
 		evh.start()?;
+		sleep(1); // 1ms sleep to prevent intermittent connect issues.
 
 		let mut client = Socket::connect([127, 0, 0, 1], port)?;
 
