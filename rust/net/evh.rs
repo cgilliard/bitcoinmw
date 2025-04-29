@@ -480,11 +480,8 @@ mod test {
 			sleep(1);
 		}
 
-		sleep(1000);
 		evh.stop()?;
-		sleep(1000);
 		s.close()?;
-		sleep(1000);
 		unsafe {
 			server.drop_rc();
 		}
