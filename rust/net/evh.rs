@@ -751,7 +751,7 @@ mod test {
 		evh.register(server.clone())?;
 
 		let (port2, s2) = Socket::listen_rand([127, 0, 0, 1], 10)?;
-		let server2 = Connection::acceptor(s2, rc_recv2, rc_accept2, rc_close2, 7u64)?;
+		let mut server2 = Connection::acceptor(s2, rc_recv2, rc_accept2, rc_close2, 7u64)?;
 		evh.register(server2.clone())?;
 
 		evh.start()?;
@@ -794,6 +794,7 @@ mod test {
 		// runs forever.
 		unsafe {
 			server.drop_rc();
+			server2.drop_rc();
 		}
 
 		Ok(())
