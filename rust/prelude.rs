@@ -1,10 +1,6 @@
 // Internal
 extern crate bitcoinmw_macros;
 
-pub use self::bitcoinmw_macros::Dummy;
-pub use std::error::*;
-pub use std::*;
-
 // External
 pub use core::clone::Clone;
 pub use core::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
