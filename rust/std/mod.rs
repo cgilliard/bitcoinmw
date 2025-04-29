@@ -2,6 +2,7 @@
 pub mod macros;
 
 pub mod backtrace;
+pub mod boxed;
 mod constants;
 pub mod error;
 pub mod errors;

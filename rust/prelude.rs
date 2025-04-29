@@ -3,8 +3,9 @@ extern crate bitcoinmw_macros;
 pub use std::backtrace::Backtrace;
 pub use std::error::Error;
 pub use std::errors::*;
+pub use std::ptr::Ptr;
 pub use std::result::Result;
-pub use std::traits::{AsRaw, AsRawMut};
+pub use std::traits::{AsRaw, TryClone};
 
 // External
 pub use core::clone::Clone;
