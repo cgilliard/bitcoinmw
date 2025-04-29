@@ -107,6 +107,13 @@ where
 		}
 	}
 
+	pub fn close(&self) -> Result<()> {
+		match &*self.inner {
+			ConnectionData::Inbound(inbound) => inbound.socket.shutdown(),
+			_ => err!(IllegalState),
+		}
+	}
+
 	pub unsafe fn drop_rc(&mut self) {
 		self.inner.set_to_drop();
 	}
@@ -565,6 +572,117 @@ mod test {
 			sleep(1);
 		}
 
+		evh.stop()?;
+		s.close()?;
+		// just to make address sanitizer report no memory leaks - normal case server just
+		// runs forever.
+		unsafe {
+			server.drop_rc();
+		}
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_evh_close() -> Result<()> {
+		let mut evh: Evh<u64> = Evh::new()?;
+		let lock = lock_box!()?;
+		let lock_clone = lock.clone();
+		let count = Rc::new(0)?;
+		let mut count_clone = count.clone();
+
+		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
+		let recv = Box::new(
+			move |attach: &u64, conn: &Connection<u64>, bytes: &[u8]| -> Result<()> {
+				let len = loop {
+					match conn.write(bytes) {
+						Ok(len) => break len,
+						Err(e) => assert_eq!(e, EAgain),
+					}
+				};
+
+				if len > 0 && bytes[0] == b'x' {
+					conn.close()?;
+				}
+
+				Ok(())
+			},
+		)?;
+		let accept =
+			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
+		let close = Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
+			let _l = lock_clone.write();
+			*count_clone += 1;
+			Ok(())
+		})?;
+
+		let mut server = Connection::acceptor(s, recv, accept, close, 0u64)?;
+		evh.register(server.clone())?;
+
+		evh.start()?;
+
+		sleep(1); // 1ms sleep to prevent intermittent connect issues.
+
+		let mut client = Socket::connect([127, 0, 0, 1], port)?;
+
+		loop {
+			match client.send(b"test37") {
+				Ok(v) => {
+					assert_eq!(v, 6);
+					break;
+				}
+				Err(e) => {
+					if e == EAgain {
+						continue;
+					} else {
+						return err!(e);
+					}
+				}
+			}
+		}
+
+		let mut buf = [0u8; 10];
+		let len = loop {
+			match client.recv(&mut buf) {
+				Ok(len) => break len,
+				Err(e) => assert_eq!(e, EAgain),
+			}
+		};
+		assert_eq!(len, 6);
+		assert_eq!(buf[0], b't');
+		assert_eq!(buf[1], b'e');
+		assert_eq!(buf[2], b's');
+		assert_eq!(buf[3], b't');
+		assert_eq!(buf[4], b'3');
+		assert_eq!(buf[5], b'7');
+
+		loop {
+			match client.send(b"x") {
+				Ok(v) => {
+					assert_eq!(v, 1);
+					break;
+				}
+				Err(e) => {
+					if e == EAgain {
+						continue;
+					} else {
+						return err!(e);
+					}
+				}
+			}
+		}
+
+		loop {
+			{
+				let _l = lock.read();
+				if *count == 1 {
+					break;
+				}
+			}
+			sleep(1);
+		}
+
+		client.close()?;
 		evh.stop()?;
 		s.close()?;
 		// just to make address sanitizer report no memory leaks - normal case server just
