@@ -100,6 +100,13 @@ where
 		}
 	}
 
+	pub fn write(&self, b: &[u8]) -> Result<usize> {
+		match &*self.inner {
+			ConnectionData::Inbound(inbound) => inbound.socket.send(b),
+			_ => err!(IllegalState),
+		}
+	}
+
 	pub unsafe fn drop_rc(&mut self) {
 		self.inner.set_to_drop();
 	}
@@ -401,8 +408,7 @@ mod test {
 		let acc_count_clone = acc_count.clone();
 		let close_count_clone = close_count.clone();
 
-		let port = 9900;
-		let mut s = Socket::listen([127, 0, 0, 1], port, 10)?;
+		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
 		let recv = Box::new(
 			move |attach: &u64, conn: &Connection<u64>, bytes: &[u8]| -> Result<()> {
 				let _l = lock_clone.write();
@@ -461,6 +467,94 @@ mod test {
 			{
 				let _l = lock.read();
 				if *count_clone == 1 && *acc_count_clone == 1 && *close_count_clone == 1 {
+					break;
+				}
+			}
+			sleep(1);
+		}
+
+		evh.stop()?;
+		s.close()?;
+		// just to make address sanitizer report no memory leaks - normal case server just
+		// runs forever.
+		unsafe {
+			server.drop_rc();
+		}
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_evh_reply() -> Result<()> {
+		let mut evh: Evh<u64> = Evh::new()?;
+		let lock = lock_box!()?;
+		let lock_clone = lock.clone();
+		let count = Rc::new(0)?;
+		let mut count_clone = count.clone();
+
+		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
+		let recv = Box::new(
+			move |attach: &u64, conn: &Connection<u64>, bytes: &[u8]| -> Result<()> {
+				println!("on_recv");
+				conn.write(bytes)?;
+				Ok(())
+			},
+		)?;
+		let accept = Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
+			println!("accept");
+			Ok(())
+		})?;
+		let close = Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
+			let _l = lock_clone.write();
+			*count_clone += 1;
+			Ok(())
+		})?;
+
+		let mut server = Connection::acceptor(s, recv, accept, close, 0u64)?;
+		evh.register(server.clone())?;
+
+		evh.start()?;
+		sleep(1); // 1ms sleep to prevent intermittent connect issues.
+
+		let mut client = Socket::connect([127, 0, 0, 1], port)?;
+
+		loop {
+			match client.send(b"test37") {
+				Ok(v) => {
+					assert_eq!(v, 6);
+					break;
+				}
+				Err(e) => {
+					if e == EAgain {
+						continue;
+					} else {
+						return err!(e);
+					}
+				}
+			}
+		}
+
+		let mut buf = [0u8; 10];
+		let len = loop {
+			match client.recv(&mut buf) {
+				Ok(len) => break len,
+				Err(e) => assert_eq!(e, EAgain),
+			}
+		};
+		assert_eq!(len, 6);
+		assert_eq!(buf[0], b't');
+		assert_eq!(buf[1], b'e');
+		assert_eq!(buf[2], b's');
+		assert_eq!(buf[3], b't');
+		assert_eq!(buf[4], b'3');
+		assert_eq!(buf[5], b'7');
+
+		client.close()?;
+
+		loop {
+			{
+				let _l = lock.read();
+				if *count == 1 {
 					break;
 				}
 			}
