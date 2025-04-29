@@ -30,7 +30,7 @@ pub use std::as_raw::{AsRaw, AsRawMut};
 pub use std::backtrace::Backtrace;
 pub use std::boxed::Box;
 pub use std::channel::channel;
-pub use std::clone::TryClone;
+pub use std::clone::{clone_box, DynClone, TryClone};
 pub use std::cstring::CString;
 pub use std::display::Display;
 pub use std::format::Formatter;

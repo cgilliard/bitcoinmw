@@ -1,5 +1,6 @@
+use core::marker::Unsize;
 use core::mem::size_of;
-use core::ops::{Deref, DerefMut};
+use core::ops::{CoerceUnsized, Deref, DerefMut};
 use core::ptr::{null, write};
 use core::str::from_utf8_unchecked;
 use prelude::*;
@@ -7,6 +8,13 @@ use std::ffi::{alloc, ptr_add, release, resize};
 
 pub struct Ptr<T: ?Sized> {
 	ptr: *const T,
+}
+
+impl<T, U> CoerceUnsized<Ptr<U>> for Ptr<T>
+where
+	T: Unsize<U> + ?Sized,
+	U: ?Sized,
+{
 }
 
 impl<T: ?Sized> Display for Ptr<T> {

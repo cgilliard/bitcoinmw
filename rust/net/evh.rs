@@ -3,11 +3,16 @@
 
 use core::marker::PhantomData;
 use core::mem::forget;
+use core::ops::FnMut;
 use net::constants::*;
 use net::errors::*;
 use net::multiplex::{Event, Multiplex, RegisterType};
 use net::socket::Socket;
 use prelude::*;
+
+type OnRecv<T> = Box<dyn FnMut(&T, &Connection<T>, &[u8]) -> Result<()>>;
+type OnAccept<T> = Box<dyn FnMut(&T, &Connection<T>) -> Result<()>>;
+type OnClose<T> = Box<dyn FnMut(&T, &Connection<T>) -> Result<()>>;
 
 struct AcceptorData<T>
 where
@@ -16,12 +21,12 @@ where
 	socket: Socket,
 	// closure the Evh will call when a connection that was accepted by this acceptor recvs
 	// data.
-	on_recv: fn(&mut T, &Connection<T>, &[u8]) -> Result<()>,
+	on_recv: OnRecv<T>,
 	// closure the Evh will call when the acceptor accepts a new connection.
-	on_accept: fn(&mut T, &Connection<T>) -> Result<()>,
+	on_accept: OnAccept<T>,
 	// closure the Evh will call when the acceptor closes a connection that was associated with
 	// this acceptor.
-	on_close: fn(&mut T, &Connection<T>) -> Result<()>,
+	on_close: OnClose<T>,
 	// attachment passed on all requests - used for identifiers and context data.
 	attach: T,
 }
@@ -52,6 +57,7 @@ where
 	Inbound(InboundData<T>),
 	Outbound(OutboundData<T>),
 	Acceptor(AcceptorData<T>),
+	Close,
 }
 
 // Main connection type used to create outbound connections and servers.
@@ -69,9 +75,9 @@ where
 {
 	pub fn acceptor(
 		socket: Socket,
-		on_recv: fn(&mut T, &Connection<T>, &[u8]) -> Result<()>,
-		on_accept: fn(&mut T, &Connection<T>) -> Result<()>,
-		on_close: fn(&mut T, &Connection<T>) -> Result<()>,
+		on_recv: OnRecv<T>,
+		on_accept: OnAccept<T>,
+		on_close: OnClose<T>,
 		attach: T,
 	) -> Result<Self> {
 		let inner = Rc::new(ConnectionData::Acceptor(AcceptorData {
@@ -90,6 +96,7 @@ where
 			ConnectionData::Acceptor(x) => x.socket,
 			ConnectionData::Outbound(x) => x.socket,
 			ConnectionData::Inbound(x) => x.socket,
+			ConnectionData::Close => Socket::new(),
 		}
 	}
 
@@ -114,6 +121,7 @@ where
 			ConnectionData::Acceptor(_) => err!(IllegalState),
 			ConnectionData::Outbound(_) => err!(IllegalState),
 			ConnectionData::Inbound(x) => Ok(&mut x.acceptor),
+			ConnectionData::Close => err!(IllegalState),
 		}
 	}
 
@@ -122,22 +130,25 @@ where
 			ConnectionData::Acceptor(x) => Ok(&mut x.attach),
 			ConnectionData::Outbound(_) => err!(IllegalState),
 			ConnectionData::Inbound(_) => err!(IllegalState),
+			ConnectionData::Close => err!(IllegalState),
 		}
 	}
 
-	fn on_close(&self) -> Result<fn(&mut T, &Connection<T>) -> Result<()>> {
-		match &*self.inner {
-			ConnectionData::Acceptor(x) => Ok(x.on_close),
+	fn on_recv(&mut self, conn: &Connection<T>, b: &[u8]) -> Result<()> {
+		match &mut *self.inner {
+			ConnectionData::Acceptor(acc) => (acc.on_recv)(&mut acc.attach, conn, b),
 			ConnectionData::Outbound(_) => err!(IllegalState),
 			ConnectionData::Inbound(_) => err!(IllegalState),
+			ConnectionData::Close => err!(IllegalState),
 		}
 	}
 
-	fn on_recv(&self) -> Result<fn(&mut T, &Connection<T>, &[u8]) -> Result<()>> {
-		match &*self.inner {
-			ConnectionData::Acceptor(x) => Ok(x.on_recv),
+	fn on_close(&mut self, conn: &Connection<T>) -> Result<()> {
+		match &mut *self.inner {
+			ConnectionData::Acceptor(acc) => (acc.on_close)(&mut acc.attach, conn),
 			ConnectionData::Outbound(_) => err!(IllegalState),
 			ConnectionData::Inbound(_) => err!(IllegalState),
+			ConnectionData::Close => err!(IllegalState),
 		}
 	}
 }
@@ -147,16 +158,11 @@ where
 	T: Clone,
 {
 	multiplex: Multiplex,
+	close_port: u16,
+	close_flag: Rc<bool>,
+	close_lock: LockBox,
+	close_socket: Socket,
 	_phantom_data: PhantomData<T>,
-}
-
-impl<T> Drop for Evh<T>
-where
-	T: Clone,
-{
-	fn drop(&mut self) {
-		let _ = self.stop();
-	}
 }
 
 impl<T> Evh<T>
@@ -164,9 +170,19 @@ where
 	T: Clone,
 {
 	pub fn new() -> Result<Self> {
+		let (close_port, close_socket) = Socket::listen_rand([127, 0, 0, 1], 10)?;
 		let multiplex = Multiplex::new()?;
+		let close_lock = lock_box!()?;
+		let close_flag = Rc::new(false)?;
+		let inner = Rc::new(ConnectionData::<T>::Close)?;
+		let ptr = inner.into_raw();
+		multiplex.register(close_socket, RegisterType::Read, Some(ptr))?;
 		Ok(Self {
 			multiplex,
+			close_flag,
+			close_port,
+			close_lock,
+			close_socket,
 			_phantom_data: PhantomData,
 		})
 	}
@@ -184,14 +200,20 @@ where
 	}
 
 	pub fn stop(&mut self) -> Result<()> {
+		*self.close_flag = true;
+		let mut client = Socket::connect([127, 0, 0, 1], self.close_port)?;
+		client.close()?;
 		Ok(())
 	}
 
 	pub fn start(&mut self) -> Result<()> {
 		let multiplex = self.multiplex;
+		let close_flag = self.close_flag.clone();
+		let close_socket = self.close_socket.clone();
 		spawn(move || {
 			let mut events = [Event::new(); EVH_MAX_EVENTS];
-			loop {
+			let mut do_exit = false;
+			while !do_exit {
 				let count = match multiplex.wait(&mut events, None) {
 					Ok(count) => count,
 					Err(e) => {
@@ -203,8 +225,13 @@ where
 					}
 				};
 				for i in 0..count {
-					match Self::proc_event(events[i], multiplex) {
-						Ok(_) => {}
+					match Self::proc_event(events[i], multiplex, &close_flag, close_socket) {
+						Ok(exit) => {
+							if exit {
+								do_exit = true;
+								break;
+							}
+						}
 						Err(e) => {
 							println!("FATAL: unexpected error in proc_event(): {}. Halting!", e);
 							break;
@@ -212,28 +239,59 @@ where
 					}
 				}
 			}
+			let _ = multiplex.close();
 		})?;
 
 		Ok(())
 	}
 
-	fn proc_event(evt: Event, multiplex: Multiplex) -> Result<()> {
+	fn proc_event(
+		evt: Event,
+		multiplex: Multiplex,
+		close_flag: &Rc<bool>,
+		mut close_socket: Socket,
+	) -> Result<bool> {
 		let mut inner: Rc<ConnectionData<T>> = Rc::from_raw(evt.attachment());
+		match &*inner {
+			ConnectionData::Close => {
+				if **close_flag {
+					close_socket.close()?;
+					return Ok(true);
+				}
+				loop {
+					match close_socket.accept() {
+						Ok(mut s) => {
+							s.close()?;
+						}
+						Err(e) => {
+							if e == EAgain {
+								break;
+							}
+						}
+					};
+				}
+
+				forget(inner);
+				return Ok(false);
+			}
+			_ => {}
+		}
 		let conn = Connection::from_inner(inner.clone());
 		let drop = match &mut *inner {
 			ConnectionData::Acceptor(_) => Self::proc_accept(conn, multiplex)?,
 			ConnectionData::Outbound(_) => false,
 			ConnectionData::Inbound(_) => Self::proc_recv(conn)?,
+			ConnectionData::Close => false,
 		};
 		// we don't want to drop the rc now unless the connection closed
 		if !drop {
 			forget(inner);
 		}
 
-		Ok(())
+		Ok(false)
 	}
 
-	fn proc_recv(mut conn: Connection<T>) -> Result<bool> {
+	fn proc_recv(conn: Connection<T>) -> Result<bool> {
 		let mut bytes = [0u8; EVH_MAX_BYTES_PER_READ];
 		let mut socket = conn.socket();
 		loop {
@@ -247,25 +305,15 @@ where
 				}
 			};
 			if len == 0 {
-				let conn_clone = conn.clone();
-				let acc = conn.get_acceptor()?;
-				let closure = acc.on_close()?.clone();
-				let attach = acc.attach()?;
-				match closure(attach, &conn_clone) {
-					Ok(_) => {}
-					Err(e) => println!("WARN: on_close closure generated error: {}", e),
-				}
+				let mut conn_clone = conn.clone();
+				let acc = conn_clone.get_acceptor()?;
+				acc.on_close(&conn)?;
 				let _ = socket.close();
 				return Ok(true);
 			} else {
-				let conn_clone = conn.clone();
-				let acc = conn.get_acceptor()?;
-				let closure = acc.on_recv()?.clone();
-				let attach = acc.attach()?;
-				match closure(attach, &conn_clone, bytes.subslice(0, len)?) {
-					Ok(_) => {}
-					Err(e) => println!("WARN: on_recv closure generated error: {}", e),
-				}
+				let mut conn_clone = conn.clone();
+				let acc = conn_clone.get_acceptor()?;
+				acc.on_recv(&conn, bytes.subslice(0, len)?)?;
 			}
 		}
 	}
@@ -329,60 +377,98 @@ where
 	}
 }
 
-/*
 #[cfg(test)]
 mod test {
 	use super::*;
-	use core::mem::size_of;
 
 	#[test]
 	fn test_evh1() -> Result<()> {
-		println!(
-			"sz InboundData = {}, sz OutboundData = {}, sz AcceptorData = {}, sz Connection = {}",
-			size_of::<InboundData<u64>>(),
-			size_of::<OutboundData<u64>>(),
-			size_of::<AcceptorData<u64>>(),
-			size_of::<ConnectionData<u64>>()
-		);
-
 		let mut evh = Evh::new()?;
 		let lock = lock_box!()?;
-		let count = Rc::new(064)?;
+		let lock_clone = lock.clone();
+		let lock_clone2 = lock.clone();
+		let lock_clone3 = lock.clone();
+		let mut count = Rc::new(0u64)?;
+		let count_clone = count.clone();
+
+		let mut acc_count = Rc::new(0u64)?;
+		let mut close_count = Rc::new(0u64)?;
+
+		let acc_count_clone = acc_count.clone();
+		let close_count_clone = close_count.clone();
 
 		let port = 9900;
 		let mut s = Socket::listen([127, 0, 0, 1], port, 10)?;
-		let recv = |attach: &mut u64, conn: &Connection<u64>, bytes: &[u8]| -> Result<()> {
-			unsafe {
-				use core::str::from_utf8_unchecked;
-				let s = from_utf8_unchecked(bytes);
-				println!("handler_recv[{}][{}]: '{}'", attach, conn.socket(), s);
-			}
-			//let _l = lock.write();
-			// *count += 1;
+		let recv = Box::new(
+			move |attach: &u64, conn: &Connection<u64>, bytes: &[u8]| -> Result<()> {
+				let _l = lock_clone.write();
+				*count += 1;
+				Ok(())
+			},
+		)?;
+		let accept = Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
+			let _l = lock_clone2.write();
+			*acc_count += 1;
 			Ok(())
-		};
-		let accept = |attach: &mut u64, conn: &Connection<u64>| -> Result<()> {
-			println!("handler_accept[{}][{}]", attach, conn.socket());
+		})?;
+		let close = Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
+			let _l = lock_clone3.write();
+			*close_count += 1;
 			Ok(())
-		};
-		let close = |attach: &mut u64, conn: &Connection<u64>| -> Result<()> {
-			println!("handler_close[{}][{}]", attach, conn.socket());
-			Ok(())
-		};
+		})?;
 
 		let server = Connection::acceptor(s, recv, accept, close, 0u64)?;
-		evh.register(server.clone())?;
-
-		let port = 9901;
-		let mut s2 = Socket::listen([0, 0, 0, 0], port, 10)?;
-		let server2 = Connection::acceptor(s2, recv, accept, close, 1u64)?;
-		evh.register(server2.clone())?;
+		evh.register(server)?;
 
 		evh.start()?;
 
-		park();
+		let mut client = Socket::connect([127, 0, 0, 1], port)?;
+
+		loop {
+			match client.send(b"test") {
+				Ok(v) => {
+					assert_eq!(v, 4);
+					break;
+				}
+				Err(e) => {
+					if e == EAgain {
+						continue;
+					} else {
+						return err!(e);
+					}
+				}
+			}
+		}
+
+		loop {
+			{
+				let _l = lock.read();
+				if *count_clone == 1 && *acc_count_clone == 1 && *close_count_clone == 0 {
+					break;
+				}
+			}
+			sleep(1);
+		}
+
+		client.close()?;
+
+		loop {
+			{
+				let _l = lock.read();
+				if *count_clone == 1 && *acc_count_clone == 1 && *close_count_clone == 1 {
+					break;
+				}
+			}
+			sleep(1);
+		}
+
+		sleep(1000);
+		evh.stop()?;
+		sleep(1000);
+		s.close()?;
+		sleep(1000);
+		//park();
 
 		Ok(())
 	}
 }
-*/

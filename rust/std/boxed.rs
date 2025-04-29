@@ -1,6 +1,7 @@
 use core::convert::AsRef;
-use core::marker::Sized;
+use core::marker::{Sized, Unsize};
 use core::mem::size_of;
+use core::ops::CoerceUnsized;
 use core::ops::{Deref, DerefMut, Index, IndexMut};
 use core::ptr::{drop_in_place, null_mut, write};
 use core::slice::from_raw_parts;
@@ -9,6 +10,12 @@ use std::ffi::{alloc, release};
 
 pub struct Box<T: ?Sized> {
 	ptr: Ptr<T>,
+}
+
+impl<T: ?Sized + Clone> TryClone for Box<T> {
+	fn try_clone(&self) -> Result<Self> {
+		Box::new((*(self.ptr)).clone())
+	}
 }
 
 impl<T: PartialEq> PartialEq for Box<T> {
@@ -48,6 +55,7 @@ impl<T: ?Sized> Drop for Box<T> {
 	}
 }
 
+/*
 impl<T: TryClone> TryClone for Box<T> {
 	fn try_clone(&self) -> Result<Self>
 	where
@@ -56,6 +64,7 @@ impl<T: TryClone> TryClone for Box<T> {
 		Box::new(self.as_ref().try_clone()?)
 	}
 }
+*/
 
 impl<T> Deref for Box<T>
 where
@@ -136,6 +145,13 @@ impl<T> IndexMut<usize> for Box<[T]> {
 	}
 }
 
+impl<T, U> CoerceUnsized<Box<U>> for Box<T>
+where
+	T: Unsize<U> + ?Sized,
+	U: ?Sized,
+{
+}
+
 impl<T: ?Sized> Box<T> {
 	pub fn leak(&mut self) {
 		self.ptr.set_bit(true);
@@ -147,6 +163,10 @@ impl<T: ?Sized> Box<T> {
 
 	pub fn from_raw(ptr: Ptr<T>) -> Box<T> {
 		Box { ptr }
+	}
+
+	pub fn into_raw(&self) -> *mut T {
+		self.ptr.raw()
 	}
 
 	pub fn as_ref(&self) -> &T {
@@ -165,7 +185,7 @@ impl<T: ?Sized> Box<T> {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use core::ops::Fn;
+	use core::ops::{Fn, FnMut};
 
 	#[test]
 	fn test_box1() {
@@ -355,6 +375,31 @@ mod test {
 
 		assert_eq!(Box::new(1)?, Box::new(1)?);
 		assert_eq!(Box::new(1), Box::new(1));
+
+		Ok(())
+	}
+
+	struct Connection {
+		x: u64,
+		y: i32,
+	}
+	type OnRecvInner = dyn FnMut(Connection, &[u8]) -> Result<()> + 'static;
+	type OnRecv = Box<OnRecvInner>;
+
+	#[test]
+	fn test_box_coerce() -> Result<()> {
+		let y = || -> i32 { 1 };
+		let ww: Box<dyn Fn() -> i32> = Box::new(y)?;
+
+		let mut b: OnRecv = Box::new(|c: Connection, _b: &[u8]| -> Result<()> {
+			let _x = c.x;
+			let _y = c.y;
+			Ok(())
+		})?;
+
+		assert!(b(Connection { x: 2, y: 4 }, &[b'a']).is_ok());
+
+		assert_eq!(ww(), 1);
 
 		Ok(())
 	}
