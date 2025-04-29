@@ -495,15 +495,19 @@ mod test {
 		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
 		let recv = Box::new(
 			move |attach: &u64, conn: &Connection<u64>, bytes: &[u8]| -> Result<()> {
-				println!("on_recv");
-				conn.write(bytes)?;
+				let len = loop {
+					match conn.write(bytes) {
+						Ok(len) => break len,
+						Err(e) => assert_eq!(e, EAgain),
+					}
+				};
+				assert_eq!(len, 6);
+
 				Ok(())
 			},
 		)?;
-		let accept = Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
-			println!("accept");
-			Ok(())
-		})?;
+		let accept =
+			Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
 		let close = Box::new(move |attach: &u64, conn: &Connection<u64>| -> Result<()> {
 			let _l = lock_clone.write();
 			*count_clone += 1;
