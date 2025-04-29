@@ -13,6 +13,7 @@ use prelude::*;
 type OnRecv<T> = Box<dyn FnMut(&T, &Connection<T>, &[u8]) -> Result<()>>;
 type OnAccept<T> = Box<dyn FnMut(&T, &Connection<T>) -> Result<()>>;
 type OnClose<T> = Box<dyn FnMut(&T, &Connection<T>) -> Result<()>>;
+type OnWritable<T> = Box<dyn FnMut(&Connection<T>) -> Result<()>>;
 
 struct AcceptorData<T>
 where
@@ -112,6 +113,10 @@ where
 			ConnectionData::Inbound(inbound) => inbound.socket.shutdown(),
 			_ => err!(IllegalState),
 		}
+	}
+
+	pub fn on_writable(&self, on_write: OnWritable<T>) -> Result<()> {
+		Ok(())
 	}
 
 	pub unsafe fn drop_rc(&mut self) {
