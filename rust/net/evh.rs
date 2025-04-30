@@ -38,7 +38,6 @@ where
 	is_closed: bool,
 	lock: Lock,
 	multiplex: Multiplex,
-	on_writable: Option<OnWritable<T>>,
 }
 
 struct OutboundData<T>
@@ -150,36 +149,8 @@ where
 		}
 	}
 
-	/*
-	pub fn on_writable(&mut self, on_writable: OnWritable<T>) -> Result<()> {
-		let socket = self.socket();
-		let ptr = unsafe { self.inner.clone().into_raw().raw() };
-		match &mut *self.inner {
-			ConnectionData::Inbound(inbound) => {
-				Self::do_on_writable(socket, inbound, on_writable, ptr)
-			}
-			_ => {
-				// drop rc to avoid memory leak
-				let rc: Rc<ConnectionData<T>> =
-					unsafe { Rc::from_raw(Ptr::new(ptr as *const ConnectionData<T>)) };
-				err!(IllegalState)
-			}
-		}
-	}
-		*/
-
 	pub unsafe fn drop_rc(&mut self) {
 		self.inner.set_to_drop();
-	}
-
-	fn do_on_writable(
-		socket: Socket,
-		inbound: &mut InboundData<T>,
-		on_writable: OnWritable<T>,
-		ptr: *const ConnectionData<T>,
-	) -> Result<()> {
-		inbound.on_writable = Some(on_writable);
-		Evh::try_register(inbound.multiplex, socket, RegisterType::RW, Ptr::new(ptr))
 	}
 
 	fn from_inner(inner: Rc<ConnectionData<T>>) -> Self {
@@ -194,7 +165,6 @@ where
 				is_closed: false,
 				lock: lock!(),
 				multiplex,
-				on_writable: None,
 			}))?,
 		})
 	}
@@ -256,9 +226,7 @@ where
 		})?;
 
 		let inner = Rc::new(ConnectionData::<T>::Close)?;
-		Self::try_register(multiplex, socket, RegisterType::Read, unsafe {
-			inner.into_raw()
-		})?;
+		Self::try_register(multiplex, socket, unsafe { inner.into_raw() })?;
 		Ok(Self {
 			multiplex,
 			close,
@@ -271,14 +239,10 @@ where
 
 		match &*conn.inner {
 			ConnectionData::Acceptor(c) => {
-				Self::try_register(self.multiplex, c.socket, RegisterType::Read, unsafe {
-					inner_clone.into_raw()
-				})
+				Self::try_register(self.multiplex, c.socket, unsafe { inner_clone.into_raw() })
 			}
 			ConnectionData::Outbound(c) => {
-				Self::try_register(self.multiplex, c.socket, RegisterType::Read, unsafe {
-					inner_clone.into_raw()
-				})
+				Self::try_register(self.multiplex, c.socket, unsafe { inner_clone.into_raw() })
 			}
 			_ => err!(IllegalArgument),
 		}
@@ -320,18 +284,6 @@ where
 							}
 							Err(e) => {
 								println!("FATAL: unexpected error in proc_read(): {}. Halting!", e);
-								break;
-							}
-						}
-					}
-					if events[i].is_write() {
-						match Self::proc_write(events[i], multiplex) {
-							Ok(_) => {}
-							Err(e) => {
-								println!(
-									"FATAL: unexpected error in proc_write(): {}. Halting!",
-									e
-								);
 								break;
 							}
 						}
@@ -387,35 +339,12 @@ where
 		Ok(false)
 	}
 
-	fn proc_write(evt: Event, mut multiplex: Multiplex) -> Result<()> {
-		let ptr = evt.attachment();
-		let mut inner: Rc<ConnectionData<T>> =
-			unsafe { Rc::from_raw(Ptr::new(ptr as *const ConnectionData<T>)) };
-		let mut conn = Connection::from_inner(inner.clone());
-		let socket = conn.socket();
-		match &mut *inner {
-			ConnectionData::Inbound(ref mut ib) => match &mut ib.on_writable {
-				Some(on_writable) => match (on_writable)(&mut conn) {
-					Ok(_) => {}
-					Err(e) => println!("WARN: on_writable closure generated error: {}", e),
-				},
-				None => {}
-			},
-			_ => {}
-		}
-
-		// TODO: what if user registers here? Have closure return a boolean to signify
-		// whether to unregister or not
-		multiplex.unregister_write(socket, Some(ptr))
-	}
-
 	fn try_register(
 		multiplex: Multiplex,
 		socket: Socket,
-		rt: RegisterType,
 		ptr: Ptr<ConnectionData<T>>,
 	) -> Result<()> {
-		match multiplex.register(socket, rt, Some(ptr.raw() as *const u8)) {
+		match multiplex.register(socket, RegisterType::Read, Some(ptr.raw() as *const u8)) {
 			Ok(_) => Ok(()),
 			Err(e) => {
 				// if register fails, we must free the Rc.
@@ -514,9 +443,7 @@ where
 				}
 			};
 
-			match Self::try_register(multiplex, nsock, RegisterType::Read, unsafe {
-				nconn.inner.clone().into_raw()
-			}) {
+			match Self::try_register(multiplex, nsock, unsafe { nconn.inner.clone().into_raw() }) {
 				Ok(_) => {}
 				Err(_e) => {
 					// WARN already printed and raw pointer dropped, just drop connection here
@@ -943,98 +870,6 @@ mod test {
 
 		Ok(())
 	}
-
-	/*
-		#[test]
-		fn test_evh_on_write() -> Result<()> {
-			let mut evh: Evh<u64> = Evh::new()?;
-			let lock = lock_box!()?;
-			let lock_clone = lock.clone();
-			let count = Rc::new(0)?;
-			let mut count_clone = count.clone();
-
-			let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
-			let recv: OnRecv<u64> = Box::new(
-				move |attach: &mut u64, conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
-					let mut vec = Vec::with_capacity(bytes.len())?;
-					vec.extend_from_slice(bytes)?;
-
-					let on_writable = Box::new(move |conn: &mut Connection<u64>| -> Result<()> {
-						assert_eq!(conn.write(vec.slice_all())?, 6);
-						Ok(())
-					})?;
-
-					conn.on_writable(on_writable)?;
-
-					Ok(())
-				},
-			)?;
-			let accept: OnAccept<u64> =
-				Box::new(move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
-			let close: OnClose<u64> = Box::new(
-				move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> {
-					let _l = lock_clone.write();
-					*count_clone += 1;
-					Ok(())
-				},
-			)?;
-
-			let rc_close = Rc::new(close)?;
-			let rc_accept = Rc::new(accept)?;
-			let rc_recv = Rc::new(recv)?;
-
-			let mut server = Connection::acceptor(s, rc_recv, rc_accept, rc_close, 0u64)?;
-			evh.register(server.clone())?;
-
-			evh.start()?;
-			sleep(1); // 1ms sleep to prevent intermittent connect issues.
-
-			let mut client = Socket::connect([127, 0, 0, 1], port)?;
-
-			loop {
-				match client.send(b"test47") {
-					Ok(v) => {
-						assert_eq!(v, 6);
-						break;
-					}
-					Err(e) => {
-						if e == EAgain {
-							continue;
-						} else {
-							return err!(e);
-						}
-					}
-				}
-			}
-
-			let mut buf = [0u8; 10];
-			let len = loop {
-				match client.recv(&mut buf) {
-					Ok(len) => break len,
-					Err(e) => assert_eq!(e, EAgain),
-				}
-			};
-			assert_eq!(len, 6);
-			assert_eq!(buf[0], b't');
-			assert_eq!(buf[1], b'e');
-			assert_eq!(buf[2], b's');
-			assert_eq!(buf[3], b't');
-			assert_eq!(buf[4], b'4');
-			assert_eq!(buf[5], b'7');
-
-			client.close()?;
-
-			evh.stop()?;
-			s.close()?;
-			// just to make address sanitizer report no memory leaks - normal case server just
-			// runs forever.
-			unsafe {
-				server.drop_rc();
-			}
-
-			Ok(())
-		}
-	*/
 
 	#[test]
 	fn test_evh_client_reg() -> Result<()> {
