@@ -18,6 +18,12 @@ impl Drop for Backtrace {
 	}
 }
 
+impl Display for Backtrace {
+	fn format(&self, f: &mut Formatter) -> Result<()> {
+		writef!(f, "{}", self.as_str())
+	}
+}
+
 impl Clone for Backtrace {
 	fn clone(&self) -> Self {
 		let mut len = 0;
@@ -79,14 +85,7 @@ mod test {
 	#[test]
 	fn test_backtrace1() -> Result<()> {
 		let _bt = Backtrace::new();
-		/*
-		unsafe {
-			write(2, "\n".as_ptr(), 1);
-			let s = _bt.as_str();
-			write(2, s.as_ptr(), s.len());
-			write(2, "\n".as_ptr(), 1);
-		}
-				*/
+		//println!("{}", _bt);
 		Ok(())
 	}
 }

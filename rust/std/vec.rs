@@ -1,7 +1,7 @@
 use core::convert::{AsMut, AsRef};
 use core::marker::PhantomData;
 use core::mem::{drop, needs_drop, size_of};
-use core::ops::{Deref, DerefMut, Index, IndexMut};
+use core::ops::{Deref, DerefMut, Index, IndexMut, Range, RangeFrom, RangeFull, RangeTo};
 use core::ptr;
 use core::ptr::{drop_in_place, null_mut, write_bytes};
 use core::slice::{from_raw_parts, from_raw_parts_mut};
@@ -22,6 +22,24 @@ impl<T: Debug> Debug for Vec<T> {
 		#[cfg(test)]
 		write!(_f, "{:?}", self.as_ref())?;
 		Ok(())
+	}
+}
+
+impl<T: Display> Display for Vec<T> {
+	fn format(&self, f: &mut Formatter) -> Result<()> {
+		let mut first = true;
+		for x in self {
+			if first {
+				writef!(f, "[{}", x)?;
+			} else {
+				writef!(f, ", {}", x)?;
+			}
+			first = false;
+		}
+		if first {
+			writef!(f, "[")?;
+		}
+		writef!(f, "]")
 	}
 }
 
@@ -116,6 +134,38 @@ impl<T> Drop for Vec<T> {
 				release(raw as *const u8);
 			}
 		}
+	}
+}
+
+impl<T> Index<Range<usize>> for Vec<T> {
+	type Output = [T];
+	fn index(&self, r: Range<usize>) -> &Self::Output {
+		let slice = self.slice(r.start, r.end);
+		&slice
+	}
+}
+
+impl<T> Index<RangeFrom<usize>> for Vec<T> {
+	type Output = [T];
+	fn index(&self, r: RangeFrom<usize>) -> &Self::Output {
+		let slice = self.slice(r.start, self.len());
+		&slice
+	}
+}
+
+impl<T> Index<RangeTo<usize>> for Vec<T> {
+	type Output = [T];
+	fn index(&self, r: RangeTo<usize>) -> &Self::Output {
+		let slice = self.slice(0, r.end);
+		&slice
+	}
+}
+
+impl<T> Index<RangeFull> for Vec<T> {
+	type Output = [T];
+	fn index(&self, _r: RangeFull) -> &Self::Output {
+		let slice = self.slice(0, self.len());
+		&slice
 	}
 }
 

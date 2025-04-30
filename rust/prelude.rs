@@ -23,6 +23,7 @@ pub use core::fmt::{Debug, Error as FmtError};
 pub use core::hash::{BuildHasher, Hash, Hasher};
 pub use core::iter::{IntoIterator, Iterator};
 pub use core::marker::{Copy, Sized};
+pub use core::mem::size_of;
 pub use core::ops::Drop;
 pub use core::option::{Option, Option::None, Option::Some};
 pub use core::result::Result::{Err, Ok};

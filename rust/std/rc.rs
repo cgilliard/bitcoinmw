@@ -166,14 +166,18 @@ mod test {
 		Ok(())
 	}
 
+	use core::ops::FnMut;
+	type Closure1 = Box<dyn FnMut(u32, u64) -> u32>;
+
 	#[test]
 	fn test_box_dyn() -> Result<()> {
 		let v = 7;
-		let x = Rc::new(Box::new(move |x: u32| -> u32 { v + x + 1 })?)?;
-		let y = x.clone();
+		let cl: Closure1 = Box::new(move |x: u32, _y: u64| -> u32 { v + x + 1 })?;
+		let mut x: Rc<Closure1> = Rc::new(cl)?;
+		let mut y = x.clone();
 
-		assert_eq!((*x)(4), 1 + 4 + 7);
-		assert_eq!((*y)(3), 1 + 3 + 7);
+		assert_eq!((*x)(4, 1), 1 + 4 + 7);
+		assert_eq!((*y)(3, 1), 1 + 3 + 7);
 
 		Ok(())
 	}

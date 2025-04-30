@@ -1,4 +1,5 @@
 use core::fmt::Debug;
+use core::ops::{Index, Range, RangeFrom, RangeFull, RangeTo};
 use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
 use prelude::*;
@@ -23,7 +24,7 @@ pub enum String {
 
 impl Display for String {
 	fn format(&self, f: &mut Formatter) -> Result<()> {
-		f.write_str(self.as_str(), self.len())
+		writef!(f, "{}", self.as_str())
 	}
 }
 
@@ -33,6 +34,72 @@ impl Debug for String {
 		#[cfg(test)]
 		write!(_f, "{}", self.as_str())?;
 		Ok(())
+	}
+}
+
+impl Index<Range<usize>> for String {
+	type Output = str; // Output is a string slice, not a String
+	fn index(&self, r: Range<usize>) -> &Self::Output {
+		let s = self.as_str();
+		let len = s.len();
+		if r.start > r.end
+			|| r.end > len
+			|| !s.is_char_boundary(r.start)
+			|| !s.is_char_boundary(r.end)
+		{
+			exit!(
+				"invalid range [{}..{}], len={}, invalid UTF-8 boundaries",
+				r.start,
+				r.end,
+				len
+			);
+		}
+		// Safe to use get_unchecked after validation
+		unsafe { s.get_unchecked(r.start..r.end) }
+	}
+}
+
+impl Index<RangeFrom<usize>> for String {
+	type Output = str; // Output is a string slice, not a String
+	fn index(&self, r: RangeFrom<usize>) -> &Self::Output {
+		let s = self.as_str();
+		let len = s.len();
+		if r.start > len || !s.is_char_boundary(r.start) {
+			exit!(
+				"invalid range [{}..], len={}, invalid UTF-8 boundaries",
+				r.start,
+				len
+			);
+		}
+		// Safe to use get_unchecked after validation
+		unsafe { s.get_unchecked(r.start..len) }
+	}
+}
+
+impl Index<RangeTo<usize>> for String {
+	type Output = str; // Output is a string slice, not a String
+	fn index(&self, r: RangeTo<usize>) -> &Self::Output {
+		let s = self.as_str();
+		let len = s.len();
+		if r.end > len || !s.is_char_boundary(r.end) {
+			exit!(
+				"invalid range [..{}], len={}, invalid UTF-8 boundaries",
+				r.end,
+				len
+			);
+		}
+		// Safe to use get_unchecked after validation
+		unsafe { s.get_unchecked(0..r.end) }
+	}
+}
+
+impl Index<RangeFull> for String {
+	type Output = str; // Output is a string slice, not a String
+	fn index(&self, _r: RangeFull) -> &Self::Output {
+		let s = self.as_str();
+		let len = s.len();
+		// Safe to use get_unchecked after validation
+		unsafe { s.get_unchecked(0..len) }
 	}
 }
 
@@ -328,6 +395,9 @@ mod test {
 		assert_eq!(s3.find("4567"), Some(1));
 
 		assert!(s2.substring(1, s2.len() + 1).is_err());
+
+		assert_eq!(&s[0..10], "0123456789");
+		assert_eq!(&s[2..3], "2");
 
 		Ok(())
 	}
