@@ -7,7 +7,7 @@ if [ ! -f "./configure" ]; then
 		--enable-module-schnorrsig \
 		--enable-module-rangeproof \
 		--enable-module-generator \
-		#--enable-experimental \
+		--enable-experimental \
 		--enable-module-aggsig \
 		--enable-module-commitment \
 		--enable-module-ecdh \
