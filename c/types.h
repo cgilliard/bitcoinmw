@@ -9,7 +9,17 @@ typedef unsigned long long uint64;
 typedef unsigned short int uint16;
 typedef unsigned char byte;
 typedef unsigned long size_t;
-#define float64 double
+// end primitives
+
+// For platforms with non-standard types here use this (comment out the above
+// 'primitives' section): primitives
+// #include <stddef.h>
+// #include <stdint.h>
+// typedef uint64_t uint64;
+// typedef int64_t int64;
+// typedef uint16_t uint16;
+// typedef uint8_t byte;
+// end primitives
 
 // booleans
 #define bool _Bool
