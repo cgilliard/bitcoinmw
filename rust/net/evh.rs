@@ -407,7 +407,6 @@ where
 			},
 			_ => {}
 		}
-		forget(inner);
 
 		// TODO: what if user registers here? Have closure return a boolean to signify
 		// whether to unregister or not
