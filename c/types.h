@@ -11,7 +11,7 @@ typedef unsigned char byte;
 typedef unsigned long size_t;
 // end primitives
 
-// For platforms with non-standard types here use this (comment out the above
+// For platforms with non-standard types use this (comment out the above
 // 'primitives' section): primitives
 // #include <stddef.h>
 // #include <stdint.h>
