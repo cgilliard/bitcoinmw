@@ -1,6 +1,13 @@
 use core::ptr::copy;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
+use std::ffi::sleep_millis;
+
+pub fn sleep(ms: u64) {
+	unsafe {
+		sleep_millis(ms);
+	}
+}
 
 pub const fn wrapping_mul(a: u64, b: u64) -> u64 {
 	// Split a and b into high and low 32-bit parts

@@ -298,7 +298,7 @@ where
 
 	pub fn start(&mut self) -> Result<()> {
 		let multiplex = self.multiplex;
-		let close = self.close.clone();
+		let mut close = self.close.clone();
 		spawn(move || {
 			let mut events = [Event::new(); EVH_MAX_EVENTS];
 			let mut do_exit = false;
@@ -315,7 +315,7 @@ where
 				};
 				for i in 0..count {
 					if events[i].is_read() {
-						match Self::proc_read(events[i], multiplex, &close) {
+						match Self::proc_read(events[i], multiplex, &mut close) {
 							Ok(exit) => {
 								if exit {
 									do_exit = true;
@@ -349,7 +349,45 @@ where
 		Ok(())
 	}
 
-	fn proc_read(evt: Event, multiplex: Multiplex, close: &Rc<CloseData>) -> Result<bool> {
+	fn proc_read(evt: Event, multiplex: Multiplex, close: &mut Rc<CloseData>) -> Result<bool> {
+		let mut inner: Rc<ConnectionData<T>> =
+			unsafe { Rc::from_raw(Ptr::new(evt.attachment() as *const ConnectionData<T>)) };
+		match &*inner {
+			ConnectionData::Close => {
+				if close.flag {
+					let _ = close.socket.close();
+					return Ok(true);
+				}
+				loop {
+					match close.socket.accept() {
+						Ok(mut s) => {
+							let _ = s.close();
+						}
+						Err(e) => {
+							if e == EAgain {
+								break;
+							}
+						}
+					};
+				}
+
+				forget(inner);
+				return Ok(false);
+			}
+			_ => {}
+		}
+		let conn = Connection::from_inner(inner.clone());
+		let drop = match &mut *inner {
+			ConnectionData::Acceptor(_) => Self::proc_accept(conn, multiplex)?,
+			ConnectionData::Outbound(_) => Self::proc_recv(conn)?,
+			ConnectionData::Inbound(_) => Self::proc_recv(conn)?,
+			ConnectionData::Close => false,
+		};
+		// we don't want to drop the rc now unless the connection closed
+		if !drop {
+			forget(inner);
+		}
+
 		Ok(false)
 	}
 
@@ -504,5 +542,110 @@ where
 				}
 			}
 		}
+	}
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	#[test]
+	fn test_evh1() -> Result<()> {
+		let mut evh: Evh<u64> = Evh::new()?;
+		let lock = lock_box!()?;
+		let lock_clone = lock.clone();
+		let lock_clone2 = lock.clone();
+		let lock_clone3 = lock.clone();
+		let mut count = Rc::new(0u64)?;
+		let count_clone = count.clone();
+
+		let mut acc_count = Rc::new(0u64)?;
+		let mut close_count = Rc::new(0u64)?;
+
+		let acc_count_clone = acc_count.clone();
+		let close_count_clone = close_count.clone();
+
+		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
+		let recv: OnRecv<u64> = Box::new(
+			move |attach: &mut u64, conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
+				let _l = lock_clone.write();
+				*count += 1;
+				Ok(())
+			},
+		)?;
+		let accept: OnAccept<u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> {
+				let _l = lock_clone2.write();
+				*acc_count += 1;
+				Ok(())
+			},
+		)?;
+		let close: OnClose<u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> {
+				let _l = lock_clone3.write();
+				*close_count += 1;
+				Ok(())
+			},
+		)?;
+
+		let rc_close = Rc::new(close)?;
+		let rc_accept = Rc::new(accept)?;
+		let rc_recv = Rc::new(recv)?;
+
+		let mut server = Connection::acceptor(s, rc_recv, rc_accept, rc_close, 0u64)?;
+		evh.register(server.clone())?;
+
+		evh.start()?;
+		sleep(1); // 1ms sleep to prevent intermittent connect issues.
+
+		let mut client = Socket::connect([127, 0, 0, 1], port)?;
+
+		loop {
+			match client.send(b"test") {
+				Ok(v) => {
+					assert_eq!(v, 4);
+					break;
+				}
+				Err(e) => {
+					if e == EAgain {
+						continue;
+					} else {
+						return err!(e);
+					}
+				}
+			}
+		}
+
+		loop {
+			{
+				let _l = lock.read();
+				if *count_clone == 1 && *acc_count_clone == 1 && *close_count_clone == 0 {
+					break;
+				}
+			}
+			sleep(1);
+		}
+
+		client.close()?;
+
+		loop {
+			{
+				let _l = lock.read();
+				if *count_clone == 1 && *acc_count_clone == 1 && *close_count_clone == 1 {
+					break;
+				}
+			}
+			sleep(1);
+		}
+
+		evh.stop()?;
+		s.close()?;
+		// just to make address sanitizer report no memory leaks - normal case server just
+		// runs forever.
+		unsafe {
+			server.drop_rc();
+		}
+
+		Ok(())
 	}
 }
