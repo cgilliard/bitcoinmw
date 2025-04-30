@@ -11,6 +11,8 @@ pub use std::result::Result;
 pub use std::string::String;
 pub use std::traits::{AsRaw, Display, StrExt, TryClone};
 pub use std::vec::Vec;
+pub use util::lock::{Lock, LockBox};
+pub use util::thread::{spawn, spawnj};
 
 // External
 pub use core::clone::Clone;
