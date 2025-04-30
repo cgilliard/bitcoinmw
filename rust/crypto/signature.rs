@@ -70,8 +70,13 @@ impl Display for Signature {
 }
 
 impl AsRaw<Self> for Signature {
-	fn as_ptr(&self) -> Ptr<Self> {
-		Ptr::new(self.0.as_ptr() as *const Self)
+	fn as_ptr(&self) -> *const Self {
+		self.0.as_ptr() as *const Self
+	}
+}
+impl AsRawMut<Self> for Signature {
+	fn as_mut_ptr(&mut self) -> *mut Self {
+		self.0.as_mut_ptr() as *mut Self
 	}
 }
 
@@ -98,8 +103,13 @@ impl AsRef<[u8]> for Message {
 }
 
 impl AsRaw<Self> for Message {
-	fn as_ptr(&self) -> Ptr<Self> {
-		Ptr::new(self.0.as_ptr() as *const Self)
+	fn as_ptr(&self) -> *const Self {
+		self.0.as_ptr() as *const Self
+	}
+}
+impl AsRawMut<Self> for Message {
+	fn as_mut_ptr(&mut self) -> *mut Self {
+		self.0.as_mut_ptr() as *mut Self
 	}
 }
 

@@ -27,7 +27,7 @@ impl Bip52 {
 		}
 		self.aes.set_iv(iv);
 		unsafe {
-			generate_matrix(self.matrix.as_mut_ptr(), self.aes.as_ptr().raw());
+			generate_matrix(self.matrix.as_mut_ptr(), self.aes.as_ptr());
 		}
 	}
 
@@ -86,7 +86,7 @@ mod test {
 			let mut hash_out = [0u8; 32];
 			let pdata = [1u8; 32];
 			unsafe {
-				generate_matrix(matrix.as_mut_ptr(), aes.as_ptr().raw());
+				generate_matrix(matrix.as_mut_ptr(), aes.as_ptr());
 				heavyhash(matrix.as_ptr(), pdata.as_ptr(), 32, hash_out.as_mut_ptr());
 			}
 			//println!("hash_out={}", hash_out);

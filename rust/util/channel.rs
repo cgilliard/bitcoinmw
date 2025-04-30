@@ -69,7 +69,7 @@ impl<T> ChannelInner<T> {
 		unsafe {
 			nbox.leak();
 		}
-		let v = unsafe { ptr::read(nbox.as_ptr().raw()) };
+		let v = unsafe { ptr::read(nbox.as_ptr()) };
 		unsafe { release(recv as *mut u8) };
 		v.value
 	}
@@ -85,7 +85,7 @@ impl<T> ChannelInner<T> {
 					b.leak();
 				}
 				let handle = &self.handle;
-				if unsafe { channel_send(handle as *const u8, b.as_ptr().raw() as *mut u8) } < 0 {
+				if unsafe { channel_send(handle as *const u8, b.as_ptr() as *mut u8) } < 0 {
 					err!(ChannelSend)
 				} else {
 					Ok(())

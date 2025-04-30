@@ -13,14 +13,30 @@ pub struct Commitment([u8; 33]);
 pub struct CommitmentUncompressed([u8; 64]);
 
 impl AsRaw<Self> for CommitmentUncompressed {
-	fn as_ptr(&self) -> Ptr<Self> {
-		Ptr::new(self.0.as_ptr() as *const Self)
+	fn as_ptr(&self) -> *const Self {
+		self.0.as_ptr() as *const Self
+	}
+}
+impl AsRawMut<Self> for CommitmentUncompressed {
+	fn as_mut_ptr(&mut self) -> *mut Self {
+		self.0.as_mut_ptr() as *mut Self
 	}
 }
 
 impl CommitmentUncompressed {
 	pub fn zero() -> Self {
 		Self([0u8; 64])
+	}
+}
+
+impl AsRaw<Self> for Commitment {
+	fn as_ptr(&self) -> *const Self {
+		self.0.as_ptr() as *const Self
+	}
+}
+impl AsRawMut<Self> for Commitment {
+	fn as_mut_ptr(&mut self) -> *mut Self {
+		self.0.as_mut_ptr() as *mut Self
 	}
 }
 
@@ -95,18 +111,11 @@ impl Commitment {
 		Self([0u8; 33])
 	}
 
-	pub fn as_raw(&self) -> *mut Self {
-		self.0.as_ptr() as *mut Self
-	}
-
 	pub fn decompress(&self, ctx: &Ctx) -> Result<CommitmentUncompressed> {
-		let out = CommitmentUncompressed([0u8; 64]);
+		let mut out = CommitmentUncompressed([0u8; 64]);
 		unsafe {
-			if secp256k1_pedersen_commitment_parse(
-				ctx.as_ptr().raw(),
-				out.as_ptr().raw(),
-				self.as_raw(),
-			) != 1
+			if secp256k1_pedersen_commitment_parse(ctx.as_ptr(), out.as_mut_ptr(), self.as_ptr())
+				!= 1
 			{
 				err!(OperationFailed)
 			} else {
@@ -116,13 +125,9 @@ impl Commitment {
 	}
 
 	pub fn compress(ctx: &Ctx, key: CommitmentUncompressed) -> Result<Self> {
-		let v = Self([0u8; 33]);
+		let mut v = Self([0u8; 33]);
 		let serialize_result = unsafe {
-			secp256k1_pedersen_commitment_serialize(
-				ctx.as_ptr().raw(),
-				v.as_raw(),
-				key.as_ptr().raw(),
-			)
+			secp256k1_pedersen_commitment_serialize(ctx.as_ptr(), v.as_mut_ptr(), key.as_ptr())
 		};
 		if serialize_result == 0 {
 			err!(Serialization)
@@ -132,13 +137,10 @@ impl Commitment {
 	}
 
 	pub fn to_pubkey(&self, ctx: &Ctx) -> Result<PublicKey> {
-		let pk = PublicKeyUncompressed::new([0u8; 64]);
+		let mut pk = PublicKeyUncompressed::new([0u8; 64]);
 		unsafe {
-			if secp256k1_pedersen_commitment_to_pubkey(
-				ctx.as_ptr().raw(),
-				pk.as_ptr().raw(),
-				self.as_raw(),
-			) == 1
+			if secp256k1_pedersen_commitment_to_pubkey(ctx.as_ptr(), pk.as_mut_ptr(), self.as_ptr())
+				== 1
 			{
 				match PublicKey::compress(&ctx, pk) {
 					Ok(pk) => Ok(pk),
@@ -151,14 +153,14 @@ impl Commitment {
 	}
 
 	pub fn combine(&self, ctx: &Ctx, other: &Commitment) -> Result<Commitment> {
-		let commit_out = CommitmentUncompressed([0u8; 64]);
+		let mut commit_out = CommitmentUncompressed([0u8; 64]);
 		let mut pcommits = Vec::new();
-		pcommits.push(self.decompress(ctx)?.as_ptr().raw() as *const CommitmentUncompressed)?;
-		pcommits.push(other.decompress(ctx)?.as_ptr().raw() as *const CommitmentUncompressed)?;
+		pcommits.push(self.decompress(ctx)?.as_ptr())?;
+		pcommits.push(other.decompress(ctx)?.as_ptr())?;
 		unsafe {
 			if secp256k1_pedersen_commit_sum(
-				ctx.as_ptr().raw(),
-				commit_out.as_ptr().raw(),
+				ctx.as_ptr(),
+				commit_out.as_mut_ptr(),
 				pcommits.as_ptr(),
 				2,
 				null(),

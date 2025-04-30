@@ -55,7 +55,7 @@ where
 	let closure = unsafe {
 		let mut closure_box = Box::from_raw(Ptr::new(ptr as *mut F));
 		closure_box.leak();
-		let closure = closure_box.as_ptr().raw() as *mut F;
+		let closure = closure_box.as_ptr() as *mut F;
 		let ret = ptr::read(closure);
 		release(ptr);
 		ret
@@ -70,7 +70,7 @@ where
 {
 	match Box::new(f) {
 		Ok(mut b) => {
-			if unsafe { thread_create(start_thread::<F>, b.as_ptr().raw() as *mut u8) } != 0 {
+			if unsafe { thread_create(start_thread::<F>, b.as_ptr() as *mut u8) } != 0 {
 				return err!(ThreadCreate);
 			}
 			unsafe {
@@ -101,7 +101,7 @@ where
 				thread_create_joinable(
 					&jh.handle as *const u8,
 					start_thread::<F>,
-					b.as_ptr().raw() as *mut u8,
+					b.as_ptr() as *mut u8,
 				)
 			} != 0
 			{

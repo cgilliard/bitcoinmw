@@ -8,8 +8,8 @@ pub struct Aes256 {
 }
 
 impl AsRaw<AesContext> for Aes256 {
-	fn as_ptr(&self) -> Ptr<AesContext> {
-		Ptr::new(&self.data as *const u8 as *const AesContext)
+	fn as_ptr(&self) -> *const AesContext {
+		&self.data as *const u8 as *const AesContext
 	}
 }
 

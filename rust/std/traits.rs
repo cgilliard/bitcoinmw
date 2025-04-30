@@ -16,7 +16,11 @@ impl<T: Clone> TryClone for T {
 }
 
 pub trait AsRaw<T: ?Sized> {
-	fn as_ptr(&self) -> Ptr<T>;
+	fn as_ptr(&self) -> *const T;
+}
+
+pub trait AsRawMut<T: ?Sized> {
+	fn as_mut_ptr(&mut self) -> *mut T;
 }
 
 pub trait Display {

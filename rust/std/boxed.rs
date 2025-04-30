@@ -42,8 +42,8 @@ impl<T: ?Sized> AsRaw<T> for Box<T>
 where
 	Self: Sized,
 {
-	fn as_ptr(&self) -> Ptr<T> {
-		Ptr::new(self.ptr.raw())
+	fn as_ptr(&self) -> *const T {
+		self.ptr.raw() as *const T
 	}
 }
 

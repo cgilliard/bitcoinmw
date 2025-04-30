@@ -1,4 +1,4 @@
-use crypto::cpsrng::Cpsrng;
+/*use crypto::cpsrng::Cpsrng;
 use prelude::*;
 use std::ffi::getmicros;
 use std::misc::from_le_bytes_u64;
@@ -17,13 +17,17 @@ fn exec() -> Result<()> {
 	println!("len={},diff={}", v.len(), diff);
 	Ok(())
 }
+*/
+
 #[no_mangle]
 pub extern "C" fn real_main(argc: i32, _argv: *const *const u8) -> i32 {
 	if argc != 0 {
+		/*
 		match exec() {
 			Ok(_) => {}
 			Err(e) => println!("Exec err: {}", e),
 		}
+			*/
 	}
 	0
 }

@@ -31,8 +31,13 @@ pub struct Ctx {
 }
 
 impl AsRaw<Secp256k1Context> for Ctx {
-	fn as_ptr(&self) -> Ptr<Secp256k1Context> {
-		Ptr::new(self.secp)
+	fn as_ptr(&self) -> *const Secp256k1Context {
+		self.secp
+	}
+}
+impl AsRawMut<Secp256k1Context> for Ctx {
+	fn as_mut_ptr(&mut self) -> *mut Secp256k1Context {
+		self.secp as *mut Secp256k1Context
 	}
 }
 
@@ -106,26 +111,26 @@ impl Ctx {
 	}
 
 	pub fn commit(&self, v: u64, blind: &SecretKey) -> Result<Commitment> {
-		let uncomp = CommitmentUncompressed::zero();
+		let mut uncomp = CommitmentUncompressed::zero();
 		let res = unsafe {
 			secp256k1_pedersen_commit(
-				self.as_ptr().raw(),
-				uncomp.as_ptr().raw(),
-				blind.as_ptr().raw(),
+				self.as_ptr(),
+				uncomp.as_mut_ptr(),
+				blind.as_ptr(),
 				v,
-				GENERATOR_H.as_ptr().raw(),
-				GENERATOR_G.as_ptr().raw(),
+				GENERATOR_H.as_ptr(),
+				GENERATOR_G.as_ptr(),
 			)
 		};
 		if res != 1 {
 			err!(OperationFailed)
 		} else {
-			let ret = Commitment::zero();
+			let mut ret = Commitment::zero();
 			let res = unsafe {
 				secp256k1_pedersen_commitment_serialize(
-					self.as_ptr().raw(),
-					ret.as_raw(),
-					uncomp.as_ptr().raw(),
+					self.as_ptr(),
+					ret.as_mut_ptr(),
+					uncomp.as_ptr(),
 				)
 			};
 
@@ -148,21 +153,21 @@ impl Ctx {
 		let pubnonce = pubnonce.decompress(self)?;
 		let pe = pe.decompress(self)?;
 
-		let retsig = Signature::new();
+		let mut retsig = Signature::new();
 		let mut seed = [0u8; 32];
 		self.gen(&mut seed);
 
 		let retval = unsafe {
 			secp256k1_aggsig_sign_single(
 				self.secp,
-				retsig.as_ptr().raw(),
-				msg.as_ptr().raw(),
-				seckey.as_ptr().raw(),
-				secnonce.as_ptr().raw(),
+				retsig.as_mut_ptr(),
+				msg.as_ptr(),
+				seckey.as_ptr(),
+				secnonce.as_ptr(),
 				null(),
-				pubnonce.as_ptr().raw(),
-				pubnonce.as_ptr().raw(),
-				pe.as_ptr().raw(),
+				pubnonce.as_ptr(),
+				pubnonce.as_ptr(),
+				pe.as_ptr(),
 				seed.as_ptr(),
 			)
 		};
@@ -194,11 +199,11 @@ impl Ctx {
 			match {
 				secp256k1_aggsig_verify_single(
 					self.secp,
-					sig.as_ptr().raw(),
-					msg.as_ptr().raw(),
-					pubnonce.as_ptr().raw(),
-					pubkey.as_ptr().raw(),
-					pe.as_ptr().raw(),
+					sig.as_ptr(),
+					msg.as_ptr(),
+					pubnonce.as_ptr(),
+					pubkey.as_ptr(),
+					pe.as_ptr(),
 					null(),
 					is_partial,
 				)
@@ -215,22 +220,22 @@ impl Ctx {
 		nonce_sum: &PublicKey,
 	) -> Result<Signature> {
 		let nonce_sum = nonce_sum.decompress(self)?;
-		let sig = Signature::new();
+		let mut sig = Signature::new();
 		let num_sigs = partial_sigs.len();
 		if num_sigs > MAX_AGGREGATE_SIGNATURES {
 			return err!(IllegalArgument);
 		}
 		let mut sig_ptrs = [null(); 16];
 		for i in 0..num_sigs {
-			sig_ptrs[i] = partial_sigs[i].as_ptr().raw();
+			sig_ptrs[i] = partial_sigs[i].as_ptr();
 		}
 		unsafe {
 			if secp256k1_aggsig_add_signatures_single(
-				self.as_ptr().raw(),
-				sig.as_ptr().raw(),
+				self.as_ptr(),
+				sig.as_mut_ptr(),
 				sig_ptrs.as_ptr(),
 				num_sigs,
-				nonce_sum.as_ptr().raw(),
+				nonce_sum.as_ptr(),
 			) != 1
 			{
 				return err!(OperationFailed);
@@ -250,22 +255,22 @@ impl Ctx {
 
 		for (i, key) in positive.iter().enumerate() {
 			if i < blinds.len() {
-				blinds[i] = key.as_ptr().raw();
+				blinds[i] = key.as_ptr();
 			}
 		}
 
 		for (i, key) in negative.iter().enumerate() {
 			let index = positive.len() + i;
 			if index < blinds.len() {
-				blinds[index] = key.as_ptr().raw();
+				blinds[index] = key.as_ptr();
 			}
 		}
 
-		let blind_out = SecretKey::zero();
+		let mut blind_out = SecretKey::zero();
 		let result = unsafe {
 			secp256k1_pedersen_blind_sum(
 				self.secp,
-				blind_out.as_ptr().raw(),
+				blind_out.as_mut_ptr(),
 				blinds.as_ptr(),
 				total_len,
 				positive.len(),
@@ -389,10 +394,10 @@ impl Ctx {
 
 		unsafe {
 			for i in 0..pos_vec.len() {
-				*pos_ptrs.add(i) = pos_vec[i].as_ptr().raw() as *const u8;
+				*pos_ptrs.add(i) = pos_vec[i].as_ptr() as *const u8;
 			}
 			for i in 0..neg_vec.len() {
-				*neg_ptrs.add(i) = neg_vec[i].as_ptr().raw() as *const u8;
+				*neg_ptrs.add(i) = neg_vec[i].as_ptr() as *const u8;
 			}
 		}
 
@@ -424,7 +429,7 @@ impl Ctx {
 		let private_nonce = SecretKey::gen(self);
 
 		// Create a stack-allocated array containing the pointer to blind
-		let blind_ptr = blind.as_ptr().raw() as *const SecretKey;
+		let blind_ptr = blind.as_ptr();
 		let blind_array = [blind_ptr]; // Array of one pointer
 
 		unsafe {
@@ -447,10 +452,10 @@ impl Ctx {
 				blind_array.as_ptr(), // Pass pointer to array of blind pointers
 				null_mut(),           // commits
 				1,                    // Number of commitments
-				GENERATOR_H.as_ptr().raw(),
+				GENERATOR_H.as_ptr(),
 				n_bits,
-				blind.as_ptr().raw(), // rewind_nonce
-				private_nonce.as_ptr().raw(),
+				blind.as_ptr(), // rewind_nonce
+				private_nonce.as_ptr(),
 				null(), // extra_data
 				0,      // extra_data_len
 				null(), // message_ptr
@@ -492,10 +497,10 @@ impl Ctx {
 				proof.proof.as_ptr(),
 				proof.plen,
 				null(), // min_values: NULL for all-zeroes
-				commit.as_ptr().raw(),
+				commit.as_ptr(),
 				1,
 				n_bits,
-				GENERATOR_H.as_ptr().raw(),
+				GENERATOR_H.as_ptr(),
 				extra_data,
 				extra_data_len,
 			);
@@ -542,9 +547,9 @@ impl Ctx {
 				proof.proof.as_ptr(),
 				proof.plen,
 				0, // min_value
-				commit.as_ptr().raw(),
-				GENERATOR_H.as_ptr().raw(),
-				blind.as_ptr().raw(),
+				commit.as_ptr(),
+				GENERATOR_H.as_ptr(),
+				blind.as_ptr(),
 				extra_data,
 				extra_data_len,
 				message_out.as_mut_ptr(),
