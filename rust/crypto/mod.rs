@@ -2,6 +2,7 @@ pub mod aes;
 pub mod bip52;
 pub mod cpsrng;
 pub mod ctx;
+pub mod ecdh;
 pub mod errors;
 pub mod keys;
 pub mod pedersen;

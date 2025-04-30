@@ -1,3 +1,4 @@
+use crypto::ecdh::SharedSecret;
 use crypto::keys::{PublicKey, PublicKeyUncompressed, SecretKey};
 use crypto::pedersen::{Commitment, CommitmentUncompressed};
 use crypto::signature::{Message, Signature};
@@ -199,4 +200,12 @@ extern "C" {
 		gen: *mut BulletproofGenerators,
 	);
 	pub fn secp256k1_ec_privkey_negate(ctx: *const Secp256k1Context, key: *mut SecretKey) -> i32;
+
+	// ecdh
+	pub fn secp256k1_ecdh(
+		cx: *const Secp256k1Context,
+		out: *mut SharedSecret,
+		remote: *const PublicKeyUncompressed,
+		local: *const SecretKey,
+	) -> i32;
 }
