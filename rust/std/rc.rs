@@ -142,7 +142,6 @@ mod test {
 
 	#[test]
 	fn test_rc_raw() -> Result<()> {
-		/*
 		let mut rc1 = Rc::new(1)?;
 		let rc2 = rc1.clone();
 
@@ -163,7 +162,6 @@ mod test {
 		*rc1 += 1;
 		assert_eq!(*rc2_b, 3);
 		assert_eq!(*rc1, 3);
-			*/
 
 		Ok(())
 	}
