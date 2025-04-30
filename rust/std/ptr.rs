@@ -60,6 +60,12 @@ impl<T> AsMut<T> for Ptr<T> {
 
 impl<T: ?Sized> Ptr<T> {
 	pub fn new(ptr: *const T) -> Self {
+		if (ptr as *const u8 as usize) % 2 != 0 {
+			exit!(
+				"Invalid pointer passed in to Ptr::new. Address must be divisible by 2! ptr={}",
+				ptr as *const u8 as usize
+			);
+		}
 		Self { ptr }
 	}
 
