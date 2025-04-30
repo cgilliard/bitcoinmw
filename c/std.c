@@ -1,6 +1,6 @@
 #include "std.h"
 
-// for timespec structures
+// for timespec/CLOCK_REALTIME structures
 #include <time.h>
 
 void *malloc(unsigned long);

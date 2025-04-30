@@ -1,7 +1,5 @@
 #include "channel.h"
 
-#include <pthread.h>
-
 int channel_pending(Channel *handle) { return handle->head != 0; }
 
 int channel_init(Channel *handle) {

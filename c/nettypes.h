@@ -1,11 +1,9 @@
 #ifndef _NETTYPES_H__
 #define _NETTYPES_H__
 
-#include <unistd.h>
 #ifdef __APPLE__
 #include <sys/event.h>
 #elif defined(__linux__)
-#include <errno.h>
 #include <sys/epoll.h>
 #endif
 
