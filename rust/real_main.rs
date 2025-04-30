@@ -1,11 +1,23 @@
+use crypto::cpsrng::Cpsrng;
 use prelude::*;
+use std::ffi::getmicros;
+use std::misc::from_le_bytes_u64;
+
+fn slice1(v: &[u8]) {}
+fn vec1(v: Vec<u8>) {}
 
 fn exec() -> Result<()> {
-	let s = String::new("0123456789")?;
-	println!("s='{}'", &s[..]);
-	let mut v = vec![1, 2, 3, 4, 5, 6, 7, 8]?;
-	v[3] = 9;
-	println!("v={}", &v[5..]);
+	let start = unsafe { getmicros() };
+	let mut v = Vec::new();
+	let cpsrng = Cpsrng::new()?;
+	for _i in 0..100_000 {
+		let mut bytes = [0u8; 8];
+		cpsrng.gen(&mut bytes);
+		let vx = from_le_bytes_u64(&bytes)?;
+		v.push(vx)?;
+	}
+	let diff = unsafe { getmicros() } - start;
+	println!("len={},diff={}", v.len(), diff);
 	Ok(())
 }
 #[no_mangle]

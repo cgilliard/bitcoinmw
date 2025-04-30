@@ -9,7 +9,7 @@ pub use std::ptr::Ptr;
 pub use std::rc::Rc;
 pub use std::result::Result;
 pub use std::string::String;
-pub use std::traits::{AsRaw, Display, StrExt, TryClone};
+pub use std::traits::{AsRaw, Display, SliceExt, StrExt, TryClone};
 pub use std::vec::Vec;
 pub use util::lock::{Lock, LockBox};
 pub use util::thread::{spawn, spawnj};

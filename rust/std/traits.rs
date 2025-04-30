@@ -1,4 +1,7 @@
+use core::slice::from_raw_parts;
+use core::str::from_utf8_unchecked;
 use prelude::*;
+use std::misc::{slice_copy, subslice, subslice_mut};
 
 pub trait TryClone {
 	fn try_clone(&self) -> Result<Self>
@@ -19,9 +22,6 @@ pub trait AsRaw<T: ?Sized> {
 pub trait Display {
 	fn format(&self, f: &mut Formatter) -> Result<()>;
 }
-
-use core::slice::from_raw_parts;
-use core::str::from_utf8_unchecked;
 
 pub trait StrExt {
 	fn findn(&self, s: &str, offset: usize) -> Option<usize>;
@@ -85,8 +85,6 @@ impl StrExt for str {
 		None
 	}
 }
-
-use std::misc::{slice_copy, subslice, subslice_mut};
 
 pub trait SliceExt<T: Copy> {
 	fn slice_copy(&mut self, src: &[T]) -> Result<()>;

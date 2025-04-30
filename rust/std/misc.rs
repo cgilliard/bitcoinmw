@@ -198,3 +198,72 @@ pub fn i128_as_str(mut n: i128, buf: &mut [u8], base: u8) -> usize {
 		u128_as_str(n as u128, 0, buf, base)
 	}
 }
+
+fn nibble_to_hex(nibble: u8) -> u8 {
+	if nibble < 10 {
+		nibble + 48 // '0' = 48
+	} else {
+		nibble + 87 // 'a' = 97 - 10
+	}
+}
+
+pub fn bytes_to_hex_33(bytes: &[u8; 33]) -> [u8; 66] {
+	let mut hex = [0u8; 66];
+
+	for i in 0..33 {
+		let byte = bytes[i];
+		let high = (byte >> 4) & 0x0F;
+		let low = byte & 0x0F;
+
+		hex[2 * i] = nibble_to_hex(high);
+		hex[2 * i + 1] = nibble_to_hex(low);
+	}
+
+	hex
+}
+
+pub fn bytes_to_hex_64(bytes: &[u8; 64]) -> [u8; 128] {
+	let mut hex = [0u8; 128];
+
+	for i in 0..64 {
+		let byte = bytes[i];
+		let high = (byte >> 4) & 0x0F;
+		let low = byte & 0x0F;
+
+		hex[2 * i] = nibble_to_hex(high);
+		hex[2 * i + 1] = nibble_to_hex(low);
+	}
+
+	hex
+}
+
+pub fn to_le_bytes_u64(value: u64, bytes: &mut [u8]) -> Result<()> {
+	if bytes.len() == 8 {
+		bytes[0] = value as u8;
+		bytes[1] = (value >> 8) as u8;
+		bytes[2] = (value >> 16) as u8;
+		bytes[3] = (value >> 24) as u8;
+		bytes[4] = (value >> 32) as u8;
+		bytes[5] = (value >> 40) as u8;
+		bytes[6] = (value >> 48) as u8;
+		bytes[7] = (value >> 56) as u8;
+		Ok(())
+	} else {
+		err!(IllegalArgument)
+	}
+}
+
+pub fn from_le_bytes_u64(bytes: &[u8]) -> Result<u64> {
+	if bytes.len() >= 8 {
+		Ok((bytes[0] as u64)
+			| ((bytes[1] as u64) << 8)
+			| ((bytes[2] as u64) << 16)
+			| ((bytes[3] as u64) << 24)
+			| ((bytes[4] as u64) << 32)
+			| ((bytes[5] as u64) << 40)
+			| ((bytes[6] as u64) << 48)
+			| ((bytes[7] as u64) << 56))
+	} else {
+		err!(IllegalArgument)
+	}
+}

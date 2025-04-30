@@ -7,6 +7,7 @@
 #[macro_use]
 pub mod std;
 
+pub mod crypto;
 pub mod net;
 pub mod prelude;
 mod real_main;
