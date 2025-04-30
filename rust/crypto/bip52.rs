@@ -1,5 +1,5 @@
+use crypto::aes::Aes256;
 use crypto::ffi::{generate_matrix, heavyhash};
-use crypto::Aes256;
 use prelude::*;
 
 pub struct Bip52 {
@@ -44,8 +44,9 @@ impl Bip52 {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use crypto::aes::Aes256;
+	use crypto::cpsrng::Cpsrng;
 	use crypto::ffi::{generate_matrix, heavyhash};
-	use crypto::{Aes256, Cpsrng};
 
 	#[test]
 	fn test_bip52_struct() -> Result<()> {
@@ -85,7 +86,7 @@ mod test {
 			let mut hash_out = [0u8; 32];
 			let pdata = [1u8; 32];
 			unsafe {
-				generate_matrix(matrix.as_mut_ptr(), aes.as_ptr());
+				generate_matrix(matrix.as_mut_ptr(), aes.as_ptr().raw());
 				heavyhash(matrix.as_ptr(), pdata.as_ptr(), 32, hash_out.as_mut_ptr());
 			}
 			//println!("hash_out={}", hash_out);

@@ -5,6 +5,7 @@ use crypto::aes::Aes256;
 use crypto::errors::InsufficientEntropy;
 use prelude::*;
 use std::ffi::rand_bytes;
+use std::misc::from_le_bytes_u64;
 
 pub struct Cpsrng(Aes256);
 
@@ -42,6 +43,15 @@ impl Cpsrng {
 
 	pub fn gen(&self, bytes: &mut [u8]) {
 		self.0.crypt(bytes);
+	}
+
+	pub fn gen_u64(&self) -> u64 {
+		let mut bytes = [0u8; 8];
+		self.0.crypt(&mut bytes);
+		match from_le_bytes_u64(&bytes) {
+			Ok(v) => v,
+			Err(e) => exit!("Unexpected error returned from from_le_bytes_u64: {}", e),
+		}
 	}
 
 	#[cfg(test)]

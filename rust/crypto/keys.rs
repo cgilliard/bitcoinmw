@@ -46,7 +46,7 @@ impl Drop for SecretKey {
 
 impl AsRaw<Self> for SecretKey {
 	fn as_ptr(&self) -> Ptr<Self> {
-		Ptr::new(self.0.as_ptr() as Self)
+		Ptr::new(self.0.as_ptr() as *const Self)
 	}
 }
 
@@ -71,7 +71,7 @@ impl SecretKey {
 		let mut v = Self::zero();
 		loop {
 			ctx.gen(&mut v.0);
-			if unsafe { secp256k1_ec_seckey_verify(ctx.as_ptr(), v.as_ptr()) == 1 } {
+			if unsafe { secp256k1_ec_seckey_verify(ctx.as_ptr().raw(), v.as_ptr().raw()) == 1 } {
 				break;
 			}
 		}
@@ -79,7 +79,7 @@ impl SecretKey {
 	}
 
 	pub fn negate(&mut self, ctx: &Ctx) -> Result<()> {
-		if unsafe { secp256k1_ec_privkey_negate(ctx.as_ptr(), self.as_mut_ptr()) == 0 } {
+		if unsafe { secp256k1_ec_privkey_negate(ctx.as_ptr().raw(), self.as_ptr().raw()) == 0 } {
 			err!(OperationFailed)
 		} else {
 			Ok(())
@@ -87,7 +87,7 @@ impl SecretKey {
 	}
 
 	pub fn validate(&self, ctx: &Ctx) -> Result<()> {
-		if unsafe { secp256k1_ec_seckey_verify(ctx.as_ptr(), self.as_ptr()) != 1 } {
+		if unsafe { secp256k1_ec_seckey_verify(ctx.as_ptr().raw(), self.as_ptr().raw()) != 1 } {
 			err!(OperationFailed)
 		} else {
 			Ok(())
@@ -131,30 +131,27 @@ impl PartialEq for PublicKey {
 	}
 }
 
-impl AsRaw<Self> for PublicKey {
-	fn as_ptr(&self) -> Ptr<Self> {
-		Ptr::new(self.0.as_ptr() as *const Self)
-	}
-}
-
 impl PublicKey {
 	pub fn from(ctx: &Ctx, secret_key: &SecretKey) -> Result<Self> {
-		let mut v = Self([0u8; 33]);
-		let mut uncomp = PublicKeyUncompressed([0u8; 64]);
+		let v = Self([0u8; 33]);
+		let uncomp = PublicKeyUncompressed([0u8; 64]);
 
 		unsafe {
-			if secp256k1_ec_pubkey_create(ctx.as_ptr(), uncomp.as_mut_ptr(), secret_key.as_ptr())
-				== 0
+			if secp256k1_ec_pubkey_create(
+				ctx.as_ptr().raw(),
+				uncomp.as_ptr().raw(),
+				secret_key.as_ptr().raw(),
+			) == 0
 			{
 				return err!(OperationFailed);
 			}
 
 			let mut len = 33usize;
 			let serialize_result = secp256k1_ec_pubkey_serialize(
-				ctx.as_ptr(),
-				v.as_mut_ptr(),
+				ctx.as_ptr().raw(),
+				v.as_raw(),
 				&mut len,
-				uncomp.as_ptr(),
+				uncomp.as_ptr().raw(),
 				SECP256K1_EC_COMPRESSED,
 			);
 			if serialize_result == 0 {
@@ -165,15 +162,21 @@ impl PublicKey {
 		}
 	}
 
+	// because PublicKeys are 33 bytes, there is a potentialy for odd alignment on some
+	// platforms. So we don't implement AsRaw (we directly return the raw pointer here).
+	pub fn as_raw(&self) -> *mut Self {
+		self.0.as_ptr() as *mut Self
+	}
+
 	pub fn compress(ctx: &Ctx, key: PublicKeyUncompressed) -> Result<Self> {
-		let mut v = Self([0u8; 33]);
+		let v = Self([0u8; 33]);
 		let mut len = 33usize;
 		let serialize_result = unsafe {
 			secp256k1_ec_pubkey_serialize(
-				ctx.as_ptr(),
-				v.as_mut_ptr(),
+				ctx.as_ptr().raw(),
+				v.as_raw(),
 				&mut len,
-				key.as_ptr(),
+				key.as_ptr().raw(),
 				SECP256K1_EC_COMPRESSED,
 			)
 		};
@@ -185,12 +188,12 @@ impl PublicKey {
 	}
 
 	pub fn decompress(&self, ctx: &Ctx) -> Result<PublicKeyUncompressed> {
-		let mut ret = PublicKeyUncompressed([0u8; 64]);
+		let ret = PublicKeyUncompressed([0u8; 64]);
 		unsafe {
 			if secp256k1_ec_pubkey_parse(
-				ctx.as_ptr(),
-				ret.as_mut_ptr(),
-				self.as_ptr(),
+				ctx.as_ptr().raw(),
+				ret.as_ptr().raw(),
+				self.as_raw(),
 				self.0.len(),
 			) != 1
 			{
@@ -201,16 +204,16 @@ impl PublicKey {
 	}
 
 	pub fn combine(&self, ctx: &Ctx, other: &PublicKey) -> Result<Self> {
-		let mut result = PublicKeyUncompressed([0u8; 64]);
-		let mut uncomp_self = PublicKeyUncompressed([0u8; 64]);
-		let mut uncomp_other = PublicKeyUncompressed([0u8; 64]);
+		let result = PublicKeyUncompressed([0u8; 64]);
+		let uncomp_self = PublicKeyUncompressed([0u8; 64]);
+		let uncomp_other = PublicKeyUncompressed([0u8; 64]);
 
 		unsafe {
 			// Uncompress self
 			if secp256k1_ec_pubkey_parse(
-				ctx.as_ptr(),
-				uncomp_self.as_mut_ptr(),
-				self.as_ptr(),
+				ctx.as_ptr().raw(),
+				uncomp_self.as_ptr().raw(),
+				self.as_raw(),
 				self.0.len(),
 			) != 1
 			{
@@ -219,9 +222,9 @@ impl PublicKey {
 
 			// Uncompress other
 			if secp256k1_ec_pubkey_parse(
-				ctx.as_ptr(),
-				uncomp_other.as_mut_ptr(),
-				other.as_ptr(),
+				ctx.as_ptr().raw(),
+				uncomp_other.as_ptr().raw(),
+				other.as_raw(),
 				other.0.len(),
 			) != 1
 			{
@@ -229,21 +232,28 @@ impl PublicKey {
 			}
 
 			// Combine uncompressed keys
-			let pubkeys = [uncomp_self.as_ptr(), uncomp_other.as_ptr()];
-			if secp256k1_ec_pubkey_combine(ctx.as_ptr(), result.as_mut_ptr(), pubkeys.as_ptr(), 2)
-				!= 1
+			let pubkeys = [
+				uncomp_self.as_ptr().raw() as *const PublicKeyUncompressed,
+				uncomp_other.as_ptr().raw() as *const PublicKeyUncompressed,
+			];
+			if secp256k1_ec_pubkey_combine(
+				ctx.as_ptr().raw(),
+				result.as_ptr().raw(),
+				pubkeys.as_ptr(),
+				2,
+			) != 1
 			{
 				return err!(OperationFailed);
 			}
 
 			// Recompress result
-			let mut compressed = Self([0u8; 33]);
+			let compressed = Self([0u8; 33]);
 			let mut len = 33usize;
 			if secp256k1_ec_pubkey_serialize(
-				ctx.as_ptr(),
-				compressed.as_ptr().raw(),
+				ctx.as_ptr().raw(),
+				compressed.as_raw(),
 				&mut len,
-				result.as_ptr(),
+				result.as_ptr().raw(),
 				SECP256K1_EC_COMPRESSED,
 			) != 1
 			{

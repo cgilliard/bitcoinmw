@@ -3,9 +3,6 @@ use prelude::*;
 use std::ffi::getmicros;
 use std::misc::from_le_bytes_u64;
 
-fn slice1(v: &[u8]) {}
-fn vec1(v: Vec<u8>) {}
-
 fn exec() -> Result<()> {
 	let start = unsafe { getmicros() };
 	let mut v = Vec::new();

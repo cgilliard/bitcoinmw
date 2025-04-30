@@ -119,8 +119,8 @@ impl Sha3_384 {
 mod test {
 	use super::*;
 	use crypto::aes::Aes256;
+	use crypto::cpsrng::Cpsrng;
 	use crypto::ffi::{generate_matrix, heavyhash};
-	use crypto::Cpsrng;
 
 	// Converts a byte slice to a lowercase hexadecimal string in a fixed-size array.
 	// For a 32-byte input, returns a [u8; 64] array containing ASCII hex characters.
@@ -986,7 +986,7 @@ mod test {
 			let mut hash_out = [0u8; 32];
 			let pdata = [1u8; 32];
 			unsafe {
-				generate_matrix(matrix.as_mut_ptr(), aes.as_ptr());
+				generate_matrix(matrix.as_mut_ptr(), aes.as_ptr().raw());
 				heavyhash(matrix.as_ptr(), pdata.as_ptr(), 32, hash_out.as_mut_ptr());
 			}
 			//println!("hash_out={}", hash_out);

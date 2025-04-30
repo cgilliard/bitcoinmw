@@ -1,17 +1,12 @@
-/*
 use crypto::keys::{PublicKey, PublicKeyUncompressed, SecretKey};
 use crypto::pedersen::{Commitment, CommitmentUncompressed};
 use crypto::signature::{Message, Signature};
 use crypto::types::{
 	AesContext, BulletproofGenerators, ScratchSpace, Secp256k1Context, Sha3Context,
 };
-*/
-
-use crypto::types::AesContext;
 
 #[allow(dead_code)]
 extern "C" {
-	/*
 	// sha3
 	pub fn sha3_context_size() -> usize;
 	pub fn sha3_init256(ctx: *const Sha3Context) -> i32;
@@ -22,7 +17,6 @@ extern "C" {
 	// heavyhash
 	pub fn heavyhash(matrix: *const u16, pdata: *const u8, len: usize, out: *mut u8);
 	pub fn generate_matrix(matrix: *mut u16, aes: *const AesContext);
-	*/
 
 	// aes 256
 	pub fn aes_context_size() -> usize;
@@ -30,7 +24,6 @@ extern "C" {
 	pub fn aes_set_iv(ctx: *const AesContext, iv: *const u8);
 	pub fn aes_ctr_xcrypt_buffer(ctx: *const AesContext, buf: *mut u8, len: usize);
 
-	/*
 	// Secp256k1
 	pub fn secp256k1_context_create(flags: u32) -> *const Secp256k1Context;
 	pub fn secp256k1_context_destroy(ctx: *const Secp256k1Context);
@@ -206,5 +199,4 @@ extern "C" {
 		gen: *mut BulletproofGenerators,
 	);
 	pub fn secp256k1_ec_privkey_negate(ctx: *const Secp256k1Context, key: *mut SecretKey) -> i32;
-		*/
 }

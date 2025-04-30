@@ -6,7 +6,7 @@ use core::ops::FnMut;
 use net::multiplex::Multiplex;
 use net::socket::Socket;
 use prelude::*;
-use util::channel::{channel, Receiver, Sender};
+use util::channel::{Receiver, Sender};
 
 type OnRecv<T> = Box<dyn FnMut(&mut T, &mut Connection<T>, &[u8]) -> Result<()>>;
 type OnAccept<T> = Box<dyn FnMut(&mut T, &Connection<T>) -> Result<()>>;

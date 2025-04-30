@@ -13,3 +13,7 @@ void copy_bytes(unsigned char *X, const unsigned char *Y,
 	while (x--) *(X)++ = *(Y)++;
 }
 
+void set_bytes(unsigned char *X, unsigned char x, unsigned long long y) {
+	while (y--) *(X++) = x;
+}
+
