@@ -61,9 +61,9 @@ impl<T> Rc<T> {
 	}
 
 	pub unsafe fn from_raw(ptr: Ptr<T>) -> Self {
-		Self {
-			inner: Box::from_raw(Ptr::new(ptr.raw() as *const RcInner<T>)),
-		}
+		let mut inner = Box::from_raw(Ptr::new(ptr.raw() as *const RcInner<T>));
+		inner.leak();
+		Self { inner }
 	}
 
 	pub unsafe fn into_raw(self) -> Ptr<T> {
