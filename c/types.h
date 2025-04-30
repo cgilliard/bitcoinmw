@@ -13,8 +13,8 @@ typedef unsigned long size_t;
 
 // booleans
 #define bool _Bool
-#define true (_Bool)1
-#define false (_Bool)0
+#define true ((_Bool)1)
+#define false ((_Bool)0)
 
 // NULL
 #ifndef NULL
