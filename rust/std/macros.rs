@@ -227,19 +227,133 @@ macro_rules! vec {
 }
 
 #[macro_export]
-macro_rules! exit {
-	($fmt:expr) => {{
-		exit!("{}", $fmt);
-	}};
-	($fmt:expr,  $($t:expr),*) => {{
-		//print!("Panic[@{}:{}]: ", file!(), line!());
-		//println!($fmt, $($t),*);
+macro_rules! writef {
+    ($f:expr, $fmt:expr) => {{
+        writef!($f, "{}", $fmt)
+    }};
+    ($f:expr, $fmt:expr, $($t:expr),*) => {{
+        use core::str::from_utf8_unchecked;
+        use std::misc::subslice;
 
-		#[allow(unused_unsafe)]
-		unsafe {
-			use std::ffi::exit;
-			exit(-1);
-		}
-		loop {}
-	}};
+        let mut err = Error::new(Unknown.code(), || { "Unknown" }, Backtrace::init());
+        let fmt_str = $fmt;
+        let mut cur = 0;
+        $(
+            match fmt_str.findn("{}", cur) {
+                Some(index) => {
+                    if index > cur {
+                        match subslice(fmt_str.as_bytes(), cur, index - cur) {
+                            Ok(bytes) => {
+                                #[allow(unused_unsafe)]
+                                let s = unsafe { from_utf8_unchecked(bytes) };
+                                match $f.write_str(s, s.len()) {
+                                    Ok(_) => {},
+                                    Err(e) => err = e,
+                                }
+                            }
+                            Err(e) => err = e,
+                        }
+                    }
+                    cur = index + 2;
+                    match $t.format($f) {
+                        Ok(_) => {},
+                        Err(e) => err = e,
+                    }
+                }
+                None => {},
+            }
+        )*
+        if cur < fmt_str.len() {
+            match subslice(fmt_str.as_bytes(), cur, fmt_str.len() - cur) {
+                Ok(bytes) => {
+                    #[allow(unused_unsafe)]
+                    let s = unsafe { from_utf8_unchecked(bytes) };
+                    match $f.write_str(s, s.len()) {
+                        Ok(_) => {},
+                        Err(e) => err = e,
+                    }
+                }
+                Err(e) => err = e,
+            }
+        }
+        if err == Unknown {
+            Ok(())
+        } else {
+            Err(err)
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! format {
+        ($fmt:expr) => {{
+                format!("{}", $fmt)
+        }};
+        ($fmt:expr, $($t:expr),*) => {{
+                let mut formatter = Formatter::new();
+                match writef!(&mut formatter, $fmt, $($t),*) {
+                    Ok(_) => String::new(formatter.as_str()),
+                    Err(e) => Err(e)
+                }
+        }};
+}
+
+#[macro_export]
+macro_rules! println {
+    ($fmt:expr) => {{
+            use std::ffi::write;
+            #[allow(unused_unsafe)]
+            unsafe {
+                    write(2, $fmt.as_ptr(), $fmt.len());
+                    write(2, "\n".as_ptr(), 1);
+            }
+    }};
+    ($fmt:expr, $($t:expr),*) => {{
+        match format!($fmt, $($t),*) {
+            Ok(line) => {
+                use std::ffi::write;
+                #[allow(unused_unsafe)]
+                unsafe {
+                        write(2, line.as_str().as_ptr(), line.len());
+                        write(2, "\n".as_ptr(), 1);
+                }
+            },
+            Err(_e) => {},
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! print {
+    ($fmt:expr) => {{
+        #[allow(unused_unsafe)]
+        unsafe { crate::std::ffi::write(2, $fmt.as_ptr(), $fmt.len()); }
+    }};
+    ($fmt:expr, $($t:expr),*) => {{
+        match format!($fmt, $($t),*) {
+            Ok(line) => {
+                #[allow(unused_unsafe)]
+                unsafe { crate::std::ffi::write(2, line.as_str().as_ptr(), line.len()); }
+            },
+            Err(_e) => {},
+        }
+    }};
+}
+
+#[macro_export]
+macro_rules! exit {
+        ($fmt:expr) => {{
+                exit!("{}", $fmt);
+        }};
+        ($fmt:expr,  $($t:expr),*) => {{
+                print!("Panic[@{}:{}]: ", file!(), line!());
+                println!($fmt, $($t),*);
+
+                #[allow(unused_unsafe)]
+                unsafe {
+                        use std::ffi::exit;
+                        exit(-1);
+                }
+                loop {}
+        }};
 }

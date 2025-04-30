@@ -7,15 +7,14 @@ void *malloc(unsigned long);
 void *realloc(void *ptr, unsigned long);
 void free(void *);
 int getentropy(void *buf, unsigned long long length);
+int snprintf(char *s, unsigned long n, const char *format, ...);
 
 void *alloc(unsigned long size) {
 	void *ptr = malloc(size);
 	return ptr;
 }
 
-void release(void *ptr) {
-	free(ptr);
-}
+void release(void *ptr) { free(ptr); }
 
 void *resize(void *ptr, unsigned long long len) {
 	void *ret = realloc(ptr, len);
@@ -41,3 +40,6 @@ int rand_bytes(unsigned char *buf, unsigned long long length) {
 	return getentropy(buf, length);
 }
 
+int f64_to_str(double d, char *buf, unsigned long long capacity) {
+	return snprintf(buf, capacity, "%.5f", d);
+}

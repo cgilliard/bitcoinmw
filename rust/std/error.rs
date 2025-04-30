@@ -30,6 +30,24 @@ impl Debug for Error {
 	}
 }
 
+impl Display for Error {
+	fn format(&self, f: &mut Formatter) -> Result<()> {
+		let kind_str = (self.display)();
+		let bt_text = self.bt.as_str();
+		if bt_text.len() == 0 {
+			writef!(
+				f,
+				"ErrorKind={}\n{}",
+				kind_str,
+				"Backtrace disabled. To view backtrace set env variable; export RUST_BACKTRACE=1."
+			)?;
+		} else {
+			writef!(f, "ErrorKind={}\n{}", kind_str, bt_text)?;
+		}
+		Ok(())
+	}
+}
+
 impl Error {
 	pub const fn new(code: u64, display: fn() -> &'static str, bt: Backtrace) -> Self {
 		Self { code, display, bt }

@@ -4,6 +4,7 @@ pub use std::backtrace::Backtrace;
 pub use std::boxed::Box;
 pub use std::error::Error;
 pub use std::errors::*;
+pub use std::format::Formatter;
 pub use std::ptr::Ptr;
 pub use std::rc::Rc;
 pub use std::result::Result;

@@ -21,13 +21,11 @@ pub enum String {
 	SSOData(SSODataStruct),
 }
 
-/*
 impl Display for String {
 	fn format(&self, f: &mut Formatter) -> Result<()> {
 		f.write_str(self.as_str(), self.len())
 	}
 }
-*/
 
 impl Debug for String {
 	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> FmtResult {

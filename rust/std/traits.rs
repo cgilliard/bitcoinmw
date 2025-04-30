@@ -16,9 +16,6 @@ pub trait AsRaw<T: ?Sized> {
 	fn as_ptr(&self) -> Ptr<T>;
 }
 
-// temp: use core Formatter
-use core::fmt::Formatter;
-
 pub trait Display {
 	fn format(&self, f: &mut Formatter) -> Result<()>;
 }

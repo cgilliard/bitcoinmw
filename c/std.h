@@ -7,5 +7,6 @@ void *resize(void *ptr, unsigned long long len);
 unsigned long long getmicros();
 int sleep_millis(unsigned long long millis);
 int rand_bytes(unsigned char *buf, unsigned long long length);
+int f64_to_str(double d, char *buf, unsigned long long capacity);
 
 #endif	// _STD_H__

@@ -6,6 +6,7 @@ pub mod boxed;
 pub mod cstring;
 pub mod error;
 pub mod errors;
+pub mod format;
 pub mod misc;
 pub mod ptr;
 pub mod rc;
