@@ -2,6 +2,7 @@ use core::marker::PhantomData;
 use core::ptr;
 use prelude::*;
 use std::ffi::release;
+use util::errors::*;
 use util::ffi::{
 	channel_destroy, channel_handle_size, channel_init, channel_pending, channel_recv, channel_send,
 };

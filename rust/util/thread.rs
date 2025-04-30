@@ -2,6 +2,7 @@ use core::ops::FnOnce;
 use core::ptr;
 use prelude::*;
 use std::ffi::{release, sleep_millis};
+use util::errors::*;
 use util::ffi::{
 	thread_create, thread_create_joinable, thread_detach, thread_handle_size, thread_join,
 };

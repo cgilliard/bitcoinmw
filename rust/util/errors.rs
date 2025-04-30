@@ -1,3 +1,10 @@
 use prelude::*;
 
-errors!(Duplicate);
+errors!(
+	Duplicate,
+	ThreadJoin,
+	ThreadCreate,
+	ThreadDetach,
+	ChannelInit,
+	ChannelSend
+);
