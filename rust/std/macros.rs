@@ -357,3 +357,11 @@ macro_rules! exit {
                 loop {}
         }};
 }
+
+#[cfg(mrustc)]
+#[macro_export]
+macro_rules! todo {
+	() => {{
+		loop {}
+	}};
+}
