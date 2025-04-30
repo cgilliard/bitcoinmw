@@ -7,6 +7,7 @@
 #[macro_use]
 pub mod std;
 
+pub mod net;
 pub mod prelude;
 mod real_main;
 pub mod util;
