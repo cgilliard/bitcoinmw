@@ -9,6 +9,7 @@ errors!(
 	CcapacityExceeded,
 	OperationFailed,
 	Utf8Error,
+	MisalignedPointer,
 	Alloc,
 	Todo
 );

@@ -121,9 +121,13 @@ impl<T: ?Sized> Ptr<T> {
 		if ptr.is_null() {
 			err!(Alloc)
 		} else {
-			Ok(Ptr {
-				ptr: ptr as *const R,
-			})
+			if (ptr as *const u8 as usize) % 2 != 0 {
+				err!(MisalignedPointer)
+			} else {
+				Ok(Ptr {
+					ptr: ptr as *const R,
+				})
+			}
 		}
 	}
 }
