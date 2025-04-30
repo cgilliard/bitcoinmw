@@ -5,10 +5,17 @@ use core::ptr::{null, write};
 use prelude::*;
 use std::ffi::{alloc, ptr_add, release, resize};
 
-#[derive(Clone, Copy)]
 pub struct Ptr<T: ?Sized> {
 	ptr: *const T,
 }
+
+impl<T> Clone for Ptr<T> {
+	fn clone(&self) -> Self {
+		Ptr { ptr: self.ptr }
+	}
+}
+
+impl<T> Copy for Ptr<T> {}
 
 impl<T, U> CoerceUnsized<Ptr<U>> for Ptr<T>
 where
