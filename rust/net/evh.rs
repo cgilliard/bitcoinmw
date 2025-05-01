@@ -696,6 +696,82 @@ mod test {
 	}
 
 	#[test]
+	fn test_evh_opt_attach() -> Result<()> {
+		let mut evh: Evh<u64, u64> = Evh::new()?;
+		let lock = lock_box!()?;
+		let mut value = Rc::new(false)?;
+		let lock_clone = lock.clone();
+		let value_clone = value.clone();
+		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
+		let recv: OnRecv<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>, bytes: &[u8]| -> Result<()> {
+				assert!(conn.opt()?.unwrap() == &mut 123);
+				let _l = lock.write();
+				*value = true;
+				Ok(())
+			},
+		)?;
+		let accept: OnAccept<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> {
+				let mut conn = conn.clone();
+				conn.set_opt(123)?;
+				Ok(())
+			},
+		)?;
+		let close: OnClose<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+		)?;
+
+		let rc_close = Rc::new(close)?;
+		let rc_accept = Rc::new(accept)?;
+		let rc_recv = Rc::new(recv)?;
+
+		let mut server = Connection::acceptor(s, rc_recv, rc_accept, rc_close, 0u64)?;
+		evh.register(server.clone())?;
+
+		evh.start()?;
+		sleep(1); // 1ms sleep to prevent intermittent connect issues.
+
+		let mut client = Socket::connect([127, 0, 0, 1], port)?;
+
+		loop {
+			match client.send(b"test") {
+				Ok(v) => {
+					assert_eq!(v, 4);
+					break;
+				}
+				Err(e) => {
+					if e == EAgain {
+						continue;
+					} else {
+						return err!(e);
+					}
+				}
+			}
+		}
+
+		loop {
+			sleep(1);
+			let _l = lock_clone.read();
+			if *value_clone {
+				break;
+			}
+		}
+
+		client.close()?;
+
+		evh.stop()?;
+		s.close()?;
+		// just to make address sanitizer report no memory leaks - normal case server just
+		// runs forever.
+		unsafe {
+			server.drop_rc();
+		}
+
+		Ok(())
+	}
+
+	#[test]
 	fn test_evh_reply() -> Result<()> {
 		let mut evh: Evh<u64, u64> = Evh::new()?;
 		let lock = lock_box!()?;
