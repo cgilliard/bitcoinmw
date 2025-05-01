@@ -23,8 +23,11 @@ pub struct WsContext {
 	//connections: RbTree<WsConnection>,
 }
 
+#[derive(Clone)]
+pub struct ConnectionState {}
+
 struct WsConnection {
-	conn: Connection<WsContext>,
+	conn: Connection<WsContext, ConnectionState>,
 	handler: Option<Handler>,
 }
 
@@ -49,7 +52,7 @@ impl Ord for WsConnection {
 }
 
 pub struct Ws {
-	evh: Evh<WsContext>,
+	evh: Evh<WsContext, ConnectionState>,
 	state: WsState,
 	handlers: RbTree<Handler>,
 	connections: RbTree<WsConnection>,
@@ -124,22 +127,22 @@ impl Ws {
 		let ctx = WsContext {};
 		let socket = Socket::listen(listener.addr, listener.port, listener.backlog)?;
 
-		let on_recv: OnRecv<WsContext> = Box::new(
+		let on_recv: OnRecv<WsContext, ConnectionState> = Box::new(
 			move |ctx: &mut WsContext,
-			      conn: &mut Connection<WsContext>,
+			      conn: &mut Connection<WsContext, ConnectionState>,
 			      bytes: &[u8]|
 			      -> Result<()> { Self::proc_on_recv(ctx, conn, bytes) },
 		)?;
 
-		let on_accept: OnAccept<WsContext> = Box::new(
-			move |ctx: &mut WsContext, conn: &Connection<WsContext>| -> Result<()> {
-				Self::proc_on_accept(ctx, conn)
-			},
+		let on_accept: OnAccept<WsContext, ConnectionState> = Box::new(
+			move |ctx: &mut WsContext,
+			      conn: &mut Connection<WsContext, ConnectionState>|
+			      -> Result<()> { Self::proc_on_accept(ctx, conn) },
 		)?;
-		let on_close: OnClose<WsContext> = Box::new(
-			move |ctx: &mut WsContext, conn: &Connection<WsContext>| -> Result<()> {
-				Self::proc_on_close(ctx, conn)
-			},
+		let on_close: OnClose<WsContext, ConnectionState> = Box::new(
+			move |ctx: &mut WsContext,
+			      conn: &mut Connection<WsContext, ConnectionState>|
+			      -> Result<()> { Self::proc_on_close(ctx, conn) },
 		)?;
 
 		let on_recv = Rc::new(on_recv)?;
@@ -177,20 +180,26 @@ impl Ws {
 
 	fn proc_on_recv(
 		_ctx: &mut WsContext,
-		conn: &Connection<WsContext>,
+		conn: &Connection<WsContext, ConnectionState>,
 		bytes: &[u8],
 	) -> Result<()> {
 		println!("recv {}: {}", conn.socket(), bytes);
 		Ok(())
 	}
 
-	fn proc_on_accept(_ctx: &mut WsContext, conn: &Connection<WsContext>) -> Result<()> {
+	fn proc_on_accept(
+		_ctx: &mut WsContext,
+		conn: &Connection<WsContext, ConnectionState>,
+	) -> Result<()> {
 		println!("acc {}", conn.socket());
 
 		Ok(())
 	}
 
-	fn proc_on_close(_ctx: &mut WsContext, conn: &Connection<WsContext>) -> Result<()> {
+	fn proc_on_close(
+		_ctx: &mut WsContext,
+		conn: &Connection<WsContext, ConnectionState>,
+	) -> Result<()> {
 		println!("close {}", conn.socket());
 		Ok(())
 	}
@@ -202,31 +211,31 @@ mod test {
 
 	// ws example
 	/*
-		let ws = ws!()?;
+	let ws = ws!()?;
 
-		// register a listener on port 9090 backlog 10, addr 0.0.0.0
-		let l1 = listen!(Port(9090), Backlog(10), Addr([0,0,0,0]))?;
-		ws.register(l1)?;
+	// register a listener on port 9090 backlog 10, addr 0.0.0.0
+	let l1 = listen!(Port(9090), Backlog(10), Addr([0,0,0,0]))?;
+	ws.register(l1)?;
 
-		// register a listener on port 8080 (default backlog = ?, Addr = 127.0.0.1)
-		let l2 = listen!(Port(8080))?;
-		ws.register(l2)?;
+	// register a listener on port 8080 (default backlog = ?, Addr = 127.0.0.1)
+	let l2 = listen!(Port(8080))?;
+	ws.register(l2)?;
 
-		// create a websocket responder at the uri /hello
-		#[uri(/hello)]
-		on!(ws, handle, {
-			send!(handle, "hello world!)?;
-		})?;
+	// create a websocket responder at the uri /hello
+	#[uri(/hello)]
+	on!(ws, handle, {
+		send!(handle, "hello world!)?;
+	})?;
 
-		// create a websocket responder at the uri /name
-		#[uri(/name)]
-		onmessage!(ws, handle, {
-			send!(handle, "My name is sam!")?;
-		})?;
+	// create a websocket responder at the uri /name
+	#[uri(/name)]
+	onmessage!(ws, handle, {
+		send!(handle, "My name is sam!")?;
+	})?;
 
-		// start the websocket server
-		ws.start()?;
-		park();
+	// start the websocket server
+	ws.start()?;
+	park();
 	*/
 
 	#[test]

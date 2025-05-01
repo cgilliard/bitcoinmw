@@ -5,4 +5,4 @@ pub mod errors;
 pub mod evh;
 pub mod multiplex;
 pub mod socket;
-//pub mod ws;
+pub mod ws;

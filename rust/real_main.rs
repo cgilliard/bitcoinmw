@@ -11,7 +11,7 @@ fn exec_server() -> Result<()> {
 	let port = 9090;
 	let s = Socket::listen([127, 0, 0, 1], port, 10)?;
 	let recv: OnRecv<u64, u64> = Box::new(
-		move |_attach: &mut u64, conn: &mut Connection<u64, u64>, bytes: &[u8]| -> Result<()> {
+		move |_ctx: &mut u64, conn: &mut Connection<u64, u64>, bytes: &[u8]| -> Result<()> {
 			let mut wsum = 0;
 			loop {
 				if wsum < bytes.len() {
@@ -36,12 +36,10 @@ fn exec_server() -> Result<()> {
 			Ok(())
 		},
 	)?;
-	let accept: OnAccept<u64, u64> = Box::new(
-		move |_attach: &mut u64, _conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) },
-	)?;
-	let close: OnClose<u64, u64> = Box::new(
-		move |_attach: &mut u64, _conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) },
-	)?;
+	let accept: OnAccept<u64, u64> =
+		Box::new(move |_ctx: &mut u64, _conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) })?;
+	let close: OnClose<u64, u64> =
+		Box::new(move |_ctx: &mut u64, _conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) })?;
 
 	let rc_close = Rc::new(close)?;
 	let rc_accept = Rc::new(accept)?;
@@ -66,21 +64,20 @@ fn exec_client(messages: u64) -> Result<()> {
 	let lock_clone = lock.clone();
 
 	let recv_client: OnRecv<u64, u64> = Box::new(
-		move |attach: &mut u64, _conn: &mut Connection<u64, u64>, bytes: &[u8]| -> Result<()> {
-			*attach += bytes.len() as u64;
-			if *attach >= (messages * 4) {
+		move |ctx: &mut u64, _conn: &mut Connection<u64, u64>, bytes: &[u8]| -> Result<()> {
+			*ctx += bytes.len() as u64;
+			if *ctx >= (messages * 4) {
 				let ms = (unsafe { getmicros() } - start) as f64 / 1_000 as f64;
 				let qps = messages as f64 / (ms / 1000 as f64);
-				println!("compelte in {}ms. Bytes recv={},qps={}", ms, *attach, qps);
+				println!("compelte in {}ms. Bytes recv={},qps={}", ms, *ctx, qps);
 			}
 			*count += bytes.len();
 
 			Ok(())
 		},
 	)?;
-	let close_client: OnClose<u64, u64> = Box::new(
-		move |_attach: &mut u64, _conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) },
-	)?;
+	let close_client: OnClose<u64, u64> =
+		Box::new(move |_ctx: &mut u64, _conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) })?;
 	let rc_recv_client = Rc::new(recv_client)?;
 	let rc_close_client = Rc::new(close_client)?;
 	let client = Socket::connect([127, 0, 0, 1], port)?;
