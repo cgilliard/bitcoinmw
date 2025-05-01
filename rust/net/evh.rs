@@ -12,6 +12,7 @@ use net::multiplex::RegisterType;
 use net::socket::Socket;
 use prelude::*;
 use util::channel::{channel, Receiver, Sender};
+use util::lock::{LockReadGuard, LockWriteGuard};
 
 type OnRecv<T> = Box<dyn FnMut(&mut T, &mut Connection<T>, &[u8]) -> Result<()>>;
 type OnAccept<T> = Box<dyn FnMut(&mut T, &Connection<T>) -> Result<()>>;
@@ -47,6 +48,8 @@ where
 	socket: Socket,
 	on_recv: Rc<OnRecv<T>>,
 	on_close: Rc<OnClose<T>>,
+	is_closed: bool,
+	lock: Lock,
 	attach: T,
 }
 
@@ -118,6 +121,8 @@ where
 			socket,
 			on_recv,
 			on_close,
+			lock: lock!(),
+			is_closed: false,
 			attach,
 		}))?;
 
@@ -134,6 +139,10 @@ where
 	}
 
 	pub fn write(&self, b: &[u8]) -> Result<usize> {
+		let _l = self.rlock()?;
+		if self.is_closed()? {
+			return err!(SocketClosed);
+		}
 		match &*self.inner {
 			ConnectionData::Inbound(inbound) => inbound.socket.send(b),
 			ConnectionData::Outbound(outbound) => outbound.socket.send(b),
@@ -142,6 +151,10 @@ where
 	}
 
 	pub fn close(&self) -> Result<()> {
+		let _l = self.rlock()?;
+		if self.is_closed()? {
+			return err!(SocketClosed);
+		}
 		match &*self.inner {
 			ConnectionData::Inbound(inbound) => inbound.socket.shutdown(),
 			ConnectionData::Outbound(outbound) => outbound.socket.shutdown(),
@@ -202,6 +215,58 @@ where
 			ConnectionData::Outbound(_) => err!(IllegalState),
 			ConnectionData::Inbound(_) => err!(IllegalState),
 			ConnectionData::Close => err!(IllegalState),
+		}
+	}
+
+	fn rlock(&self) -> Result<LockReadGuard<'_>> {
+		match &*self.inner {
+			ConnectionData::Outbound(x) => {
+				let l = x.lock.read();
+				Ok(l)
+			}
+			ConnectionData::Inbound(x) => {
+				let l = x.lock.read();
+				Ok(l)
+			}
+			_ => err!(IllegalState),
+		}
+	}
+
+	fn wlock(&self) -> Result<LockWriteGuard<'_>> {
+		match &*self.inner {
+			ConnectionData::Outbound(x) => {
+				let l = x.lock.write();
+				Ok(l)
+			}
+			ConnectionData::Inbound(x) => {
+				let l = x.lock.write();
+				Ok(l)
+			}
+			_ => err!(IllegalState),
+		}
+	}
+
+	fn is_closed(&self) -> Result<bool> {
+		match &*self.inner {
+			ConnectionData::Outbound(x) => Ok(x.is_closed),
+			ConnectionData::Inbound(x) => Ok(x.is_closed),
+			_ => err!(IllegalState),
+		}
+	}
+
+	fn close_impl(&mut self) -> Result<()> {
+		match &mut *self.inner {
+			ConnectionData::Outbound(x) => {
+				let _l = x.lock.write();
+				x.is_closed = true;
+				Ok(())
+			}
+			ConnectionData::Inbound(x) => {
+				let _l = x.lock.write();
+				x.is_closed = true;
+				Ok(())
+			}
+			_ => err!(IllegalState),
 		}
 	}
 }
@@ -375,12 +440,13 @@ where
 			match &mut *conn.inner {
 				ConnectionData::Inbound(_) => {
 					if len == 0 {
+						conn_clone.close_impl()?;
+						let _ = socket.close();
 						let acc = conn_clone.get_acceptor()?;
 						match acc.on_close(&conn) {
 							Ok(_) => {}
 							Err(e) => println!("WARN: on_close closure generated error: {}", e),
 						}
-						let _ = socket.close();
 						return Ok(true);
 					} else {
 						let acc = conn_clone.get_acceptor()?;
@@ -392,11 +458,12 @@ where
 				}
 				ConnectionData::Outbound(ob) => {
 					if len == 0 {
+						conn_clone.close_impl()?;
+						let _ = socket.close();
 						match (ob.on_close)(&mut ob.attach, &mut conn_clone) {
 							Ok(_) => {}
 							Err(e) => println!("WARN: on_close closure generated error: {}", e),
 						}
-						let _ = socket.close();
 						return Ok(true);
 					} else {
 						match (ob.on_recv)(&mut ob.attach, &mut conn_clone, &bytes[0..len]) {
@@ -698,6 +765,7 @@ mod test {
 			Box::new(move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
 		let close: OnClose<u64> = Box::new(
 			move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> {
+				assert!(conn.write(b"test").is_err());
 				let _l = lock_clone.write();
 				*count_clone += 1;
 				Ok(())

@@ -5,3 +5,4 @@ mod ffi;
 pub mod evh;
 pub mod multiplex;
 pub mod socket;
+pub mod ws;
