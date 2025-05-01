@@ -138,6 +138,8 @@ impl<T> Ptr<T> {
 
 		if ptr.is_null() {
 			err!(Alloc)
+		} else if (ptr as *const u8 as usize) % 2 != 0 {
+			err!(MisalignedPointer)
 		} else {
 			unsafe {
 				write(ptr as *mut T, t);
