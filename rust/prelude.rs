@@ -5,7 +5,7 @@ pub use std::boxed::Box;
 pub use std::error::Error;
 pub use std::errors::*;
 pub use std::format::Formatter;
-pub use std::misc::sleep;
+pub use std::misc::{micros, sleep};
 pub use std::ptr::Ptr;
 pub use std::rc::Rc;
 pub use std::result::Result;
@@ -13,6 +13,8 @@ pub use std::string::String;
 pub use std::traits::{AsRaw, AsRawMut, Display, SliceExt, StrExt, TryClone};
 pub use std::vec::Vec;
 pub use util::lock::{Lock, LockBox};
+pub use util::node::RbTreeNode;
+pub use util::rbtree::RbTree;
 pub use util::thread::park;
 pub use util::thread::{spawn, spawnj};
 

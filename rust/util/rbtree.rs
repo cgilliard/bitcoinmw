@@ -1,5 +1,6 @@
 use core::marker::PhantomData;
 use prelude::*;
+use util::errors::Duplicate;
 use util::node::{Color, RbTreeNode};
 
 pub struct RbTree<V: Ord> {
@@ -102,6 +103,18 @@ impl<V: Ord> RbTree<V> {
 			self.insert_fixup(n);
 		}
 		ret
+	}
+
+	pub fn try_insert(&mut self, n: Ptr<RbTreeNode<V>>) -> Result<()> {
+		let pair = self.search(self.root, n);
+		if !pair.cur.is_null() {
+			return err!(Duplicate);
+		}
+		self.insert_impl(n, pair);
+		self.count += 1;
+		self.insert_fixup(n);
+
+		Ok(())
 	}
 
 	pub fn remove_ptr(&mut self, n: Ptr<RbTreeNode<V>>) -> Option<Ptr<RbTreeNode<V>>> {
@@ -675,6 +688,122 @@ mod test {
 				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 				assert!(tree.insert(next).is_none());
 				validate_tree(tree.root());
+			}
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = tree.search(tree.root(), ptr);
+				assert!(!res.cur.is_null());
+				assert_eq!((*(res.cur)).value, v as u64);
+				ptr.release();
+			}
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = tree.remove_ptr(ptr);
+				validate_tree(tree.root());
+				res.unwrap().release();
+				let res = tree.search(tree.root(), ptr);
+				assert!(res.cur.is_null());
+				ptr.release();
+			}
+
+			let seed = seed - 1;
+			for i in (size / 2)..size {
+				c += 1;
+				let v = murmur3_32_of_u64(i, seed);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = tree.remove_ptr(ptr);
+				validate_tree(tree.root());
+				res.unwrap().release();
+				let res = tree.remove_ptr(ptr);
+				assert!(res.is_none());
+				ptr.release();
+			}
+			assert_eq!(c, size);
+		}
+	}
+
+	#[test]
+	fn test_rbtree_try_insert() {
+		let mut tree = RbTree::new();
+
+		let size = 3;
+		for x in 0..1 {
+			let seed = 0x1234 + x;
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				assert!(tree.try_insert(next).is_ok());
+				validate_tree(tree.root());
+				let check = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				assert!(tree.try_insert(check).is_err());
+				check.release();
+			}
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = tree.search(tree.root(), ptr);
+				assert!(!res.cur.is_null());
+				assert_eq!((*(res.cur)).value, v as u64);
+				ptr.release();
+			}
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = tree.remove_ptr(ptr);
+				validate_tree(tree.root());
+				res.unwrap().release();
+				let res = tree.search(tree.root(), ptr);
+				assert!(res.cur.is_null());
+				ptr.release();
+			}
+
+			let seed = seed + 1;
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				assert!(tree.try_insert(next).is_ok());
+				validate_tree(tree.root());
+				assert!(tree.try_insert(next).is_err());
+			}
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = tree.search(tree.root(), ptr);
+				assert!(!res.cur.is_null());
+				assert_eq!((*(res.cur)).value, v as u64);
+				ptr.release();
+			}
+
+			let mut c = 0;
+
+			for i in 0..size / 2 {
+				c += 1;
+				let v = murmur3_32_of_u64(i, seed);
+				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let res = tree.remove_ptr(ptr);
+				validate_tree(tree.root());
+				res.unwrap().release();
+				let res = tree.search(tree.root(), ptr);
+				assert!(res.cur.is_null());
+				ptr.release();
+			}
+
+			let seed = seed + 1;
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				assert!(tree.try_insert(next).is_ok());
+				validate_tree(tree.root());
+				assert!(tree.try_insert(next).is_err());
 			}
 
 			for i in 0..size {

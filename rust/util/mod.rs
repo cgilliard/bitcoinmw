@@ -4,12 +4,12 @@ pub mod macros;
 mod constants;
 mod errors;
 mod ffi;
-mod node;
 
 pub mod channel;
 pub mod hashtable;
 pub mod lock;
 pub mod murmur;
+pub mod node;
 pub mod rbtree;
 pub mod thread;
 

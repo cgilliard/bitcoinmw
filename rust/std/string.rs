@@ -22,6 +22,20 @@ pub enum String {
 	SSOData(SSODataStruct),
 }
 
+impl Ord for String {
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.as_str().cmp(other.as_str())
+	}
+}
+
+impl PartialOrd for String {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		self.as_str().partial_cmp(other.as_str())
+	}
+}
+
+impl Eq for String {}
+
 impl Display for String {
 	fn format(&self, f: &mut Formatter) -> Result<()> {
 		writef!(f, "{}", self.as_str())

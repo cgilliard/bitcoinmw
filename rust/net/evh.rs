@@ -148,8 +148,7 @@ where
 					Ok(res) => Ok(res),
 					Err(e) => {
 						if e != EAgain {
-							let mut socket = inbound.socket;
-							let _ = socket.close();
+							self.close()?;
 						}
 						Err(e)
 					}
@@ -161,8 +160,7 @@ where
 					Ok(res) => Ok(res),
 					Err(e) => {
 						if e != EAgain {
-							let mut socket = outbound.socket;
-							let _ = socket.close();
+							self.close()?;
 						}
 						Err(e)
 					}
@@ -465,12 +463,12 @@ where
 				ConnectionData::Inbound(_) => {
 					if len == 0 {
 						conn_clone.close_impl()?;
-						let _ = socket.close();
 						let acc = conn_clone.get_acceptor()?;
 						match acc.on_close(&conn) {
 							Ok(_) => {}
 							Err(e) => println!("WARN: on_close closure generated error: {}", e),
 						}
+						let _ = socket.close();
 						return Ok(true);
 					} else {
 						let acc = conn_clone.get_acceptor()?;
@@ -485,11 +483,11 @@ where
 				ConnectionData::Outbound(ob) => {
 					if len == 0 {
 						conn_clone.close_impl()?;
-						let _ = socket.close();
 						match (ob.on_close)(&mut ob.attach, &mut conn_clone) {
 							Ok(_) => {}
 							Err(e) => println!("WARN: on_close closure generated error: {}", e),
 						}
+						let _ = socket.close();
 						return Ok(true);
 					} else {
 						if len <= bytes.len() {

@@ -63,6 +63,10 @@ impl<V: Ord> RbTreeNode<V> {
 		}
 	}
 
+	pub fn alloc(value: V) -> Result<Ptr<Self>> {
+		Ptr::alloc(RbTreeNode::new(value))
+	}
+
 	pub(crate) fn set_color(&mut self, color: Color) {
 		match color {
 			Color::Black => {
