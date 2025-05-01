@@ -12,7 +12,25 @@ fn exec_server() -> Result<()> {
 	let s = Socket::listen([127, 0, 0, 1], port, 10)?;
 	let recv: OnRecv<u64> = Box::new(
 		move |_attach: &mut u64, conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
-			conn.write(bytes)?;
+			let mut wsum = 0;
+			loop {
+				if wsum < bytes.len() {
+					match conn.write(&bytes[wsum..]) {
+						Ok(v) => {
+							wsum += v;
+							if wsum == bytes.len() {
+								break;
+							}
+						}
+						Err(e) => {
+							if e != EAgain {
+								exit!("socket err!");
+							}
+						}
+					}
+				}
+			}
+
 			Ok(())
 		},
 	)?;
@@ -27,26 +45,32 @@ fn exec_server() -> Result<()> {
 
 	let server = Connection::acceptor(s, rc_recv, rc_accept, rc_close, 0u64)?;
 	evh.register(server.clone())?;
+
 	evh.start()?;
+
 	park();
 
 	Ok(())
 }
 
-fn exec_client() -> Result<()> {
+fn exec_client(messages: u64) -> Result<()> {
 	let port = 9090;
-	let lock = lock_box!()?;
-	let mut count = Rc::new(0)?;
 	let start = unsafe { getmicros() };
+	let mut count = Rc::new(0)?;
+	let lock = lock_box!()?;
+	let count_clone = count.clone();
+	let lock_clone = lock.clone();
+
 	let recv_client: OnRecv<u64> = Box::new(
-		move |_attach: &mut u64, conn: &mut Connection<u64>, _bytes: &[u8]| -> Result<()> {
-			let _l = lock.write();
-			*count += 1;
-			if *count <= 5 {
-				conn.write(b"test")?;
-			} else {
-				println!("compelte in {}us", unsafe { getmicros() } - start);
+		move |attach: &mut u64, _conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
+			*attach += bytes.len() as u64;
+			if *attach >= (messages * 4) {
+				let ms = (unsafe { getmicros() } - start) as f64 / 1_000 as f64;
+				let qps = messages as f64 / (ms / 1000 as f64);
+				println!("compelte in {}ms. Bytes recv={},qps={}", ms, *attach, qps);
 			}
+			*count += bytes.len();
+
 			Ok(())
 		},
 	)?;
@@ -55,52 +79,66 @@ fn exec_client() -> Result<()> {
 	let rc_recv_client = Rc::new(recv_client)?;
 	let rc_close_client = Rc::new(close_client)?;
 	let client = Socket::connect([127, 0, 0, 1], port)?;
-	let connector = Connection::outbound(client, rc_recv_client, rc_close_client, 1u64)?;
+	let connector = Connection::outbound(client, rc_recv_client, rc_close_client, 0u64)?;
 	let mut evh = Evh::new()?;
 	evh.register(connector.clone())?;
 	evh.start()?;
 
+	let mut i = 0;
 	loop {
 		match connector.write(b"test") {
 			Ok(v) => {
 				if v != 4 {
 					exit!("len !+ 4");
 				}
-				break;
 			}
 			Err(e) => {
 				if e == EAgain {
-					println!("eagain1");
 					continue;
 				} else {
 					return err!(e);
 				}
 			}
 		}
+		i += 1;
+		if i == messages {
+			break;
+		}
 	}
 
-	println!("sent");
-	park();
+	while *count_clone < (messages * 4) as usize {
+		sleep(10);
+		let _l = lock_clone.read();
+	}
+	sleep(1);
 
-	//println!("success {}s", time as f64 / 1_000_000 as f64);
 	Ok(())
 }
 
-fn proc_args(_argc: i32, argv: *const *const u8) -> Result<()> {
+extern "C" {
+	fn atoi(s: *const u8) -> i32;
+}
+
+fn proc_args(argc: i32, argv: *const *const u8) -> Result<()> {
 	let arg2 = unsafe { CString::from_ptr(*(argv.offset(1)), true) };
+	let messages = if argc > 2 {
+		(unsafe { atoi(*(argv.offset(2))) }) as u64
+	} else {
+		0
+	};
 	if arg2.as_str()? == String::new("server")? {
 		println!("Starting server!");
 		exec_server()?;
 	} else if arg2.as_str()? == String::new("client")? {
 		println!("Starting client!");
-		exec_client()?;
+		exec_client(messages)?;
 	}
 	Ok(())
 }
 
 #[no_mangle]
 pub extern "C" fn real_main(argc: i32, argv: *const *const u8) -> i32 {
-	if argc == 2 {
+	if argc >= 2 {
 		match proc_args(argc, argv) {
 			Ok(_) => {}
 			Err(e) => println!("proc_args generated error: {}", e),
