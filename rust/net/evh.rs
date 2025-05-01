@@ -79,6 +79,7 @@ struct CloseData {
 	send: Sender<()>,
 }
 
+#[derive(Clone)]
 pub struct Evh<T>
 where
 	T: Clone,
@@ -148,7 +149,7 @@ where
 					Ok(res) => Ok(res),
 					Err(e) => {
 						if e != EAgain {
-							self.close()?;
+							let _ = inbound.socket.shutdown();
 						}
 						Err(e)
 					}
@@ -160,7 +161,7 @@ where
 					Ok(res) => Ok(res),
 					Err(e) => {
 						if e != EAgain {
-							self.close()?;
+							let _ = outbound.socket.shutdown();
 						}
 						Err(e)
 					}

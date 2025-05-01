@@ -19,12 +19,40 @@ enum WsState {
 }
 
 #[derive(Clone)]
-pub struct WsContext {}
+pub struct WsContext {
+	//connections: RbTree<WsConnection>,
+}
+
+struct WsConnection {
+	conn: Connection<WsContext>,
+	handler: Option<Handler>,
+}
+
+impl PartialEq for WsConnection {
+	fn eq(&self, other: &WsConnection) -> bool {
+		self.conn.socket() == other.conn.socket()
+	}
+}
+
+impl Eq for WsConnection {}
+
+impl PartialOrd for WsConnection {
+	fn partial_cmp(&self, other: &WsConnection) -> Option<Ordering> {
+		self.conn.socket().partial_cmp(&other.conn.socket())
+	}
+}
+
+impl Ord for WsConnection {
+	fn cmp(&self, other: &WsConnection) -> Ordering {
+		self.conn.socket().cmp(&other.conn.socket())
+	}
+}
 
 pub struct Ws {
 	evh: Evh<WsContext>,
 	state: WsState,
 	handlers: RbTree<Handler>,
+	connections: RbTree<WsConnection>,
 }
 
 pub struct Listener {
@@ -33,10 +61,14 @@ pub struct Listener {
 	backlog: i32,
 }
 
-pub struct Handler {
+struct HandlerProc {
 	on_recv: Rc<WsOnRecv>,
 	on_accept: Rc<WsOnAccept>,
 	on_close: Rc<WsOnClose>,
+}
+
+pub struct Handler {
+	handlers: Option<HandlerProc>,
 	path: String,
 }
 
@@ -60,15 +92,26 @@ impl PartialEq for Handler {
 
 impl Eq for Handler {}
 
+impl Handler {
+	fn with_path(path: String) -> Self {
+		Self {
+			path,
+			handlers: None,
+		}
+	}
+}
+
 impl Ws {
 	pub fn new() -> Result<Self> {
 		let evh = Evh::new()?;
 		let state = WsState::Init;
 		let handlers = RbTree::new();
+		let connections = RbTree::new();
 		Ok(Self {
 			evh,
 			state,
 			handlers,
+			connections,
 		})
 	}
 
@@ -132,17 +175,22 @@ impl Ws {
 		self.handlers.try_insert(node)
 	}
 
-	fn proc_on_recv(ctx: &mut WsContext, conn: &Connection<WsContext>, bytes: &[u8]) -> Result<()> {
+	fn proc_on_recv(
+		_ctx: &mut WsContext,
+		conn: &Connection<WsContext>,
+		bytes: &[u8],
+	) -> Result<()> {
 		println!("recv {}: {}", conn.socket(), bytes);
 		Ok(())
 	}
 
-	fn proc_on_accept(ctx: &mut WsContext, conn: &Connection<WsContext>) -> Result<()> {
+	fn proc_on_accept(_ctx: &mut WsContext, conn: &Connection<WsContext>) -> Result<()> {
 		println!("acc {}", conn.socket());
+
 		Ok(())
 	}
 
-	fn proc_on_close(ctx: &mut WsContext, conn: &Connection<WsContext>) -> Result<()> {
+	fn proc_on_close(_ctx: &mut WsContext, conn: &Connection<WsContext>) -> Result<()> {
 		println!("close {}", conn.socket());
 		Ok(())
 	}
@@ -184,17 +232,17 @@ mod test {
 	#[test]
 	fn test_ws1() -> Result<()> {
 		/*
-				let mut ws = Ws::new()?;
-				ws.add_listener(Listener {
-					addr: [0, 0, 0, 0],
-					port: 9090,
-					backlog: 10,
-				})?;
+		let mut ws = Ws::new()?;
+		ws.add_listener(Listener {
+			addr: [0, 0, 0, 0],
+			port: 9090,
+			backlog: 10,
+		})?;
 
-				ws.start()?;
+		ws.start()?;
 
-				park();
-		*/
+		park();
+			*/
 		Ok(())
 	}
 }

@@ -8,7 +8,7 @@ use net::ffi::{
 use prelude::*;
 
 #[repr(C)]
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Ord, Eq)]
 pub struct Socket(i32);
 
 impl Debug for Socket {
