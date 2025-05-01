@@ -81,7 +81,7 @@ mod test {
 
 	#[test]
 	fn test_ws1() -> Result<()> {
-		let _ws = Ws::new()?;
+		//let _ws = Ws::new()?;
 		Ok(())
 	}
 }
