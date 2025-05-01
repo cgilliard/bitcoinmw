@@ -342,8 +342,7 @@ where
 		self.close.flag = true;
 		let mut client = Socket::connect([127, 0, 0, 1], self.close.port)?;
 		client.close()?;
-		self.close.recv.recv();
-		Ok(())
+		self.close.recv.recv()
 	}
 
 	pub fn start(&mut self) -> Result<()> {

@@ -61,9 +61,12 @@ impl<T> Drop for ChannelInner<T> {
 }
 
 impl<T> ChannelInner<T> {
-	pub fn recv(&self) -> T {
+	pub fn recv(&self) -> Result<T> {
 		let handle = &self.handle;
 		let recv = unsafe { channel_recv(handle as *const u8) } as *mut ChannelMessage<T>;
+		if recv.is_null() {
+			return err!(ChannelBusy);
+		}
 		let ptr = Ptr::new(recv);
 		let mut nbox = unsafe { Box::from_raw(ptr) };
 		unsafe {
@@ -71,7 +74,7 @@ impl<T> ChannelInner<T> {
 		}
 		let v = unsafe { ptr::read(nbox.as_ptr()) };
 		unsafe { release(recv as *mut u8) };
-		v.value
+		Ok(v.value)
 	}
 
 	pub fn send(&self, value: T) -> Result<()> {
@@ -81,13 +84,13 @@ impl<T> ChannelInner<T> {
 		};
 		match Box::new(msg) {
 			Ok(mut b) => {
-				unsafe {
-					b.leak();
-				}
 				let handle = &self.handle;
 				if unsafe { channel_send(handle as *const u8, b.as_ptr() as *mut u8) } < 0 {
 					err!(ChannelSend)
 				} else {
+					unsafe {
+						b.leak();
+					}
 					Ok(())
 				}
 			}
@@ -123,7 +126,7 @@ impl<T> Sender<T> {
 }
 
 impl<T> Receiver<T> {
-	pub fn recv(&self) -> T {
+	pub fn recv(&self) -> Result<T> {
 		self.inner.recv()
 	}
 
@@ -145,7 +148,7 @@ mod test {
 			let rc = Rc::new(1).unwrap();
 			let mut rc_clone = rc.clone();
 			let mut jh = spawnj(|| {
-				let v = receiver.recv();
+				let v = receiver.recv().unwrap();
 				assert_eq!(v, 101);
 				let _v = lock.write();
 				assert_eq!(*rc_clone, 1);
@@ -190,7 +193,7 @@ mod test {
 			let rc = Rc::new(1).unwrap();
 			let mut rc_clone = rc.clone();
 			let mut jh = spawnj(move || {
-				let v = receiver.recv();
+				let v = receiver.recv().unwrap();
 				assert_eq!(v, 101);
 				let _v = lock_clone.write();
 				assert_eq!(*rc_clone, 1);
@@ -230,7 +233,7 @@ mod test {
 
 			let mut jh = spawnj(move || {
 				{
-					let input = receiver.recv();
+					let input = receiver.recv().unwrap();
 					let _v = lock_clone.write();
 					*rc_clone = input + 100;
 				}
@@ -239,7 +242,7 @@ mod test {
 			.unwrap();
 
 			sender.send(301).unwrap();
-			let result = receiver2.recv();
+			let result = receiver2.recv().unwrap();
 
 			assert_eq!(result, ());
 			assert_eq!(*rc, 401);
@@ -276,7 +279,7 @@ mod test {
 
 			let mut jh = spawnj(move || {
 				{
-					let input: DropTest = receiver.recv();
+					let input: DropTest = receiver.recv().unwrap();
 					let _v = lock_clone.write();
 					*rc_clone = input.x + 100;
 					assert_eq!(unsafe { DROPCOUNT }, 0);
@@ -287,7 +290,7 @@ mod test {
 			.unwrap();
 
 			sender.send(DropTest { x: 301 }).unwrap();
-			let result = receiver2.recv();
+			let result = receiver2.recv().unwrap();
 
 			assert_eq!(result.x, 4);
 			assert_eq!(*rc, 401);
@@ -318,9 +321,9 @@ mod test {
 			channel.send(4).unwrap();
 			channel.send(5).unwrap();
 
-			assert_eq!(recv.recv(), 0);
-			assert_eq!(recv.recv(), 1);
-			assert_eq!(recv.recv(), 2);
+			assert_eq!(recv.recv().unwrap(), 0);
+			assert_eq!(recv.recv().unwrap(), 1);
+			assert_eq!(recv.recv().unwrap(), 2);
 
 			// still pending at this point
 			assert!(recv.pending());

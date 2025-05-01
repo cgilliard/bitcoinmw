@@ -6,5 +6,6 @@ errors!(
 	ThreadCreate,
 	ThreadDetach,
 	ChannelInit,
-	ChannelSend
+	ChannelSend,
+	ChannelBusy
 );

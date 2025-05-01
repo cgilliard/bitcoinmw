@@ -10,8 +10,7 @@ int channel_init(Channel *handle) {
 }
 int channel_send(Channel *handle, Message *msg) {
 	if (pthread_mutex_lock(&handle->lock)) {
-		perror("pthread_mutex_lock");
-		_exit(-1);
+		return -1;
 	}
 
 	msg->next = NULL;
@@ -22,8 +21,11 @@ int channel_send(Channel *handle, Message *msg) {
 	handle->tail = msg;
 
 	if (pthread_cond_signal(&handle->cond)) {
-		perror("pthread_cond_signal");
-		_exit(-1);
+		if (pthread_mutex_unlock(&handle->lock)) {
+			perror("pthread_mutex_unlock");
+			_exit(-1);
+		}
+		return -1;
 	}
 
 	if (pthread_mutex_unlock(&handle->lock)) {
@@ -35,12 +37,17 @@ int channel_send(Channel *handle, Message *msg) {
 }
 Message *channel_recv(Channel *handle) {
 	if (pthread_mutex_lock(&handle->lock)) {
-		perror("pthread_mutex_lock");
-		_exit(1);
+		return NULL;
 	}
 
 	while (!handle->head) {
-		pthread_cond_wait(&handle->cond, &handle->lock);
+		if (pthread_cond_wait(&handle->cond, &handle->lock)) {
+			if (pthread_mutex_unlock(&handle->lock)) {
+				perror("pthread_mutex_unlock");
+				_exit(1);
+			}
+			return NULL;
+		}
 	}
 
 	Message *ret = handle->head;
@@ -48,7 +55,7 @@ Message *channel_recv(Channel *handle) {
 	if (!handle->head) handle->tail = NULL;
 
 	if (pthread_mutex_unlock(&handle->lock)) {
-		perror("pthread_mutex_lock");
+		perror("pthread_mutex_unlock");
 		_exit(1);
 	}
 
