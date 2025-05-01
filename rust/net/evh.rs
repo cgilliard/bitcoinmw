@@ -14,10 +14,9 @@ use prelude::*;
 use util::channel::{channel, Receiver, Sender};
 use util::lock::{LockReadGuard, LockWriteGuard};
 
-type OnRecv<T> = Box<dyn FnMut(&mut T, &mut Connection<T>, &[u8]) -> Result<()>>;
-type OnAccept<T> = Box<dyn FnMut(&mut T, &Connection<T>) -> Result<()>>;
-type OnClose<T> = Box<dyn FnMut(&mut T, &Connection<T>) -> Result<()>>;
-type OnWritable<T> = Box<dyn FnMut(&mut Connection<T>) -> Result<()>>;
+pub type OnRecv<T> = Box<dyn FnMut(&mut T, &mut Connection<T>, &[u8]) -> Result<()>>;
+pub type OnAccept<T> = Box<dyn FnMut(&mut T, &Connection<T>) -> Result<()>>;
+pub type OnClose<T> = Box<dyn FnMut(&mut T, &Connection<T>) -> Result<()>>;
 
 struct AcceptorData<T>
 where
@@ -339,7 +338,7 @@ where
 					}
 				};
 				for i in 0..count {
-					if events[i].is_read() {
+					if i < events.len() && events[i].is_read() {
 						match Self::proc_read(events[i], multiplex, &mut close) {
 							Ok(exit) => {
 								if exit {
@@ -450,9 +449,11 @@ where
 						return Ok(true);
 					} else {
 						let acc = conn_clone.get_acceptor()?;
-						match acc.on_recv(&mut conn, &bytes[0..len]) {
-							Ok(_) => {}
-							Err(e) => println!("WARN: on_recv closure generated error: {}", e),
+						if len <= bytes.len() {
+							match acc.on_recv(&mut conn, &bytes[0..len]) {
+								Ok(_) => {}
+								Err(e) => println!("WARN: on_recv closure generated error: {}", e),
+							}
 						}
 					}
 				}
@@ -466,9 +467,11 @@ where
 						}
 						return Ok(true);
 					} else {
-						match (ob.on_recv)(&mut ob.attach, &mut conn_clone, &bytes[0..len]) {
-							Ok(_) => {}
-							Err(e) => println!("WARN: on_recv closure generated error: {}", e),
+						if len <= bytes.len() {
+							match (ob.on_recv)(&mut ob.attach, &mut conn_clone, &bytes[0..len]) {
+								Ok(_) => {}
+								Err(e) => println!("WARN: on_recv closure generated error: {}", e),
+							}
 						}
 					}
 				}

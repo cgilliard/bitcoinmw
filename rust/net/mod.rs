@@ -1,7 +1,7 @@
 mod constants;
-mod errors;
 mod ffi;
 
+pub mod errors;
 pub mod evh;
 pub mod multiplex;
 pub mod socket;

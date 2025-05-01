@@ -1,12 +1,16 @@
 use core::ptr::copy;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
-use std::ffi::sleep_millis;
+use std::ffi::{getmicros, sleep_millis};
 
 pub fn sleep(ms: u64) {
 	unsafe {
 		sleep_millis(ms);
 	}
+}
+
+pub fn micros() -> u64 {
+	unsafe { getmicros() }
 }
 
 pub const fn wrapping_mul(a: u64, b: u64) -> u64 {

@@ -13,6 +13,7 @@ pub use std::string::String;
 pub use std::traits::{AsRaw, AsRawMut, Display, SliceExt, StrExt, TryClone};
 pub use std::vec::Vec;
 pub use util::lock::{Lock, LockBox};
+pub use util::thread::park;
 pub use util::thread::{spawn, spawnj};
 
 // External
