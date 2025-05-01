@@ -86,8 +86,8 @@ elif [ "mrustc" = "$1" ]; then
         -o .obj/rust \
 	--extern bitcoinmw_macros=.obj/libbitcoinmw_macros.rlib \
         rust/mod.rs || exit 1
-    echo "${CC} ${CCFLAGS} ${STATIC} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1}"
-    ${CC} ${CCFLAGS} ${STATIC} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1} || exit 1
+    echo "${CC} ${CCFLAGS} ${STATIC} -o bin/bmw .obj/*.o ${OUTPUT}/libcore.rlib.o -L.obj ${LINK_GMP} ${LINK_SECP256K1}"
+    ${CC} ${CCFLAGS} ${STATIC} -o bin/bmw .obj/*.o ${OUTPUT}/libcore.rlib.o -L.obj ${LINK_GMP} ${LINK_SECP256K1} || exit 1
 else
     # build xxdir and create header
     if [ ! -e bin/xxdir ] || [ build_utils/xxdir.c -nt  bin/xxdir ]; then
