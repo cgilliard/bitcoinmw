@@ -9,27 +9,25 @@ fn exec_server() -> Result<()> {
 	let mut evh: Evh<u64> = Evh::new()?;
 
 	let port = 9090;
-	let mut s = Socket::listen([127, 0, 0, 1], 9090, 10)?;
+	let s = Socket::listen([127, 0, 0, 1], port, 10)?;
 	let recv: OnRecv<u64> = Box::new(
-		move |attach: &mut u64, conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
+		move |_attach: &mut u64, conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
 			conn.write(bytes)?;
 			Ok(())
 		},
 	)?;
 	let accept: OnAccept<u64> =
-		Box::new(move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
+		Box::new(move |_attach: &mut u64, _conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
 	let close: OnClose<u64> =
-		Box::new(move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
+		Box::new(move |_attach: &mut u64, _conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
 
 	let rc_close = Rc::new(close)?;
 	let rc_accept = Rc::new(accept)?;
 	let rc_recv = Rc::new(recv)?;
 
-	let mut server = Connection::acceptor(s, rc_recv, rc_accept, rc_close, 0u64)?;
+	let server = Connection::acceptor(s, rc_recv, rc_accept, rc_close, 0u64)?;
 	evh.register(server.clone())?;
-
 	evh.start()?;
-
 	park();
 
 	Ok(())
@@ -41,8 +39,7 @@ fn exec_client() -> Result<()> {
 	let mut count = Rc::new(0)?;
 	let start = unsafe { getmicros() };
 	let recv_client: OnRecv<u64> = Box::new(
-		move |attach: &mut u64, conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
-			println!("recv resp");
+		move |_attach: &mut u64, conn: &mut Connection<u64>, _bytes: &[u8]| -> Result<()> {
 			let _l = lock.write();
 			*count += 1;
 			if *count <= 5 {
@@ -54,11 +51,11 @@ fn exec_client() -> Result<()> {
 		},
 	)?;
 	let close_client: OnClose<u64> =
-		Box::new(move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
+		Box::new(move |_attach: &mut u64, _conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
 	let rc_recv_client = Rc::new(recv_client)?;
 	let rc_close_client = Rc::new(close_client)?;
-	let mut client = Socket::connect([127, 0, 0, 1], port)?;
-	let mut connector = Connection::outbound(client, rc_recv_client, rc_close_client, 1u64)?;
+	let client = Socket::connect([127, 0, 0, 1], port)?;
+	let connector = Connection::outbound(client, rc_recv_client, rc_close_client, 1u64)?;
 	let mut evh = Evh::new()?;
 	evh.register(connector.clone())?;
 	evh.start()?;
@@ -89,7 +86,7 @@ fn exec_client() -> Result<()> {
 	Ok(())
 }
 
-fn proc_args(argc: i32, argv: *const *const u8) -> Result<()> {
+fn proc_args(_argc: i32, argv: *const *const u8) -> Result<()> {
 	let arg2 = unsafe { CString::from_ptr(*(argv.offset(1)), true) };
 	if arg2.as_str()? == String::new("server")? {
 		println!("Starting server!");
