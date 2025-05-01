@@ -24,7 +24,9 @@ fn exec_server() -> Result<()> {
 						}
 						Err(e) => {
 							if e != EAgain {
-								exit!("socket err!");
+								let _ = conn.close();
+								println!("socket err, closing connection: {}", e);
+								break;
 							}
 						}
 					}
@@ -106,9 +108,12 @@ fn exec_client(messages: u64) -> Result<()> {
 		}
 	}
 
-	while *count_clone < (messages * 4) as usize {
+	loop {
 		sleep(10);
 		let _l = lock_clone.read();
+		if *count_clone >= (messages * 4) as usize {
+			break;
+		}
 	}
 	sleep(1);
 

@@ -142,11 +142,37 @@ where
 		if self.is_closed()? {
 			return err!(SocketClosed);
 		}
-		match &*self.inner {
-			ConnectionData::Inbound(inbound) => inbound.socket.send(b),
-			ConnectionData::Outbound(outbound) => outbound.socket.send(b),
+		let res = match &*self.inner {
+			ConnectionData::Inbound(inbound) => {
+				let res = match inbound.socket.send(b) {
+					Ok(res) => Ok(res),
+					Err(e) => {
+						if e != EAgain {
+							let mut socket = inbound.socket;
+							let _ = socket.close();
+						}
+						Err(e)
+					}
+				};
+				res
+			}
+			ConnectionData::Outbound(outbound) => {
+				let res = match outbound.socket.send(b) {
+					Ok(res) => Ok(res),
+					Err(e) => {
+						if e != EAgain {
+							let mut socket = outbound.socket;
+							let _ = socket.close();
+						}
+						Err(e)
+					}
+				};
+				res
+			}
 			_ => err!(IllegalState),
-		}
+		};
+
+		res
 	}
 
 	pub fn close(&self) -> Result<()> {
