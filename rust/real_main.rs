@@ -90,7 +90,7 @@ fn exec_client() -> Result<()> {
 }
 
 fn proc_args(argc: i32, argv: *const *const u8) -> Result<()> {
-	let arg2 = unsafe { CString::from_ptr(*(argv.add(1)), true) };
+	let arg2 = unsafe { CString::from_ptr(*(argv.offset(1)), true) };
 	if arg2.as_str()? == String::new("server")? {
 		println!("Starting server!");
 		exec_server()?;
