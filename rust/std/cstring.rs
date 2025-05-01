@@ -1,19 +1,22 @@
 use core::convert::AsRef;
 use core::ops::{Index, IndexMut};
+use core::ptr::null_mut;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
 use prelude::*;
 use std::ffi::alloc;
+use std::ffi::release;
 use std::misc::{slice_copy, subslice};
 
 pub struct CString {
-	ptr: Ptr<u8>,
+	ptr: *mut u8,
+	leak: bool,
 }
 
 impl Drop for CString {
 	fn drop(&mut self) {
-		if !self.ptr.is_null() && !self.ptr.get_bit() {
-			self.ptr.release();
-			self.ptr = Ptr::null();
+		if !self.ptr.is_null() && !self.leak {
+			unsafe { release(self.ptr) };
+			self.ptr = null_mut();
 		}
 	}
 }
@@ -22,19 +25,23 @@ impl Index<usize> for CString {
 	type Output = u8;
 
 	fn index(&self, index: usize) -> &Self::Output {
-		unsafe { &*self.ptr.raw().offset(index as isize) }
+		let len = self.len();
+		if index >= len {
+			exit!("index out of bounds for CString {} >= {}", index, len);
+		}
+		unsafe { &*self.ptr.offset(index as isize) }
 	}
 }
 
 impl IndexMut<usize> for CString {
 	fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-		unsafe { &mut *(self.ptr.raw().offset(index as isize) as *mut u8) }
+		unsafe { &mut *(self.ptr.offset(index as isize) as *mut u8) }
 	}
 }
 
 impl AsRef<[u8]> for CString {
 	fn as_ref(&self) -> &[u8] {
-		unsafe { from_raw_parts(self.ptr.raw(), self.len()) }
+		unsafe { from_raw_parts(self.ptr, self.len()) }
 	}
 }
 
@@ -48,9 +55,7 @@ impl CString {
 			}
 			slice_copy(s.as_ref(), from_raw_parts_mut(ptr, len + 1), len)?;
 			*ptr.add(len) = 0u8;
-			let ptr = Ptr::new(ptr);
-
-			Ok(Self { ptr })
+			Ok(Self { ptr, leak: false })
 		}
 	}
 
@@ -63,16 +68,15 @@ impl CString {
 			}
 			slice_copy(bytes, from_raw_parts_mut(ptr, len + 1), len)?;
 			*ptr.add(len) = 0u8;
-			let ptr = Ptr::new(ptr);
-
-			Ok(Self { ptr })
+			Ok(Self { ptr, leak: false })
 		}
 	}
 
 	pub fn from_ptr(ptr: *const u8, leak: bool) -> Self {
-		let mut ptr = Ptr::new(ptr);
-		ptr.set_bit(leak);
-		Self { ptr }
+		Self {
+			ptr: ptr as *mut u8,
+			leak,
+		}
 	}
 
 	pub fn as_str(&self) -> Result<String> {
@@ -81,7 +85,7 @@ impl CString {
 
 	pub fn len(&self) -> usize {
 		let mut len = 0;
-		while self[len] != 0 {
+		while unsafe { *self.ptr.offset(len as isize) } != 0 {
 			len += 1;
 		}
 		len
@@ -97,11 +101,11 @@ impl CString {
 	}
 
 	pub fn as_ptr(&self) -> *const u8 {
-		self.ptr.raw()
+		self.ptr
 	}
 
 	pub fn as_mut_ptr(&mut self) -> *mut u8 {
-		self.ptr.raw() as *mut u8
+		self.ptr
 	}
 
 	pub fn copy_to_slice(&self, slice: &mut [u8], offset: usize) -> Result<()> {
@@ -120,7 +124,6 @@ mod test {
 	use super::*;
 	#[test]
 	fn test_cstr() -> Result<()> {
-		/*
 		let c1 = CString::new("mystr")?;
 		assert_eq!(c1.as_str()?, String::new("mystr")?);
 
@@ -139,7 +142,7 @@ mod test {
 		assert_eq!(c1[2], 's' as u8);
 		assert_eq!(c1[3], 't' as u8);
 		assert_eq!(c1[4], 'r' as u8);
-		assert_eq!(c1[5], 0 as u8);
+		assert_eq!(c1.len(), 5);
 
 		let mut slice = [0u8; 5];
 		c1.copy_to_slice(&mut slice, 0)?;
@@ -156,18 +159,14 @@ mod test {
 		let x1 = unsafe { alloc(100) };
 		let _c1 = CString::from_ptr(x1 as *const u8, true);
 		let _c2 = CString::from_ptr(x1 as *const u8, false);
-			*/
 
 		Ok(())
 	}
 
-	/*
-
-		#[test]
-		fn test_as_bytes() -> Result<()> {
-			let str = CString::new("abc")?;
-			assert_eq!(str.as_bytes()?, vec![b'a', b'b', b'c']?);
-			Ok(())
-		}
-	*/
+	#[test]
+	fn test_as_bytes() -> Result<()> {
+		let str = CString::new("abc")?;
+		assert_eq!(str.as_bytes()?, vec![b'a', b'b', b'c']?);
+		Ok(())
+	}
 }
