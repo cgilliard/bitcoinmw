@@ -14,60 +14,67 @@ use prelude::*;
 use util::channel::{channel, Receiver, Sender};
 use util::lock::{LockReadGuard, LockWriteGuard};
 
-pub type OnRecv<T> = Box<dyn FnMut(&mut T, &mut Connection<T>, &[u8]) -> Result<()>>;
-pub type OnAccept<T> = Box<dyn FnMut(&mut T, &Connection<T>) -> Result<()>>;
-pub type OnClose<T> = Box<dyn FnMut(&mut T, &Connection<T>) -> Result<()>>;
+pub type OnRecv<T, V> = Box<dyn FnMut(&mut T, &mut Connection<T, V>, &[u8]) -> Result<()>>;
+pub type OnAccept<T, V> = Box<dyn FnMut(&mut T, &Connection<T, V>) -> Result<()>>;
+pub type OnClose<T, V> = Box<dyn FnMut(&mut T, &Connection<T, V>) -> Result<()>>;
 
-struct AcceptorData<T>
+struct AcceptorData<T, V>
 where
 	T: Clone,
+	V: Clone,
 {
 	socket: Socket,
-	on_recv: Rc<OnRecv<T>>,
-	on_accept: Rc<OnAccept<T>>,
-	on_close: Rc<OnClose<T>>,
+	on_recv: Rc<OnRecv<T, V>>,
+	on_accept: Rc<OnAccept<T, V>>,
+	on_close: Rc<OnClose<T, V>>,
 	attach: T,
 }
 
-struct InboundData<T>
+struct InboundData<T, V>
 where
 	T: Clone,
+	V: Clone,
 {
 	socket: Socket,
-	acceptor: Connection<T>,
+	acceptor: Connection<T, V>,
 	is_closed: bool,
 	lock: Lock,
 	multiplex: Multiplex,
+	opt: Option<V>,
 }
 
-struct OutboundData<T>
+struct OutboundData<T, V>
 where
 	T: Clone,
+	V: Clone,
 {
 	socket: Socket,
-	on_recv: Rc<OnRecv<T>>,
-	on_close: Rc<OnClose<T>>,
+	on_recv: Rc<OnRecv<T, V>>,
+	on_close: Rc<OnClose<T, V>>,
 	is_closed: bool,
 	lock: Lock,
 	attach: T,
+	opt: Option<V>,
 }
 
-enum ConnectionData<T>
+enum ConnectionData<T, V>
 where
 	T: Clone,
+	V: Clone,
 {
-	Inbound(InboundData<T>),
-	Outbound(OutboundData<T>),
-	Acceptor(AcceptorData<T>),
+	Inbound(InboundData<T, V>),
+	Outbound(OutboundData<T, V>),
+	Acceptor(AcceptorData<T, V>),
 	Close,
 }
 
 #[derive(Clone)]
-pub struct Connection<T>
+pub struct Connection<T, V>
 where
 	T: Clone,
+	V: Clone,
 {
-	inner: Rc<ConnectionData<T>>,
+	inner: Rc<ConnectionData<T, V>>,
 }
 
 struct CloseData {
@@ -80,24 +87,26 @@ struct CloseData {
 }
 
 #[derive(Clone)]
-pub struct Evh<T>
+pub struct Evh<T, V>
 where
 	T: Clone,
+	V: Clone,
 {
 	multiplex: Multiplex,
 	close: Rc<CloseData>,
-	_phantom_data: PhantomData<T>,
+	_phantom_data: PhantomData<(T, V)>,
 }
 
-impl<T> Connection<T>
+impl<T, V> Connection<T, V>
 where
 	T: Clone,
+	V: Clone,
 {
 	pub fn acceptor(
 		socket: Socket,
-		on_recv: Rc<OnRecv<T>>,
-		on_accept: Rc<OnAccept<T>>,
-		on_close: Rc<OnClose<T>>,
+		on_recv: Rc<OnRecv<T, V>>,
+		on_accept: Rc<OnAccept<T, V>>,
+		on_close: Rc<OnClose<T, V>>,
 		attach: T,
 	) -> Result<Self> {
 		let inner = Rc::new(ConnectionData::Acceptor(AcceptorData {
@@ -113,8 +122,8 @@ where
 
 	pub fn outbound(
 		socket: Socket,
-		on_recv: Rc<OnRecv<T>>,
-		on_close: Rc<OnClose<T>>,
+		on_recv: Rc<OnRecv<T, V>>,
+		on_close: Rc<OnClose<T, V>>,
 		attach: T,
 	) -> Result<Self> {
 		let inner = Rc::new(ConnectionData::Outbound(OutboundData {
@@ -124,6 +133,7 @@ where
 			lock: lock!(),
 			is_closed: false,
 			attach,
+			opt: None,
 		}))?;
 
 		Ok(Self { inner })
@@ -186,15 +196,33 @@ where
 		}
 	}
 
+	pub fn opt(&mut self) -> Result<Option<&mut V>> {
+		match &mut *self.inner {
+			ConnectionData::Inbound(conn) => Ok(conn.opt.as_mut()),
+			ConnectionData::Outbound(conn) => Ok(conn.opt.as_mut()),
+			_ => err!(IllegalState),
+		}
+	}
+
+	pub fn set_opt(&mut self, v: V) -> Result<()> {
+		match &mut *self.inner {
+			ConnectionData::Inbound(conn) => conn.opt = Some(v),
+			ConnectionData::Outbound(conn) => conn.opt = Some(v),
+			_ => return err!(IllegalState),
+		}
+
+		Ok(())
+	}
+
 	pub unsafe fn drop_rc(&mut self) {
 		self.inner.set_to_drop();
 	}
 
-	fn from_inner(inner: Rc<ConnectionData<T>>) -> Self {
+	fn from_inner(inner: Rc<ConnectionData<T, V>>) -> Self {
 		Self { inner }
 	}
 
-	fn inbound(socket: Socket, acceptor: Connection<T>, multiplex: Multiplex) -> Result<Self> {
+	fn inbound(socket: Socket, acceptor: Connection<T, V>, multiplex: Multiplex) -> Result<Self> {
 		Ok(Self {
 			inner: Rc::new(ConnectionData::Inbound(InboundData {
 				socket,
@@ -202,11 +230,12 @@ where
 				is_closed: false,
 				lock: lock!(),
 				multiplex,
+				opt: None,
 			}))?,
 		})
 	}
 
-	fn get_acceptor(&mut self) -> Result<&mut Connection<T>> {
+	fn get_acceptor(&mut self) -> Result<&mut Connection<T, V>> {
 		match &mut *self.inner {
 			ConnectionData::Acceptor(_) => err!(IllegalState),
 			ConnectionData::Outbound(_) => err!(IllegalState),
@@ -224,7 +253,7 @@ where
 		}
 	}
 
-	fn on_recv(&mut self, conn: &mut Connection<T>, b: &[u8]) -> Result<()> {
+	fn on_recv(&mut self, conn: &mut Connection<T, V>, b: &[u8]) -> Result<()> {
 		match &mut *self.inner {
 			ConnectionData::Acceptor(acc) => (acc.on_recv)(&mut acc.attach, conn, b),
 			ConnectionData::Outbound(_) => err!(IllegalState),
@@ -233,7 +262,7 @@ where
 		}
 	}
 
-	fn on_close(&mut self, conn: &Connection<T>) -> Result<()> {
+	fn on_close(&mut self, conn: &Connection<T, V>) -> Result<()> {
 		match &mut *self.inner {
 			ConnectionData::Acceptor(acc) => (acc.on_close)(&mut acc.attach, conn),
 			ConnectionData::Outbound(_) => err!(IllegalState),
@@ -295,9 +324,10 @@ where
 	}
 }
 
-impl<T> Evh<T>
+impl<T, V> Evh<T, V>
 where
 	T: Clone,
+	V: Clone,
 {
 	pub fn new() -> Result<Self> {
 		let (port, socket) = Socket::listen_rand([127, 0, 0, 1], 10)?;
@@ -314,7 +344,7 @@ where
 			recv,
 		})?;
 
-		let inner = Rc::new(ConnectionData::<T>::Close)?;
+		let inner = Rc::new(ConnectionData::<T, V>::Close)?;
 		Self::try_register(multiplex, socket, unsafe { inner.into_raw() })?;
 		Ok(Self {
 			multiplex,
@@ -323,7 +353,7 @@ where
 		})
 	}
 
-	pub fn register(&mut self, conn: Connection<T>) -> Result<()> {
+	pub fn register(&mut self, conn: Connection<T, V>) -> Result<()> {
 		let inner_clone = conn.inner.clone();
 
 		match &*conn.inner {
@@ -386,8 +416,8 @@ where
 	}
 
 	fn proc_read(evt: Event, multiplex: Multiplex, close: &mut Rc<CloseData>) -> Result<bool> {
-		let mut inner: Rc<ConnectionData<T>> =
-			unsafe { Rc::from_raw(Ptr::new(evt.attachment() as *const ConnectionData<T>)) };
+		let mut inner: Rc<ConnectionData<T, V>> =
+			unsafe { Rc::from_raw(Ptr::new(evt.attachment() as *const ConnectionData<T, V>)) };
 		match &*inner {
 			ConnectionData::Close => {
 				if close.flag {
@@ -430,13 +460,13 @@ where
 	fn try_register(
 		multiplex: Multiplex,
 		socket: Socket,
-		ptr: Ptr<ConnectionData<T>>,
+		ptr: Ptr<ConnectionData<T, V>>,
 	) -> Result<()> {
 		match multiplex.register(socket, RegisterType::Read, Some(ptr.raw() as *const u8)) {
 			Ok(_) => Ok(()),
 			Err(e) => {
 				// if register fails, we must free the Rc.
-				let rc: Rc<ConnectionData<T>> = unsafe { Rc::from_raw(ptr) };
+				let rc: Rc<ConnectionData<T, V>> = unsafe { Rc::from_raw(ptr) };
 				println!(
 					"WARN: failed to register socket: {} with multiplex: {} due to {}",
 					socket, multiplex, e
@@ -446,7 +476,7 @@ where
 		}
 	}
 
-	fn proc_recv(mut conn: Connection<T>) -> Result<bool> {
+	fn proc_recv(mut conn: Connection<T, V>) -> Result<bool> {
 		let mut bytes = [0u8; EVH_MAX_BYTES_PER_READ];
 		let mut socket = conn.socket();
 		loop {
@@ -504,7 +534,7 @@ where
 		}
 	}
 
-	fn proc_accept(mut conn: Connection<T>, multiplex: Multiplex) -> Result<bool> {
+	fn proc_accept(mut conn: Connection<T, V>, multiplex: Multiplex) -> Result<bool> {
 		let mut acc = conn.socket();
 		loop {
 			let mut nsock = match acc.accept() {
@@ -567,7 +597,7 @@ mod test {
 
 	#[test]
 	fn test_evh1() -> Result<()> {
-		let mut evh: Evh<u64> = Evh::new()?;
+		let mut evh: Evh<u64, u64> = Evh::new()?;
 		let lock = lock_box!()?;
 		let lock_clone = lock.clone();
 		let lock_clone2 = lock.clone();
@@ -582,22 +612,22 @@ mod test {
 		let close_count_clone = close_count.clone();
 
 		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
-		let recv: OnRecv<u64> = Box::new(
-			move |attach: &mut u64, conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
+		let recv: OnRecv<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>, bytes: &[u8]| -> Result<()> {
 				let _l = lock_clone.write();
 				*count += 1;
 				Ok(())
 			},
 		)?;
-		let accept: OnAccept<u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> {
+		let accept: OnAccept<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> {
 				let _l = lock_clone2.write();
 				*acc_count += 1;
 				Ok(())
 			},
 		)?;
-		let close: OnClose<u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> {
+		let close: OnClose<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> {
 				let _l = lock_clone3.write();
 				*close_count += 1;
 				Ok(())
@@ -667,15 +697,15 @@ mod test {
 
 	#[test]
 	fn test_evh_reply() -> Result<()> {
-		let mut evh: Evh<u64> = Evh::new()?;
+		let mut evh: Evh<u64, u64> = Evh::new()?;
 		let lock = lock_box!()?;
 		let lock_clone = lock.clone();
 		let count = Rc::new(0)?;
 		let mut count_clone = count.clone();
 
 		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
-		let recv: OnRecv<u64> = Box::new(
-			move |attach: &mut u64, conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
+		let recv: OnRecv<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>, bytes: &[u8]| -> Result<()> {
 				let len = loop {
 					match conn.write(bytes) {
 						Ok(len) => break len,
@@ -687,10 +717,11 @@ mod test {
 				Ok(())
 			},
 		)?;
-		let accept: OnAccept<u64> =
-			Box::new(move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
-		let close: OnClose<u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> {
+		let accept: OnAccept<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+		)?;
+		let close: OnClose<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> {
 				let _l = lock_clone.write();
 				*count_clone += 1;
 				Ok(())
@@ -765,15 +796,15 @@ mod test {
 
 	#[test]
 	fn test_evh_close() -> Result<()> {
-		let mut evh: Evh<u64> = Evh::new()?;
+		let mut evh: Evh<u64, u64> = Evh::new()?;
 		let lock = lock_box!()?;
 		let lock_clone = lock.clone();
 		let count = Rc::new(0)?;
 		let mut count_clone = count.clone();
 
 		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
-		let recv: OnRecv<u64> = Box::new(
-			move |attach: &mut u64, conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
+		let recv: OnRecv<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>, bytes: &[u8]| -> Result<()> {
 				let len = loop {
 					match conn.write(bytes) {
 						Ok(len) => break len,
@@ -788,10 +819,11 @@ mod test {
 				Ok(())
 			},
 		)?;
-		let accept: OnAccept<u64> =
-			Box::new(move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
-		let close: OnClose<u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> {
+		let accept: OnAccept<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+		)?;
+		let close: OnClose<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> {
 				assert!(conn.write(b"test").is_err());
 				let _l = lock_clone.write();
 				*count_clone += 1;
@@ -883,7 +915,7 @@ mod test {
 
 	#[test]
 	fn test_evh2servers() -> Result<()> {
-		let mut evh: Evh<u64> = Evh::new()?;
+		let mut evh: Evh<u64, u64> = Evh::new()?;
 
 		let lock = lock_box!()?;
 		let count = Rc::new(0)?;
@@ -892,17 +924,19 @@ mod test {
 		let mut count_clone = count.clone();
 
 		let (port1, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
-		let recv: OnRecv<u64> = Box::new(
-			move |attach: &mut u64, conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
+		let recv: OnRecv<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>, bytes: &[u8]| -> Result<()> {
 				let _l = lock_clone.write();
 				*count_clone += *attach;
 				Ok(())
 			},
 		)?;
-		let accept: OnAccept<u64> =
-			Box::new(move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
-		let close: OnClose<u64> =
-			Box::new(move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
+		let accept: OnAccept<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+		)?;
+		let close: OnClose<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+		)?;
 
 		let rc_close = Rc::new(close)?;
 		let rc_accept = Rc::new(accept)?;
@@ -968,15 +1002,15 @@ mod test {
 
 	#[test]
 	fn test_evh_client_reg() -> Result<()> {
-		let mut evh: Evh<u64> = Evh::new()?;
+		let mut evh: Evh<u64, u64> = Evh::new()?;
 		let lock = lock_box!()?;
 		let lock_clone = lock.clone();
 		let count = Rc::new(0)?;
 		let mut count_clone = count.clone();
 
 		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
-		let recv: OnRecv<u64> = Box::new(
-			move |attach: &mut u64, conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
+		let recv: OnRecv<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>, bytes: &[u8]| -> Result<()> {
 				let len = loop {
 					match conn.write(bytes) {
 						Ok(len) => break len,
@@ -988,10 +1022,12 @@ mod test {
 				Ok(())
 			},
 		)?;
-		let accept: OnAccept<u64> =
-			Box::new(move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
-		let close: OnClose<u64> =
-			Box::new(move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
+		let accept: OnAccept<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+		)?;
+		let close: OnClose<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+		)?;
 
 		let rc_close = Rc::new(close)?;
 		let rc_accept = Rc::new(accept)?;
@@ -1002,8 +1038,8 @@ mod test {
 
 		let mut client = Socket::connect([127, 0, 0, 1], port)?;
 
-		let recv_client: OnRecv<u64> = Box::new(
-			move |attach: &mut u64, conn: &mut Connection<u64>, bytes: &[u8]| -> Result<()> {
+		let recv_client: OnRecv<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>, bytes: &[u8]| -> Result<()> {
 				assert_eq!(bytes.len(), 6);
 				assert_eq!(bytes[0], b't');
 				assert_eq!(bytes[1], b'e');
@@ -1016,8 +1052,9 @@ mod test {
 				Ok(())
 			},
 		)?;
-		let close_client: OnClose<u64> =
-			Box::new(move |attach: &mut u64, conn: &Connection<u64>| -> Result<()> { Ok(()) })?;
+		let close_client: OnClose<u64, u64> = Box::new(
+			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+		)?;
 
 		let rc_recv_client = Rc::new(recv_client)?;
 		let rc_close_client = Rc::new(close_client)?;
