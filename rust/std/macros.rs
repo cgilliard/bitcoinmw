@@ -360,9 +360,8 @@ macro_rules! exit {
         }};
 }
 
-#[cfg(mrustc)]
 #[macro_export]
-macro_rules! todo {
+macro_rules! nop {
 	() => {{
 		loop {}
 	}};

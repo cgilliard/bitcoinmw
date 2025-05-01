@@ -30,19 +30,19 @@ impl Ws {
 	}
 
 	pub fn register(&mut self, _listener: Listener) -> Result<()> {
-		err!(Todo)
+		nop!();
 	}
 
 	pub fn start(&mut self) -> Result<()> {
-		err!(Todo)
+		nop!();
 	}
 
 	pub fn stop(&mut self) -> Result<()> {
-		err!(Todo)
+		nop!();
 	}
 
 	pub fn add_handler(&mut self, _handler: Handler) -> Result<()> {
-		err!(Todo)
+		nop!();
 	}
 }
 
