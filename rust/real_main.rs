@@ -36,10 +36,12 @@ fn exec_server() -> Result<()> {
 			Ok(())
 		},
 	)?;
-	let accept: OnAccept<u64, u64> =
-		Box::new(move |_attach: &mut u64, _conn: &Connection<u64, u64>| -> Result<()> { Ok(()) })?;
-	let close: OnClose<u64, u64> =
-		Box::new(move |_attach: &mut u64, _conn: &Connection<u64, u64>| -> Result<()> { Ok(()) })?;
+	let accept: OnAccept<u64, u64> = Box::new(
+		move |_attach: &mut u64, _conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) },
+	)?;
+	let close: OnClose<u64, u64> = Box::new(
+		move |_attach: &mut u64, _conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) },
+	)?;
 
 	let rc_close = Rc::new(close)?;
 	let rc_accept = Rc::new(accept)?;
@@ -76,8 +78,9 @@ fn exec_client(messages: u64) -> Result<()> {
 			Ok(())
 		},
 	)?;
-	let close_client: OnClose<u64, u64> =
-		Box::new(move |_attach: &mut u64, _conn: &Connection<u64, u64>| -> Result<()> { Ok(()) })?;
+	let close_client: OnClose<u64, u64> = Box::new(
+		move |_attach: &mut u64, _conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) },
+	)?;
 	let rc_recv_client = Rc::new(recv_client)?;
 	let rc_close_client = Rc::new(close_client)?;
 	let client = Socket::connect([127, 0, 0, 1], port)?;

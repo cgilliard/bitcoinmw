@@ -15,8 +15,8 @@ use util::channel::{channel, Receiver, Sender};
 use util::lock::{LockReadGuard, LockWriteGuard};
 
 pub type OnRecv<T, V> = Box<dyn FnMut(&mut T, &mut Connection<T, V>, &[u8]) -> Result<()>>;
-pub type OnAccept<T, V> = Box<dyn FnMut(&mut T, &Connection<T, V>) -> Result<()>>;
-pub type OnClose<T, V> = Box<dyn FnMut(&mut T, &Connection<T, V>) -> Result<()>>;
+pub type OnAccept<T, V> = Box<dyn FnMut(&mut T, &mut Connection<T, V>) -> Result<()>>;
+pub type OnClose<T, V> = Box<dyn FnMut(&mut T, &mut Connection<T, V>) -> Result<()>>;
 
 struct AcceptorData<T, V>
 where
@@ -262,7 +262,7 @@ where
 		}
 	}
 
-	fn on_close(&mut self, conn: &Connection<T, V>) -> Result<()> {
+	fn on_close(&mut self, conn: &mut Connection<T, V>) -> Result<()> {
 		match &mut *self.inner {
 			ConnectionData::Acceptor(acc) => (acc.on_close)(&mut acc.attach, conn),
 			ConnectionData::Outbound(_) => err!(IllegalState),
@@ -495,7 +495,7 @@ where
 					if len == 0 {
 						conn_clone.close_impl()?;
 						let acc = conn_clone.get_acceptor()?;
-						match acc.on_close(&conn) {
+						match acc.on_close(&mut conn) {
 							Ok(_) => {}
 							Err(e) => println!("WARN: on_close closure generated error: {}", e),
 						}
@@ -554,7 +554,7 @@ where
 					}
 				}
 			};
-			let nconn = match Connection::inbound(nsock, conn.clone(), multiplex) {
+			let mut nconn = match Connection::inbound(nsock, conn.clone(), multiplex) {
 				Ok(nconn) => nconn,
 				Err(e) => {
 					println!(
@@ -577,7 +577,8 @@ where
 			}
 
 			match &mut *conn.inner {
-				ConnectionData::Acceptor(acc) => match (acc.on_accept)(&mut acc.attach, &nconn) {
+				ConnectionData::Acceptor(acc) => match (acc.on_accept)(&mut acc.attach, &mut nconn)
+				{
 					Ok(_) => {}
 					Err(e) => println!("WARN: on_accept closure generated error: {}", e),
 				},
@@ -620,14 +621,14 @@ mod test {
 			},
 		)?;
 		let accept: OnAccept<u64, u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> {
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>| -> Result<()> {
 				let _l = lock_clone2.write();
 				*acc_count += 1;
 				Ok(())
 			},
 		)?;
 		let close: OnClose<u64, u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> {
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>| -> Result<()> {
 				let _l = lock_clone3.write();
 				*close_count += 1;
 				Ok(())
@@ -712,14 +713,13 @@ mod test {
 			},
 		)?;
 		let accept: OnAccept<u64, u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> {
-				let mut conn = conn.clone();
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>| -> Result<()> {
 				conn.set_opt(123)?;
 				Ok(())
 			},
 		)?;
 		let close: OnClose<u64, u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) },
 		)?;
 
 		let rc_close = Rc::new(close)?;
@@ -794,10 +794,10 @@ mod test {
 			},
 		)?;
 		let accept: OnAccept<u64, u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) },
 		)?;
 		let close: OnClose<u64, u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> {
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>| -> Result<()> {
 				let _l = lock_clone.write();
 				*count_clone += 1;
 				Ok(())
@@ -896,10 +896,10 @@ mod test {
 			},
 		)?;
 		let accept: OnAccept<u64, u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) },
 		)?;
 		let close: OnClose<u64, u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> {
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>| -> Result<()> {
 				assert!(conn.write(b"test").is_err());
 				let _l = lock_clone.write();
 				*count_clone += 1;
@@ -1008,10 +1008,10 @@ mod test {
 			},
 		)?;
 		let accept: OnAccept<u64, u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) },
 		)?;
 		let close: OnClose<u64, u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) },
 		)?;
 
 		let rc_close = Rc::new(close)?;
@@ -1099,10 +1099,10 @@ mod test {
 			},
 		)?;
 		let accept: OnAccept<u64, u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) },
 		)?;
 		let close: OnClose<u64, u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) },
 		)?;
 
 		let rc_close = Rc::new(close)?;
@@ -1129,7 +1129,7 @@ mod test {
 			},
 		)?;
 		let close_client: OnClose<u64, u64> = Box::new(
-			move |attach: &mut u64, conn: &Connection<u64, u64>| -> Result<()> { Ok(()) },
+			move |attach: &mut u64, conn: &mut Connection<u64, u64>| -> Result<()> { Ok(()) },
 		)?;
 
 		let rc_recv_client = Rc::new(recv_client)?;
