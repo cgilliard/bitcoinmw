@@ -284,3 +284,53 @@ pub fn from_le_bytes_u64(bytes: &[u8]) -> Result<u64> {
 		err!(IllegalArgument)
 	}
 }
+
+pub fn to_be_bytes_u64(value: u64, bytes: &mut [u8]) {
+	if bytes.len() >= 8 {
+		bytes[0] = (value >> 56) as u8;
+		bytes[1] = (value >> 48) as u8;
+		bytes[2] = (value >> 40) as u8;
+		bytes[3] = (value >> 32) as u8;
+		bytes[4] = (value >> 24) as u8;
+		bytes[5] = (value >> 16) as u8;
+		bytes[6] = (value >> 8) as u8;
+		bytes[7] = value as u8;
+	}
+}
+
+pub fn to_be_bytes_u32(value: u32, bytes: &mut [u8]) {
+	if bytes.len() >= 4 {
+		bytes[0] = (value >> 24) as u8;
+		bytes[1] = (value >> 16) as u8;
+		bytes[2] = (value >> 8) as u8;
+		bytes[3] = value as u8;
+	}
+}
+
+pub fn to_be_bytes_u16(value: u16, bytes: &mut [u8]) {
+	if bytes.len() >= 2 {
+		bytes[0] = (value >> 8) as u8;
+		bytes[1] = value as u8;
+	}
+}
+
+pub fn to_be_bytes_u128(value: u128, bytes: &mut [u8]) {
+	if bytes.len() >= 16 {
+		bytes[0] = (value >> 120) as u8;
+		bytes[1] = (value >> 112) as u8;
+		bytes[2] = (value >> 104) as u8;
+		bytes[3] = (value >> 96) as u8;
+		bytes[4] = (value >> 88) as u8;
+		bytes[5] = (value >> 80) as u8;
+		bytes[6] = (value >> 72) as u8;
+		bytes[7] = (value >> 64) as u8;
+		bytes[8] = (value >> 56) as u8;
+		bytes[9] = (value >> 48) as u8;
+		bytes[10] = (value >> 40) as u8;
+		bytes[11] = (value >> 32) as u8;
+		bytes[12] = (value >> 24) as u8;
+		bytes[13] = (value >> 16) as u8;
+		bytes[14] = (value >> 8) as u8;
+		bytes[15] = value as u8;
+	}
+}

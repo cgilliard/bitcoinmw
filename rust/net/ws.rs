@@ -6,15 +6,15 @@ use net::evh::*;
 use net::socket::Socket;
 use net::util::websocket_accept_key;
 use prelude::*;
-use std::misc::from_utf8;
+use std::misc::{from_utf8, to_be_bytes_u16, to_be_bytes_u64};
 
 pub struct Handle {
 	conn: Connection<WsContext, WsConnection>,
 }
 
-pub type WsOnRecv = Box<dyn FnMut(&Handle, &[u8], bool, u8) -> Result<()>>;
-pub type WsOnAccept = Box<dyn FnMut(&Handle) -> Result<()>>;
-pub type WsOnClose = Box<dyn FnMut(&Handle) -> Result<()>>;
+pub type WsOnRecv = Box<dyn FnMut(&mut Handle, &[u8], bool, u8) -> Result<()>>;
+pub type WsOnAccept = Box<dyn FnMut(&mut Handle) -> Result<()>>;
+pub type WsOnClose = Box<dyn FnMut(&mut Handle) -> Result<()>>;
 
 #[derive(PartialEq)]
 enum WsState {
@@ -36,6 +36,26 @@ struct WsConnectionInner {
 #[derive(Clone)]
 struct WsConnection {
 	inner: Rc<WsConnectionInner>,
+}
+
+impl Handle {
+	pub fn send(&mut self, bytes: &[u8]) -> Result<()> {
+		let len = bytes.len();
+		if len <= 125 {
+			Ws::write_fully(&mut self.conn, &[0x82, bytes.len() as u8])?;
+		} else if len <= 65535 {
+			let mut buf = [0x82, 126, 0, 0];
+			to_be_bytes_u16(len as u16, &mut buf[2..]);
+			Ws::write_fully(&mut self.conn, &buf)?;
+		} else {
+			let mut buf = [0x82, 127, 0, 0, 0, 0, 0, 0, 0, 0];
+			to_be_bytes_u64(len as u64, &mut buf[2..]);
+			Ws::write_fully(&mut self.conn, &buf)?;
+		}
+		Ws::write_fully(&mut self.conn, bytes)?;
+
+		Ok(())
+	}
 }
 
 impl Drop for WsConnectionInner {
@@ -307,10 +327,10 @@ impl Ws {
 		//mut on_recv: Rc<WsOnRecv>,
 		handler: Option<Handler>,
 	) -> Result<()> {
-		let handle = Handle { conn };
+		let mut handle = Handle { conn };
 		match handler {
 			Some(mut handler) => match &mut handler.inner.handlers {
-				Some(ref mut handlers) => (handlers.on_recv)(&handle, bytes, fin, op)?,
+				Some(ref mut handlers) => (handlers.on_recv)(&mut handle, bytes, fin, op)?,
 				None => println!("WARN: no handler found1!"),
 			},
 			None => println!("WARN: no handler found2!"),
@@ -352,6 +372,14 @@ impl Ws {
 				if upgraded {
 					att.inner.is_upgraded = true;
 					att.inner.handler = handler;
+					let mut handle = Handle { conn: conn.clone() };
+					match att.inner.handler {
+						Some(ref mut handler) => match handler.inner.handlers {
+							Some(ref mut handlers) => (handlers.on_accept)(&mut handle)?,
+							None => println!("WARN: no handler1"),
+						},
+						None => println!("WARN: no handler2"),
+					}
 					break;
 				} else if clear_through == 0 {
 					break;
@@ -529,8 +557,6 @@ Sec-WebSocket-Accept: {}\r\n\r\n",
 			)?
 		};
 
-		println!("resp='{}'", msg);
-
 		Self::write_fully(&mut conn, msg.as_bytes())?;
 		if key.len() == 0 {
 			conn.close()?;
@@ -624,13 +650,18 @@ mod test {
 		})?;
 
 		let on_recv: WsOnRecv = Box::new(
-			|handle: &Handle, bytes: &[u8], fin: bool, op: u8| -> Result<()> {
+			|handle: &mut Handle, bytes: &[u8], _fin: bool, _op: u8| -> Result<()> {
 				println!("test_ws1 recv: {}", bytes);
+				handle.send(b"okokok")?;
 				Ok(())
 			},
 		)?;
-		let on_accept: WsOnAccept = Box::new(|handle: &Handle| -> Result<()> { Ok(()) })?;
-		let on_close: WsOnClose = Box::new(|handle: &Handle| -> Result<()> { Ok(()) })?;
+		let on_accept: WsOnAccept = Box::new(|handle: &mut Handle| -> Result<()> {
+			println!("accepted websocket in test_ws1");
+			handle.send(b"hi1234")?;
+			Ok(())
+		})?;
+		let on_close: WsOnClose = Box::new(|_handle: &mut Handle| -> Result<()> { Ok(()) })?;
 		let on_recv = Rc::new(on_recv)?;
 		let on_accept = Rc::new(on_accept)?;
 		let on_close = Rc::new(on_close)?;
@@ -641,7 +672,7 @@ mod test {
 		ws.start()?;
 
 		park();
-			*/
+				*/
 		Ok(())
 	}
 }
