@@ -182,6 +182,10 @@ impl String {
 		}
 	}
 
+	pub fn as_bytes(&self) -> &[u8] {
+		self.as_str().as_bytes()
+	}
+
 	pub fn substring(&self, nstart: usize, nend: usize) -> Result<Self> {
 		if nstart > nend || nend - nstart > self.len() {
 			return err!(OutOfBounds);

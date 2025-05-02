@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use core::ops::FnMut;
 use core::ptr::copy;
+use net::errors::EAgain;
 use net::evh::*;
 use net::socket::Socket;
 use prelude::*;
@@ -25,6 +26,7 @@ pub struct WsContext {}
 
 struct WsConnectionInner {
 	rbuf: Vec<u8>,
+	is_upgraded: bool,
 }
 
 #[derive(Clone)]
@@ -40,7 +42,10 @@ impl Drop for WsConnectionInner {
 
 impl WsConnection {
 	fn new() -> Result<Self> {
-		let inner = Rc::new(WsConnectionInner { rbuf: Vec::new() })?;
+		let inner = Rc::new(WsConnectionInner {
+			rbuf: Vec::new(),
+			is_upgraded: false,
+		})?;
 		Ok(Self { inner })
 	}
 }
@@ -175,6 +180,63 @@ impl Ws {
 		self.handlers.try_insert(node)
 	}
 
+	fn proc_upgraded(
+		_ctx: &mut WsContext,
+		_conn: Connection<WsContext, WsConnection>,
+		_bytes: &[u8],
+	) -> Result<()> {
+		Ok(())
+	}
+
+	fn proc_proto_negotiation(
+		ctx: &mut WsContext,
+		conn: Connection<WsContext, WsConnection>,
+		bytes: &[u8],
+		att: &mut WsConnection,
+	) -> Result<()> {
+		// if the read buffer is len == 0, there's no buffered data
+		if att.inner.rbuf.len() == 0 {
+			let mut offset = 0;
+			loop {
+				if offset < bytes.len() {
+					let b = &bytes[offset..];
+					// try to process bytes directly
+					let clear_through = Self::proc_data(ctx, conn.clone(), b)?;
+					// adjust offset as we go
+					offset += clear_through;
+					if clear_through == 0 {
+						break;
+					}
+				}
+			}
+			// if we don't process to the end of bytes append
+			if offset < bytes.len() {
+				att.inner.rbuf.extend_from_slice(&bytes[offset..])?;
+			}
+		} else {
+			att.inner.rbuf.extend_from_slice(bytes)?;
+			loop {
+				let clear_through = Self::proc_data(ctx, conn.clone(), &att.inner.rbuf[..])?;
+				let rbuf_len = att.inner.rbuf.len();
+				if clear_through >= rbuf_len {
+					att.inner.rbuf.clear()?;
+				} else if clear_through != 0 {
+					let nlen = rbuf_len - clear_through;
+					let ptr = att.inner.rbuf.as_mut_ptr();
+					unsafe {
+						copy(ptr.add(clear_through), ptr, nlen);
+					}
+					att.inner.rbuf.truncate(rbuf_len - clear_through)?;
+				}
+				if clear_through == 0 || att.inner.rbuf.len() == 0 {
+					break;
+				}
+			}
+		}
+
+		Ok(())
+	}
+
 	fn proc_on_recv(
 		ctx: &mut WsContext,
 		conn: &mut Connection<WsContext, WsConnection>,
@@ -184,46 +246,10 @@ impl Ws {
 		// check for attachment
 		match conn.attach()? {
 			Some(att) => {
-				// if the read buffer is len == 0, there's no buffered data
-				if att.inner.rbuf.len() == 0 {
-					let mut offset = 0;
-					loop {
-						if offset < bytes.len() {
-							let b = &bytes[offset..];
-							// try to process bytes directly
-							let clear_through = Self::proc_data(ctx, connection.clone(), b)?;
-							// adjust offset as we go
-							offset += clear_through;
-							if clear_through == 0 {
-								break;
-							}
-						}
-					}
-					// if we don't process to the end of bytes append
-					if offset < bytes.len() {
-						att.inner.rbuf.extend_from_slice(&bytes[offset..])?;
-					}
+				if att.inner.is_upgraded {
+					Self::proc_upgraded(ctx, connection, bytes)?;
 				} else {
-					att.inner.rbuf.extend_from_slice(bytes)?;
-					loop {
-						let clear_through =
-							Self::proc_data(ctx, connection.clone(), &att.inner.rbuf[..])?;
-						println!("clear_through={}", clear_through);
-						let rbuf_len = att.inner.rbuf.len();
-						if clear_through >= rbuf_len {
-							att.inner.rbuf.clear()?;
-						} else if clear_through != 0 {
-							let nlen = rbuf_len - clear_through;
-							let ptr = att.inner.rbuf.as_mut_ptr();
-							unsafe {
-								copy(ptr.add(clear_through), ptr, nlen);
-							}
-							att.inner.rbuf.truncate(rbuf_len - clear_through)?;
-						}
-						if clear_through == 0 {
-							break;
-						}
-					}
+					Self::proc_proto_negotiation(ctx, connection, bytes, att)?;
 				}
 			}
 			None => {
@@ -239,8 +265,6 @@ impl Ws {
 		conn: Connection<WsContext, WsConnection>,
 		bytes: &[u8],
 	) -> Result<usize> {
-		println!("proc[{}]: {}", conn.socket(), bytes);
-
 		if let Some(pos) = bytes.windows(4).position(|window| window == b"\r\n\r\n") {
 			if pos <= bytes.len() {
 				let mut url = "";
@@ -258,19 +282,19 @@ impl Ws {
 					}
 				}
 
-				let target = b"\r\nSec-WebSocket-Key: ";
+				let target = b"\nSec-WebSocket-Key: ";
 				if let Some(start) = bytes
 					.windows(target.len())
 					.position(|window| window == target)
 				{
 					if start + 1 < bytes.len() {
 						if let Some(end) = bytes[(start + 1)..]
-							.windows(2)
-							.position(|window| window == b"\r\n")
+							.windows(1)
+							.position(|window| window == b"\r")
 						{
+							let end = end + start + 1;
 							let start = target.len() + start;
-							let end = start + end + 1;
-							if start < end && end < bytes.len() {
+							if start < end && end <= bytes.len() {
 								key = from_utf8(&bytes[start..end])?;
 							}
 						}
@@ -279,20 +303,33 @@ impl Ws {
 
 				Self::proc_handshake(ctx, conn, &bytes[0..pos], url, key)?;
 			}
-			return Ok(pos + 4);
+			Ok(pos + 4)
+		} else {
+			Ok(0)
 		}
-
-		Ok(0)
 	}
 
 	fn proc_handshake(
 		_ctx: &mut WsContext,
-		_conn: Connection<WsContext, WsConnection>,
+		mut conn: Connection<WsContext, WsConnection>,
 		bytes: &[u8],
 		url: &str,
 		key: &str,
 	) -> Result<()> {
 		println!("proc_handshake[{}][key='{}']: {}", url, key, bytes);
+
+		let mykey = "somekeyhere";
+		let msg = format!(
+			"HTTP/1.1 101 Switching Protocols\r\n\
+Upgrade: websocket\r\n\
+Connection: Upgrade\r\n\
+Sec-WebSocket-Accept: {}\r\n\
+Sec-WebSocket-Protocol: chat\r\n\r\n",
+			mykey
+		)?;
+
+		Self::write_fully(&mut conn, msg.as_bytes())?;
+
 		Ok(())
 	}
 
@@ -313,6 +350,24 @@ impl Ws {
 		conn: &mut Connection<WsContext, WsConnection>,
 	) -> Result<()> {
 		println!("close {}", conn.socket());
+		Ok(())
+	}
+
+	fn write_fully(conn: &mut Connection<WsContext, WsConnection>, bytes: &[u8]) -> Result<()> {
+		let mut offset = 0;
+		let blen = bytes.len();
+		while offset < blen {
+			match conn.write(&bytes[offset..]) {
+				Ok(wlen) => {
+					offset += wlen;
+				}
+				Err(e) => {
+					if e != EAgain {
+						return Err(e);
+					}
+				}
+			}
+		}
 		Ok(())
 	}
 }
