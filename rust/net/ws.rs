@@ -1,8 +1,10 @@
 #![allow(dead_code)]
 use core::ops::FnMut;
+use core::ptr::copy;
 use net::evh::*;
 use net::socket::Socket;
 use prelude::*;
+use std::misc::from_utf8;
 
 pub struct Handle {}
 
@@ -19,43 +21,34 @@ enum WsState {
 }
 
 #[derive(Clone)]
-pub struct WsContext {
-	//connections: RbTree<WsConnection>,
+pub struct WsContext {}
+
+struct WsConnectionInner {
+	rbuf: Vec<u8>,
 }
 
 #[derive(Clone)]
-pub struct ConnectionState {}
-
 struct WsConnection {
-	conn: Connection<WsContext, ConnectionState>,
-	handler: Option<Handler>,
+	inner: Rc<WsConnectionInner>,
 }
 
-impl PartialEq for WsConnection {
-	fn eq(&self, other: &WsConnection) -> bool {
-		self.conn.socket() == other.conn.socket()
+impl Drop for WsConnectionInner {
+	fn drop(&mut self) {
+		println!("wsconn inner drop");
 	}
 }
 
-impl Eq for WsConnection {}
-
-impl PartialOrd for WsConnection {
-	fn partial_cmp(&self, other: &WsConnection) -> Option<Ordering> {
-		self.conn.socket().partial_cmp(&other.conn.socket())
-	}
-}
-
-impl Ord for WsConnection {
-	fn cmp(&self, other: &WsConnection) -> Ordering {
-		self.conn.socket().cmp(&other.conn.socket())
+impl WsConnection {
+	fn new() -> Result<Self> {
+		let inner = Rc::new(WsConnectionInner { rbuf: Vec::new() })?;
+		Ok(Self { inner })
 	}
 }
 
 pub struct Ws {
-	evh: Evh<WsContext, ConnectionState>,
+	evh: Evh<WsContext, WsConnection>,
 	state: WsState,
 	handlers: RbTree<Handler>,
-	connections: RbTree<WsConnection>,
 }
 
 pub struct Listener {
@@ -109,12 +102,10 @@ impl Ws {
 		let evh = Evh::new()?;
 		let state = WsState::Init;
 		let handlers = RbTree::new();
-		let connections = RbTree::new();
 		Ok(Self {
 			evh,
 			state,
 			handlers,
-			connections,
 		})
 	}
 
@@ -127,21 +118,27 @@ impl Ws {
 		let ctx = WsContext {};
 		let socket = Socket::listen(listener.addr, listener.port, listener.backlog)?;
 
-		let on_recv: OnRecv<WsContext, ConnectionState> = Box::new(
+		let on_recv: OnRecv<WsContext, WsConnection> = Box::new(
 			move |ctx: &mut WsContext,
-			      conn: &mut Connection<WsContext, ConnectionState>,
+			      conn: &mut Connection<WsContext, WsConnection>,
 			      bytes: &[u8]|
-			      -> Result<()> { Self::proc_on_recv(ctx, conn, bytes) },
+			      -> Result<()> {
+				match Self::proc_on_recv(ctx, conn, bytes) {
+					Ok(_) => {}
+					Err(e) => println!("WARN: proc_on_recv generated error: {}", e),
+				};
+				Ok(())
+			},
 		)?;
 
-		let on_accept: OnAccept<WsContext, ConnectionState> = Box::new(
+		let on_accept: OnAccept<WsContext, WsConnection> = Box::new(
 			move |ctx: &mut WsContext,
-			      conn: &mut Connection<WsContext, ConnectionState>|
+			      conn: &mut Connection<WsContext, WsConnection>|
 			      -> Result<()> { Self::proc_on_accept(ctx, conn) },
 		)?;
-		let on_close: OnClose<WsContext, ConnectionState> = Box::new(
+		let on_close: OnClose<WsContext, WsConnection> = Box::new(
 			move |ctx: &mut WsContext,
-			      conn: &mut Connection<WsContext, ConnectionState>|
+			      conn: &mut Connection<WsContext, WsConnection>|
 			      -> Result<()> { Self::proc_on_close(ctx, conn) },
 		)?;
 
@@ -179,26 +176,141 @@ impl Ws {
 	}
 
 	fn proc_on_recv(
-		_ctx: &mut WsContext,
-		conn: &Connection<WsContext, ConnectionState>,
+		ctx: &mut WsContext,
+		conn: &mut Connection<WsContext, WsConnection>,
 		bytes: &[u8],
 	) -> Result<()> {
-		println!("recv {}: {}", conn.socket(), bytes);
+		let connection = conn.clone();
+		// check for attachment
+		match conn.attach()? {
+			Some(att) => {
+				// if the read buffer is len == 0, there's no buffered data
+				if att.inner.rbuf.len() == 0 {
+					let mut offset = 0;
+					loop {
+						if offset < bytes.len() {
+							let b = &bytes[offset..];
+							// try to process bytes directly
+							let clear_through = Self::proc_data(ctx, connection.clone(), b)?;
+							// adjust offset as we go
+							offset += clear_through;
+							if clear_through == 0 {
+								break;
+							}
+						}
+					}
+					// if we don't process to the end of bytes append
+					if offset < bytes.len() {
+						att.inner.rbuf.extend_from_slice(&bytes[offset..])?;
+					}
+				} else {
+					att.inner.rbuf.extend_from_slice(bytes)?;
+					loop {
+						let clear_through =
+							Self::proc_data(ctx, connection.clone(), &att.inner.rbuf[..])?;
+						println!("clear_through={}", clear_through);
+						let rbuf_len = att.inner.rbuf.len();
+						if clear_through >= rbuf_len {
+							att.inner.rbuf.clear()?;
+						} else if clear_through != 0 {
+							let nlen = rbuf_len - clear_through;
+							let ptr = att.inner.rbuf.as_mut_ptr();
+							unsafe {
+								copy(ptr.add(clear_through), ptr, nlen);
+							}
+							att.inner.rbuf.truncate(rbuf_len - clear_through)?;
+						}
+						if clear_through == 0 {
+							break;
+						}
+					}
+				}
+			}
+			None => {
+				println!("WARN: invalid state: connection with no attachment. Droping conn!");
+				conn.close()?;
+			}
+		}
+		Ok(())
+	}
+
+	fn proc_data(
+		ctx: &mut WsContext,
+		conn: Connection<WsContext, WsConnection>,
+		bytes: &[u8],
+	) -> Result<usize> {
+		println!("proc[{}]: {}", conn.socket(), bytes);
+
+		if let Some(pos) = bytes.windows(4).position(|window| window == b"\r\n\r\n") {
+			if pos <= bytes.len() {
+				let mut url = "";
+				let mut key = "";
+				if let Some(start) = bytes.windows(1).position(|window| window == b" ") {
+					if start + 1 < bytes.len() {
+						if let Some(end) = bytes[(start + 1)..]
+							.windows(1)
+							.position(|window| window == b" ")
+						{
+							if start + end + 1 < bytes.len() && 1 + start < start + end + 1 {
+								url = from_utf8(&bytes[(1 + start)..(start + end + 1)])?;
+							}
+						}
+					}
+				}
+
+				let target = b"\r\nSec-WebSocket-Key: ";
+				if let Some(start) = bytes
+					.windows(target.len())
+					.position(|window| window == target)
+				{
+					if start + 1 < bytes.len() {
+						if let Some(end) = bytes[(start + 1)..]
+							.windows(2)
+							.position(|window| window == b"\r\n")
+						{
+							let start = target.len() + start;
+							let end = start + end + 1;
+							if start < end && end < bytes.len() {
+								key = from_utf8(&bytes[start..end])?;
+							}
+						}
+					}
+				};
+
+				Self::proc_handshake(ctx, conn, &bytes[0..pos], url, key)?;
+			}
+			return Ok(pos + 4);
+		}
+
+		Ok(0)
+	}
+
+	fn proc_handshake(
+		_ctx: &mut WsContext,
+		_conn: Connection<WsContext, WsConnection>,
+		bytes: &[u8],
+		url: &str,
+		key: &str,
+	) -> Result<()> {
+		println!("proc_handshake[{}][key='{}']: {}", url, key, bytes);
 		Ok(())
 	}
 
 	fn proc_on_accept(
 		_ctx: &mut WsContext,
-		conn: &Connection<WsContext, ConnectionState>,
+		conn: &mut Connection<WsContext, WsConnection>,
 	) -> Result<()> {
 		println!("acc {}", conn.socket());
+
+		let att = WsConnection::new()?;
+		conn.set_attach(att.clone())?;
 
 		Ok(())
 	}
 
 	fn proc_on_close(
 		_ctx: &mut WsContext,
-		conn: &Connection<WsContext, ConnectionState>,
+		conn: &mut Connection<WsContext, WsConnection>,
 	) -> Result<()> {
 		println!("close {}", conn.socket());
 		Ok(())

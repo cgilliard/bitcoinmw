@@ -196,7 +196,7 @@ where
 		}
 	}
 
-	pub fn opt(&mut self) -> Result<Option<&mut V>> {
+	pub fn attach(&mut self) -> Result<Option<&mut V>> {
 		match &mut *self.inner {
 			ConnectionData::Inbound(conn) => Ok(conn.opt.as_mut()),
 			ConnectionData::Outbound(conn) => Ok(conn.opt.as_mut()),
@@ -204,7 +204,7 @@ where
 		}
 	}
 
-	pub fn set_opt(&mut self, v: V) -> Result<()> {
+	pub fn set_attach(&mut self, v: V) -> Result<()> {
 		match &mut *self.inner {
 			ConnectionData::Inbound(conn) => conn.opt = Some(v),
 			ConnectionData::Outbound(conn) => conn.opt = Some(v),
@@ -705,7 +705,7 @@ mod test {
 		let (port, mut s) = Socket::listen_rand([127, 0, 0, 1], 10)?;
 		let recv: OnRecv<u64, u64> = Box::new(
 			move |ctx: &mut u64, conn: &mut Connection<u64, u64>, bytes: &[u8]| -> Result<()> {
-				assert!(conn.opt()?.unwrap() == &mut 123);
+				assert!(conn.attach()?.unwrap() == &mut 123);
 				let _l = lock.write();
 				*value = true;
 				Ok(())
@@ -713,7 +713,7 @@ mod test {
 		)?;
 		let accept: OnAccept<u64, u64> = Box::new(
 			move |ctx: &mut u64, conn: &mut Connection<u64, u64>| -> Result<()> {
-				conn.set_opt(123)?;
+				conn.set_attach(123)?;
 				Ok(())
 			},
 		)?;

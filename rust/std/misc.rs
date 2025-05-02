@@ -1,5 +1,6 @@
 use core::ptr::copy;
 use core::slice::{from_raw_parts, from_raw_parts_mut};
+use core::str::from_utf8_unchecked;
 use prelude::*;
 use std::ffi::{getmicros, sleep_millis};
 
@@ -134,6 +135,11 @@ pub fn is_utf8_valid(bytes: &[u8]) -> Result<()> {
 		i += len;
 	}
 	Ok(())
+}
+
+pub fn from_utf8(bytes: &[u8]) -> Result<&str> {
+	is_utf8_valid(bytes)?;
+	unsafe { Ok(from_utf8_unchecked(bytes)) }
 }
 
 pub fn strcmp(a: &str, b: &str) -> i32 {

@@ -145,11 +145,17 @@ impl<T> Index<Range<usize>> for Vec<T> {
 	}
 }
 
+impl<T> IndexMut<Range<usize>> for Vec<T> {
+	fn index_mut(&mut self, r: Range<usize>) -> &mut <Self as Index<Range<usize>>>::Output {
+		let slice = self.slice_mut(r.start, r.end);
+		slice
+	}
+}
+
 impl<T> Index<RangeFrom<usize>> for Vec<T> {
 	type Output = [T];
 	fn index(&self, r: RangeFrom<usize>) -> &Self::Output {
-		let slice = self.slice(r.start, self.len());
-		&slice
+		self.slice(r.start, self.len())
 	}
 }
 
