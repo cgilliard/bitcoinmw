@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use net::multiplex::{Event, Multiplex};
 use net::socket::Socket;
 
@@ -40,4 +41,10 @@ extern "C" {
 	pub fn event_is_read(event: *const Event) -> bool;
 	pub fn event_is_write(event: *const Event) -> bool;
 	pub fn event_ptr(event: *const Event) -> *mut u8;
+
+	// base64 and sha1 (for websockets)
+	pub fn sha1(data: *const u8, size: usize, hash: *mut u8);
+	pub fn Base64decode(plain: *mut u8, bufcoded: *const u8) -> i32;
+	pub fn Base64encode(encoded: *mut u8, plain: *const u8, len: i32) -> i32;
+
 }

@@ -23,3 +23,5 @@ pub const EVENT_SIZE: usize = 32;
 
 pub const EVH_MAX_EVENTS: usize = 128;
 pub const EVH_MAX_BYTES_PER_READ: usize = 16 * 1024;
+
+pub const WEBSOCKET_MAGIC_STRING: &[u8; 36] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";

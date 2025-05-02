@@ -1,5 +1,6 @@
 mod constants;
 mod ffi;
+mod util;
 
 pub mod errors;
 pub mod evh;

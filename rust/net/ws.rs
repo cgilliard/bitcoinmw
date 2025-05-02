@@ -4,12 +4,15 @@ use core::ptr::copy;
 use net::errors::EAgain;
 use net::evh::*;
 use net::socket::Socket;
+use net::util::websocket_accept_key;
 use prelude::*;
 use std::misc::from_utf8;
 
-pub struct Handle {}
+pub struct Handle {
+	conn: Connection<WsContext, WsConnection>,
+}
 
-pub type WsOnRecv = Box<dyn FnMut(&Handle, &[u8]) -> Result<()>>;
+pub type WsOnRecv = Box<dyn FnMut(&Handle, &[u8], bool, u8) -> Result<()>>;
 pub type WsOnAccept = Box<dyn FnMut(&Handle) -> Result<()>>;
 pub type WsOnClose = Box<dyn FnMut(&Handle) -> Result<()>>;
 
@@ -27,6 +30,7 @@ pub struct WsContext {}
 struct WsConnectionInner {
 	rbuf: Vec<u8>,
 	is_upgraded: bool,
+	handler: Option<Handler>,
 }
 
 #[derive(Clone)]
@@ -45,6 +49,7 @@ impl WsConnection {
 		let inner = Rc::new(WsConnectionInner {
 			rbuf: Vec::new(),
 			is_upgraded: false,
+			handler: None,
 		})?;
 		Ok(Self { inner })
 	}
@@ -53,7 +58,7 @@ impl WsConnection {
 pub struct Ws {
 	evh: Evh<WsContext, WsConnection>,
 	state: WsState,
-	handlers: RbTree<Handler>,
+	handlers: Rc<RbTree<Handler>>,
 }
 
 pub struct Listener {
@@ -68,37 +73,61 @@ struct HandlerProc {
 	on_close: Rc<WsOnClose>,
 }
 
-pub struct Handler {
+struct HandlerInner {
 	handlers: Option<HandlerProc>,
 	path: String,
 }
 
+#[derive(Clone)]
+pub struct Handler {
+	inner: Rc<HandlerInner>,
+}
+
 impl PartialOrd for Handler {
 	fn partial_cmp(&self, other: &Handler) -> Option<Ordering> {
-		self.path.partial_cmp(&other.path)
+		self.inner.path.partial_cmp(&other.inner.path)
 	}
 }
 
 impl Ord for Handler {
 	fn cmp(&self, other: &Self) -> Ordering {
-		self.path.cmp(&other.path)
+		self.inner.path.cmp(&other.inner.path)
 	}
 }
 
 impl PartialEq for Handler {
 	fn eq(&self, other: &Handler) -> bool {
-		self.path.eq(&other.path)
+		self.inner.path.eq(&other.inner.path)
 	}
 }
 
 impl Eq for Handler {}
 
 impl Handler {
-	fn with_path(path: String) -> Self {
-		Self {
-			path,
-			handlers: None,
-		}
+	fn new(
+		path: &str,
+		on_recv: Rc<WsOnRecv>,
+		on_accept: Rc<WsOnAccept>,
+		on_close: Rc<WsOnClose>,
+	) -> Result<Self> {
+		Ok(Self {
+			inner: Rc::new(HandlerInner {
+				path: String::new(path)?,
+				handlers: Some(HandlerProc {
+					on_recv,
+					on_accept,
+					on_close,
+				}),
+			})?,
+		})
+	}
+	fn with_path(path: &str) -> Result<Self> {
+		Ok(Self {
+			inner: Rc::new(HandlerInner {
+				path: String::new(path)?,
+				handlers: None,
+			})?,
+		})
 	}
 }
 
@@ -106,7 +135,7 @@ impl Ws {
 	pub fn new() -> Result<Self> {
 		let evh = Evh::new()?;
 		let state = WsState::Init;
-		let handlers = RbTree::new();
+		let handlers = Rc::new(RbTree::new())?;
 		Ok(Self {
 			evh,
 			state,
@@ -122,13 +151,14 @@ impl Ws {
 
 		let ctx = WsContext {};
 		let socket = Socket::listen(listener.addr, listener.port, listener.backlog)?;
+		let handlers = self.handlers.clone();
 
 		let on_recv: OnRecv<WsContext, WsConnection> = Box::new(
 			move |ctx: &mut WsContext,
 			      conn: &mut Connection<WsContext, WsConnection>,
 			      bytes: &[u8]|
 			      -> Result<()> {
-				match Self::proc_on_recv(ctx, conn, bytes) {
+				match Self::proc_on_recv(ctx, conn, bytes, handlers.clone()) {
 					Ok(_) => {}
 					Err(e) => println!("WARN: proc_on_recv generated error: {}", e),
 				};
@@ -181,32 +211,150 @@ impl Ws {
 	}
 
 	fn proc_upgraded(
+		ctx: &mut WsContext,
+		conn: Connection<WsContext, WsConnection>,
+		bytes: &[u8],
+		handler: Option<Handler>,
+	) -> Result<usize> {
+		let len = bytes.len();
+		let fin;
+		let op;
+		let mask;
+		if len < 2 {
+			return Ok(0);
+		} else {
+			fin = bytes[0] & 0x80 != 0;
+
+			if bytes[0] & 0x70 != 0 {
+				conn.close()?;
+				return Ok(0);
+			}
+
+			op = bytes[0] & !0x80;
+			mask = bytes[1] & 0x80 != 0;
+		}
+
+		// determine variable payload len
+		let payload_len = bytes[1] & 0x7F;
+		let (payload_len, mut offset) = if payload_len == 126 {
+			if len < 4 {
+				return Ok(0);
+			}
+			((bytes[2] as usize) << 8 | bytes[3] as usize, 4)
+		} else if payload_len == 127 {
+			if len < 10 {
+				return Ok(0);
+			}
+			(
+				(bytes[2] as usize) << 56
+					| (bytes[3] as usize) << 48
+					| (bytes[4] as usize) << 40
+					| (bytes[5] as usize) << 32
+					| (bytes[6] as usize) << 24
+					| (bytes[7] as usize) << 16
+					| (bytes[8] as usize) << 8
+					| (bytes[9] as usize),
+				10,
+			)
+		} else {
+			(payload_len as usize, 2)
+		};
+
+		if offset + payload_len > len {
+			return Ok(0);
+		}
+
+		let mut payload_vec: Vec<u8> = Vec::new();
+
+		// if masking set we add 4 bytes for the masking key
+
+		let payload_bytes = if mask {
+			offset += 4;
+			let masking_key = if offset - 1 < bytes.len() {
+				[
+					bytes[offset - 4],
+					bytes[offset - 3],
+					bytes[offset - 2],
+					bytes[offset - 1],
+				]
+			} else {
+				[0, 0, 0, 0]
+			};
+
+			payload_vec.resize(payload_len)?;
+			for i in 0..payload_len {
+				if i % 4 < masking_key.len() && offset + i < bytes.len() {
+					payload_vec[i] = bytes[offset + i] ^ masking_key[i % 4];
+				}
+			}
+			&payload_vec[..]
+		} else if offset < offset + payload_len && offset + payload_len < bytes.len() {
+			&bytes[offset..(offset + payload_len)]
+		} else {
+			&[]
+		};
+
+		Self::proc_payload(ctx, conn, payload_bytes, op, fin, handler)?;
+		Ok(offset + payload_len)
+	}
+
+	fn proc_payload(
 		_ctx: &mut WsContext,
-		_conn: Connection<WsContext, WsConnection>,
-		_bytes: &[u8],
+		conn: Connection<WsContext, WsConnection>,
+		bytes: &[u8],
+		op: u8,
+		fin: bool,
+		//mut on_recv: Rc<WsOnRecv>,
+		handler: Option<Handler>,
 	) -> Result<()> {
+		let handle = Handle { conn };
+		match handler {
+			Some(mut handler) => match &mut handler.inner.handlers {
+				Some(ref mut handlers) => (handlers.on_recv)(&handle, bytes, fin, op)?,
+				None => println!("WARN: no handler found1!"),
+			},
+			None => println!("WARN: no handler found2!"),
+		}
 		Ok(())
 	}
 
-	fn proc_proto_negotiation(
+	fn proc_loop(
 		ctx: &mut WsContext,
 		conn: Connection<WsContext, WsConnection>,
 		bytes: &[u8],
 		att: &mut WsConnection,
+		handlers: Rc<RbTree<Handler>>,
 	) -> Result<()> {
 		// if the read buffer is len == 0, there's no buffered data
 		if att.inner.rbuf.len() == 0 {
+			println!("1");
 			let mut offset = 0;
-			loop {
-				if offset < bytes.len() {
-					let b = &bytes[offset..];
-					// try to process bytes directly
-					let clear_through = Self::proc_data(ctx, conn.clone(), b)?;
-					// adjust offset as we go
-					offset += clear_through;
-					if clear_through == 0 {
-						break;
-					}
+			while offset < bytes.len() {
+				let b = &bytes[offset..];
+				// try to process bytes directly
+				println!("proc data");
+				let (clear_through, upgraded, handler) = Self::proc_data(
+					ctx,
+					conn.clone(),
+					b,
+					att.inner.is_upgraded,
+					handlers.clone(),
+					att.inner.handler.clone(),
+				)?;
+				println!(
+					"offset={},clear_through={},b.len={}",
+					offset,
+					clear_through,
+					b.len()
+				);
+				// adjust offset as we go
+				offset += clear_through;
+				if upgraded {
+					att.inner.is_upgraded = true;
+					att.inner.handler = handler;
+					break;
+				} else if clear_through == 0 {
+					break;
 				}
 			}
 			// if we don't process to the end of bytes append
@@ -216,7 +364,22 @@ impl Ws {
 		} else {
 			att.inner.rbuf.extend_from_slice(bytes)?;
 			loop {
-				let clear_through = Self::proc_data(ctx, conn.clone(), &att.inner.rbuf[..])?;
+				let (clear_through, upgraded, handler) = Self::proc_data(
+					ctx,
+					conn.clone(),
+					&att.inner.rbuf[..],
+					att.inner.is_upgraded,
+					handlers.clone(),
+					att.inner.handler.clone(),
+				)?;
+				if upgraded {
+					att.inner.is_upgraded = true;
+					att.inner.handler = handler;
+					// clear the buffer here. should not be anything, but we
+					// explicitly start from scratch
+					att.inner.rbuf.clear()?;
+					break;
+				}
 				let rbuf_len = att.inner.rbuf.len();
 				if clear_through >= rbuf_len {
 					att.inner.rbuf.clear()?;
@@ -241,16 +404,14 @@ impl Ws {
 		ctx: &mut WsContext,
 		conn: &mut Connection<WsContext, WsConnection>,
 		bytes: &[u8],
+		handlers: Rc<RbTree<Handler>>,
 	) -> Result<()> {
+		println!("proc on_recv");
 		let connection = conn.clone();
 		// check for attachment
 		match conn.attach()? {
 			Some(att) => {
-				if att.inner.is_upgraded {
-					Self::proc_upgraded(ctx, connection, bytes)?;
-				} else {
-					Self::proc_proto_negotiation(ctx, connection, bytes, att)?;
-				}
+				Self::proc_loop(ctx, connection, bytes, att, handlers)?;
 			}
 			None => {
 				println!("WARN: invalid state: connection with no attachment. Droping conn!");
@@ -264,11 +425,19 @@ impl Ws {
 		ctx: &mut WsContext,
 		conn: Connection<WsContext, WsConnection>,
 		bytes: &[u8],
-	) -> Result<usize> {
+		upgraded: bool,
+		handlers: Rc<RbTree<Handler>>,
+		handler: Option<Handler>,
+	) -> Result<(usize, bool, Option<Handler>)> {
+		if upgraded {
+			return Ok((Self::proc_upgraded(ctx, conn, bytes, handler)?, false, None));
+		}
 		if let Some(pos) = bytes.windows(4).position(|window| window == b"\r\n\r\n") {
+			let mut upgraded = false;
+			let mut handler: Option<Handler> = None;
 			if pos <= bytes.len() {
-				let mut url = "";
 				let mut key = "";
+				let mut url = "";
 				if let Some(start) = bytes.windows(1).position(|window| window == b" ") {
 					if start + 1 < bytes.len() {
 						if let Some(end) = bytes[(start + 1)..]
@@ -279,6 +448,28 @@ impl Ws {
 								url = from_utf8(&bytes[(1 + start)..(start + end + 1)])?;
 							}
 						}
+					}
+				}
+
+				if url == "" {
+					// invalid url specified TODO: return bad request
+					conn.close()?;
+					return Ok((0, false, None));
+				} else {
+					println!("search for node");
+					let node = Ptr::alloc(RbTreeNode::new(Handler::with_path(url)?))?;
+					println!("node built");
+					let pair = handlers.search(handlers.root(), node);
+					node.release();
+					println!("search done");
+					if pair.cur.is_null() {
+						println!("path not found: {}", url);
+						// path not found TODO: return 404
+						conn.close()?;
+						return Ok((0, false, None));
+					} else {
+						println!("path found");
+						handler = Some(pair.cur.value.clone());
 					}
 				}
 
@@ -301,11 +492,13 @@ impl Ws {
 					}
 				};
 
-				Self::proc_handshake(ctx, conn, &bytes[0..pos], url, key)?;
+				if Self::proc_handshake(ctx, conn, &bytes[0..pos], url, key)? {
+					upgraded = true;
+				}
 			}
-			Ok(pos + 4)
+			Ok((pos + 4, upgraded, handler))
 		} else {
-			Ok(0)
+			Ok((0, false, None))
 		}
 	}
 
@@ -315,22 +508,36 @@ impl Ws {
 		bytes: &[u8],
 		url: &str,
 		key: &str,
-	) -> Result<()> {
-		println!("proc_handshake[{}][key='{}']: {}", url, key, bytes);
+	) -> Result<bool> {
+		println!(
+			"proc_handshake[{}][key='{}']: '{}'",
+			url,
+			key,
+			from_utf8(bytes)?
+		);
 
-		let mykey = "somekeyhere";
-		let msg = format!(
-			"HTTP/1.1 101 Switching Protocols\r\n\
+		let msg = if key.len() == 0 {
+			format!("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n")?
+		} else {
+			let accept = websocket_accept_key(key)?;
+			format!(
+				"HTTP/1.1 101 Switching Protocols\r\n\
 Upgrade: websocket\r\n\
 Connection: Upgrade\r\n\
-Sec-WebSocket-Accept: {}\r\n\
-Sec-WebSocket-Protocol: chat\r\n\r\n",
-			mykey
-		)?;
+Sec-WebSocket-Accept: {}\r\n\r\n",
+				accept
+			)?
+		};
+
+		println!("resp='{}'", msg);
 
 		Self::write_fully(&mut conn, msg.as_bytes())?;
-
-		Ok(())
+		if key.len() == 0 {
+			conn.close()?;
+			Ok(false)
+		} else {
+			Ok(true)
+		}
 	}
 
 	fn proc_on_accept(
@@ -341,6 +548,7 @@ Sec-WebSocket-Protocol: chat\r\n\r\n",
 
 		let att = WsConnection::new()?;
 		conn.set_attach(att.clone())?;
+		println!("acc complete");
 
 		Ok(())
 	}
@@ -349,7 +557,7 @@ Sec-WebSocket-Protocol: chat\r\n\r\n",
 		_ctx: &mut WsContext,
 		conn: &mut Connection<WsContext, WsConnection>,
 	) -> Result<()> {
-		println!("close {}", conn.socket());
+		println!("onclose {}", conn.socket());
 		Ok(())
 	}
 
@@ -414,6 +622,21 @@ mod test {
 			port: 9090,
 			backlog: 10,
 		})?;
+
+		let on_recv: WsOnRecv = Box::new(
+			|handle: &Handle, bytes: &[u8], fin: bool, op: u8| -> Result<()> {
+				println!("test_ws1 recv: {}", bytes);
+				Ok(())
+			},
+		)?;
+		let on_accept: WsOnAccept = Box::new(|handle: &Handle| -> Result<()> { Ok(()) })?;
+		let on_close: WsOnClose = Box::new(|handle: &Handle| -> Result<()> { Ok(()) })?;
+		let on_recv = Rc::new(on_recv)?;
+		let on_accept = Rc::new(on_accept)?;
+		let on_close = Rc::new(on_close)?;
+
+		let handler = Handler::new("/abc", on_recv, on_accept, on_close)?;
+		ws.add_handler(handler)?;
 
 		ws.start()?;
 
