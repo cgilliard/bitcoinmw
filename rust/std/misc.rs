@@ -339,3 +339,34 @@ pub fn to_be_bytes_u128(value: u128, bytes: &mut [u8]) {
 		bytes[15] = value as u8;
 	}
 }
+
+pub fn quick_sort<T: Ord>(arr: &mut [T]) {
+	if arr.len() <= 1 {
+		return;
+	}
+	let pivot_idx = partition(arr);
+	if pivot_idx < arr.len() {
+		let (left, right) = arr.split_at_mut(pivot_idx);
+		quick_sort(left);
+		if 1 <= right.len() {
+			quick_sort(&mut right[1..]); // Skip pivot
+		}
+	}
+}
+
+pub fn partition<T: Ord>(arr: &mut [T]) -> usize {
+	let pivot_idx = arr.len() - 1;
+	let mut i = 0;
+	for j in 0..pivot_idx {
+		if j < arr.len() && pivot_idx < arr.len() && arr[j] <= arr[pivot_idx] {
+			if i < arr.len() && j < arr.len() {
+				arr.swap(i, j);
+			}
+			i += 1;
+		}
+	}
+	if i < arr.len() && pivot_idx < arr.len() {
+		arr.swap(i, pivot_idx);
+	}
+	i
+}

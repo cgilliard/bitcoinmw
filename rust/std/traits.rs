@@ -1,7 +1,7 @@
 use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
 use prelude::*;
-use std::misc::{slice_copy, subslice, subslice_mut};
+use std::misc::{quick_sort, slice_copy, subslice, subslice_mut};
 
 pub trait TryClone {
 	fn try_clone(&self) -> Result<Self>
@@ -96,6 +96,10 @@ pub trait SliceExt<T: Copy> {
 	fn subslice_mut(&mut self, off: usize, len: usize) -> Result<&mut [T]>;
 }
 
+pub trait SortExt<T: Ord> {
+	fn quicksort(&mut self);
+}
+
 impl<T: Copy> SliceExt<T> for [T] {
 	fn slice_copy(&mut self, src: &[T]) -> Result<()> {
 		if self.len() != src.len() {
@@ -110,5 +114,11 @@ impl<T: Copy> SliceExt<T> for [T] {
 
 	fn subslice_mut(&mut self, offset: usize, len: usize) -> Result<&mut [T]> {
 		subslice_mut(self, offset, len)
+	}
+}
+
+impl<T: Ord> SortExt<T> for [T] {
+	fn quicksort(&mut self) {
+		quick_sort(self);
 	}
 }

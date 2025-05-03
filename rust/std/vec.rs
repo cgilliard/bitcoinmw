@@ -841,4 +841,13 @@ mod test {
 
 		Ok(())
 	}
+
+	#[test]
+	fn test_sort() -> Result<()> {
+		let mut v = vec![9, 7, 8, 2, 10]?;
+		let _ = &mut v[..].sort();
+		assert_eq!(v, vec![2, 7, 8, 9, 10]?);
+
+		Ok(())
+	}
 }
