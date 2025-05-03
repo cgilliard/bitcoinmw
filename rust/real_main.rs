@@ -1,17 +1,5 @@
-use prelude::*;
-
-fn do_exec() -> Result<()> {
-	let mut v = vec![9, 7, 8, 2, 10]?;
-	let _ = &mut v[..].quicksort();
-	println!("v={}", v);
-	Ok(())
-}
-
 #[no_mangle]
-pub extern "C" fn real_main(argc: i32, _argv: *const *const u8) -> i32 {
-	if argc != 0 {
-		let _ = do_exec();
-	}
+pub extern "C" fn real_main(_argc: i32, _argv: *const *const u8) -> i32 {
 	0
 }
 
