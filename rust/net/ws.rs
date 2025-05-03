@@ -260,8 +260,8 @@ impl Ws {
 			_ => return err!(IllegalState),
 		}
 
-		let node = Ptr::alloc(RbTreeNode::new(handler))?;
-		//let node = RbTreeNode::alloc(handler)?;
+		//let node = Ptr::alloc(RbTreeNode::new(handler))?;
+		let node = RbTreeNode::alloc(handler)?;
 		self.handlers.try_insert(node)
 	}
 
@@ -509,7 +509,8 @@ impl Ws {
 					conn.close()?;
 					return Ok((0, false, None));
 				} else {
-					let node = Ptr::alloc(RbTreeNode::new(Handler::with_path(url)?))?;
+					//let node = Ptr::alloc(RbTreeNode::new(Handler::with_path(url)?))?;
+					let node = RbTreeNode::alloc(Handler::with_path(url)?)?;
 					let pair = handlers.search(node);
 					node.release();
 					if pair.cur.is_null() {
@@ -517,7 +518,7 @@ impl Ws {
 						conn.close()?;
 						return Ok((0, false, None));
 					} else {
-						handler = Some(pair.cur.value.clone());
+						handler = Some((&*(pair.cur.value)).clone());
 					}
 				}
 
