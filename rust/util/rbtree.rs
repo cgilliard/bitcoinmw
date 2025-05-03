@@ -869,7 +869,7 @@ mod test {
 				validate_tree(tree.root());
 				let check = RbTreeNode::alloc(v as u64)?;
 				assert!(tree.try_insert(check).is_err());
-				check.release();
+				RbTreeNode::release(check);
 			}
 
 			for i in 0..size {
@@ -878,7 +878,7 @@ mod test {
 				let res = tree.search(ptr);
 				assert!(!res.cur.is_null());
 				assert_eq!(*(*(res.cur)).value, v as u64);
-				ptr.release();
+				RbTreeNode::release(ptr);
 			}
 
 			for i in 0..size {
