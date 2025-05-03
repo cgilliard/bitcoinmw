@@ -370,3 +370,42 @@ pub fn partition<T: Ord>(arr: &mut [T]) -> usize {
 	}
 	i
 }
+
+pub fn from_le_bytes_u32(bytes: &[u8]) -> Result<u32> {
+	if bytes.len() >= 4 {
+		Ok((bytes[0] as u32)
+			| ((bytes[1] as u32) << 8)
+			| ((bytes[2] as u32) << 16)
+			| ((bytes[3] as u32) << 24))
+	} else {
+		err!(IllegalArgument)
+	}
+}
+
+#[inline]
+pub fn to_le_bytes_u32(value: u32, bytes: &mut [u8]) -> Result<()> {
+	if bytes.len() >= 4 {
+		bytes[0] = value as u8;
+		bytes[1] = (value >> 8) as u8;
+		bytes[2] = (value >> 16) as u8;
+		bytes[3] = (value >> 24) as u8;
+		Ok(())
+	} else {
+		err!(IllegalArgument)
+	}
+}
+
+#[inline]
+pub fn u256_less_than_or_equal(max_value: &[u8; 32], value: &[u8; 32]) -> bool {
+	for i in 0..32 {
+		let m = max_value[i];
+		let v = value[i];
+		if v < m {
+			return true;
+		}
+		if v > m {
+			return false;
+		}
+	}
+	true
+}
