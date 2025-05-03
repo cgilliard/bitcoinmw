@@ -9,3 +9,4 @@ pub mod error;
 pub mod errors;
 pub mod misc;
 pub mod result;
+pub mod traits;
