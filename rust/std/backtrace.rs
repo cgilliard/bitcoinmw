@@ -50,6 +50,7 @@ impl Backtrace {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use std::ffi::release;
 
 	#[allow(dead_code)]
 	extern "C" {
@@ -69,6 +70,9 @@ mod test {
 				write(2, ptr, len as usize);
 			}
 			*/
+			unsafe {
+				release(ptr);
+			}
 		}
 
 		Ok(())

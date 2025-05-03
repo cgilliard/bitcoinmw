@@ -184,7 +184,7 @@ char *gen_backtrace(void **bt_entries, int size) {
 }
 #endif	// __APPLE__
 #ifdef __linux__
-char *gen_backtrace() {
+char *gen_backtrace(void **bt_entries, int size) {
 	char *ret = alloc(1000);
 	if (ret != NULL) {
 		strcpy(ret, "Backtrace not enaabled on linux yet");
