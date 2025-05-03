@@ -41,7 +41,7 @@ jobs:
           gzip -dc famc_linux.tar.gz | tar xvf -
           cd ../bitcoinmw
           ./make clean
-          ./make --with-cc=clang --with-famc=../famc/bin/mrustc --with-outout=../famc.output-1.29.0 || exit 1;
+          ./make --with-cc=clang --with-famc=../famc/bin/famc --with-outout=../famc.output-1.29.0 || exit 1;
           ./bin/bmw || exit 1;
       - name: linux tests
         run: |
@@ -69,7 +69,7 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             git push https://${{ secrets.BitcoinMWPat }}@github.com/cgilliard/bitcoinmw.git
           fi
-      - name: linux bootstrap (mrustc)
+      - name: linux bootstrap (famc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             git clone https://github.com/cgilliard/famc ../famc_src
@@ -78,10 +78,8 @@ jobs:
             export CC=clang
             ./build.sh
             cd ../bitcoinmw
-            ./build clean
-            export MRUSTC=../famc_src/bin/mrustc
-            export OUTPUT=../famc_src/output-1.29.0
-            ./make --with-famc=../famc_src/bin/mrustc --with-output=../famc_src/output-1.29.0 --with-cc=clang || exit 1;
+            ./make clean
+            ./make --with-famc=../famc_src/bin/famc --with-output=../famc_src/output-1.29.0 --with-cc=clang || exit 1;
             ./bin/bmw || exit 1;
           fi
   macos:
@@ -107,7 +105,7 @@ jobs:
           rustup default nightly
           ./make --with-rustc=rustc
           ./bin/bmw || exit 1;
-      - name: macos build (mrustc)
+      - name: macos build (famc)
         run: |
           export LIBRARY_PATH="$(brew --prefix gmp)/lib:$LIBRARY_PATH"
           export CXX=clang++
@@ -118,14 +116,14 @@ jobs:
           gzip -dc famc_macos.tar.gz | tar xvf -
           cd ../bitcoinmw
           ./make clean
-          ./make --with-famc=../famc/bin/mrustc --with-output=../famc/output-1.29.0 --with-cc=clang || exit 1;
+          ./make --with-famc=../famc/bin/famc --with-output=../famc/output-1.29.0 --with-cc=clang || exit 1;
           ./bin/bmw || exit 1;
       - name: macos tests
         run: |
           rustup default nightly
           ./make clean
           ./make test
-      - name: macos bootstrap (mrustc)
+      - name: macos bootstrap (famc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             git clone https://github.com/cgilliard/famc ../famc_src
@@ -135,9 +133,7 @@ jobs:
             export CC=clang
             ./build.sh
             cd ../bitcoinmw
-            ./build clean
-            export MRUSTC=../famc_src/bin/mrustc
-            export OUTPUT=../famc_src/output-1.29.0
-            ./make --with-famc=../famc_src/bin/mrustc --with-output=../famc_src/output-1.29.0 --with-cc=clang || exit 1;
+            ./make clean
+            ./make --with-famc=../famc_src/bin/famc --with-output=../famc_src/output-1.29.0 --with-cc=clang || exit 1;
             ./bin/bmw || exit 1;
           fi
