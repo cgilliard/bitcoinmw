@@ -891,97 +891,96 @@ mod test {
 
 		Ok(())
 	}
-	/*
 
-		#[derive(Debug, PartialEq, Clone, PartialOrd, Eq)]
-		struct TestTransplant {
-			x: u64,
-			y: u64,
+	#[derive(Debug, PartialEq, Clone, PartialOrd, Eq)]
+	struct TestTransplant {
+		x: u64,
+		y: u64,
+	}
+
+	impl Ord for TestTransplant {
+		fn cmp(&self, other: &Self) -> Ordering {
+			self.x.cmp(&other.x)
 		}
+	}
 
-		impl Ord for TestTransplant {
-			fn cmp(&self, other: &Self) -> Ordering {
-				self.x.cmp(&other.x)
+	#[test]
+	fn test_transplant() -> Result<()> {
+		let mut tree = RbTree::new();
+
+		{
+			let size = 100;
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i };
+				let next = RbTreeNode::alloc(v).unwrap();
+				let res = tree.insert(next);
+				assert!(res.is_none());
+			}
+
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i };
+				let node = RbTreeNode::stack(v.clone())?;
+				let ptr = Ptr::new(&node as *const _);
+				let res = tree.search(ptr);
+				assert!(!res.cur.is_null());
+				assert_eq!(*(*(res.cur)).value, v);
+			}
+
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i + 1 };
+				let next = RbTreeNode::alloc(v).unwrap();
+				let res = tree.insert(next);
+				assert!(res.is_some());
+				RbTreeNode::release(res.unwrap());
+			}
+
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i + 1 };
+				let node = RbTreeNode::stack(v.clone())?;
+				let ptr = Ptr::new(&node as *const _);
+				let res = tree.search(ptr);
+				assert!(!res.cur.is_null());
+				assert_eq!(*(*(res.cur)).value, v);
+			}
+
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i + 91 };
+				let node = RbTreeNode::stack(v.clone())?;
+				let ptr = Ptr::new(&node as *const _);
+				let res = tree.remove_ptr(ptr);
+				RbTreeNode::release(res.unwrap());
+				let res = tree.search(ptr);
+				assert!(res.cur.is_null());
+			}
+
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i + 10 };
+				let next = RbTreeNode::alloc(v)?;
+				let res = tree.insert(next);
+				assert!(res.is_none());
+			}
+
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i + 10 };
+				let node = RbTreeNode::stack(v.clone())?;
+				let ptr = Ptr::new(&node as *const _);
+				let res = tree.search(ptr);
+				assert!(!res.cur.is_null());
+				assert_eq!(*(*(res.cur)).value, v);
+			}
+
+			for i in 0..size {
+				let v = TestTransplant { x: i, y: i + 91 };
+				let node = RbTreeNode::stack(v.clone())?;
+				let ptr = Ptr::new(&node as *const _);
+				let res = tree.remove_ptr(ptr);
+				RbTreeNode::release(res.unwrap());
+				let res = tree.search(ptr);
+				assert!(res.cur.is_null());
 			}
 		}
-
-		#[test]
-		fn test_transplant() {
-			let mut tree = RbTree::new();
-
-			{
-				let size = 3;
-				for i in 0..size {
-					let v = TestTransplant { x: i, y: i };
-					let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-					let res = tree.insert(next);
-					assert!(res.is_none());
-				}
-
-				for i in 0..size {
-					let v = TestTransplant { x: i, y: i };
-					let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
-					let res = tree.search(tree.root(), ptr);
-					assert!(!res.cur.is_null());
-					assert_eq!((*(res.cur)).value, v);
-					ptr.release();
-				}
-
-				for i in 0..size {
-					let v = TestTransplant { x: i, y: i + 1 };
-					let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-					let res = tree.insert(next);
-					assert!(res.is_some());
-					res.unwrap().release();
-				}
-
-				for i in 0..size {
-					let v = TestTransplant { x: i, y: i + 1 };
-					let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
-					let res = tree.search(tree.root(), ptr);
-					assert!(!res.cur.is_null());
-					assert_eq!((*(res.cur)).value, v);
-					ptr.release();
-				}
-
-				for i in 0..size {
-					let v = TestTransplant { x: i, y: i + 91 };
-					let ptr = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-					let res = tree.remove_ptr(ptr);
-					res.unwrap().release();
-					let res = tree.search(tree.root(), ptr);
-					assert!(res.cur.is_null());
-					ptr.release();
-				}
-
-				for i in 0..size {
-					let v = TestTransplant { x: i, y: i + 10 };
-					let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-					let res = tree.insert(next);
-					assert!(res.is_none());
-				}
-
-				for i in 0..size {
-					let v = TestTransplant { x: i, y: i + 10 };
-					let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
-					let res = tree.search(tree.root(), ptr);
-					assert!(!res.cur.is_null());
-					assert_eq!((*(res.cur)).value, v);
-					ptr.release();
-				}
-
-				for i in 0..size {
-					let v = TestTransplant { x: i, y: i + 91 };
-					let ptr = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-					let res = tree.remove_ptr(ptr);
-					res.unwrap().release();
-					let res = tree.search(tree.root(), ptr);
-					assert!(res.cur.is_null());
-					ptr.release();
-				}
-			}
-		}
-	*/
+		Ok(())
+	}
 
 	#[test]
 	fn test_rbtree_iter() -> Result<()> {
