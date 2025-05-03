@@ -57,6 +57,11 @@ impl<V: Ord> RbTreeNode<V> {
 		Ok(Ptr::new(node))
 	}
 
+	pub fn release(mut ptr: Ptr<Self>) {
+		(*ptr).deallocate();
+		ptr.release();
+	}
+
 	pub fn deallocate(&mut self) -> Box<V> {
 		unsafe { Box::from_raw(self.value) }
 	}
@@ -740,9 +745,8 @@ mod test {
 
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
-				let mut node_out = tree.remove(v as u64).unwrap();
-				node_out.deallocate();
-				node_out.release();
+				let node_out = tree.remove(v as u64).unwrap();
+				RbTreeNode::release(node_out);
 				validate_tree(tree.root());
 			}
 
@@ -865,9 +869,8 @@ mod test {
 				let vs = format!("{}", v)?;
 				let node = RbTreeNode::stack(vs)?;
 				let ptr = Ptr::new(&node as *const _);
-				let mut node_out = tree.remove_ptr(ptr).unwrap();
-				node_out.deallocate();
-				node_out.release();
+				let node_out = tree.remove_ptr(ptr).unwrap();
+				RbTreeNode::release(node_out);
 				let res = tree.search(ptr);
 				assert!(res.cur.is_null());
 			}
@@ -1268,9 +1271,8 @@ mod test {
 					v: i,
 				})?,
 			};
-			let mut ret = tree.remove(v).unwrap();
-			ret.deallocate();
-			ret.release();
+			let ret = tree.remove(v).unwrap();
+			RbTreeNode::release(ret);
 		}
 
 		Ok(())
