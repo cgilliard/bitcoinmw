@@ -6,6 +6,7 @@ pub mod macros;
 
 pub mod backtrace;
 pub mod boxed;
+pub mod cstring;
 pub mod error;
 pub mod errors;
 pub mod format;
