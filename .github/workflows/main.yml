@@ -30,7 +30,7 @@ jobs:
       - name: linux build (rustc)
         run: |
           rustup default nightly
-          ./make
+          ./make --with-rustc=rustc
           ./bin/bmw || exit 1;
       - name: linux build (famc)
         run: |
@@ -105,7 +105,7 @@ jobs:
       - name: macos build (rustc)
         run: |
           rustup default nightly
-          ./make
+          ./make --with-rustc=rustc
           ./bin/bmw || exit 1;
       - name: macos build (mrustc)
         run: |
