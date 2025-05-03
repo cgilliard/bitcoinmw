@@ -253,6 +253,19 @@ impl<V: Ord> RbTree<V> {
 		self.remove_ptr(ptr)
 	}
 
+	pub fn find(&self, value: &V) -> Option<&V> {
+		let mut cur = self.root();
+		while !cur.is_null() {
+			match value.cmp(&(*cur).value) {
+				Ordering::Equal => return Some(&unsafe { &*cur.raw() }.value),
+				Ordering::Less => cur = cur.left,
+
+				Ordering::Greater => cur = cur.right,
+			}
+		}
+		None
+	}
+
 	pub fn search(&self, value: Ptr<RbTreeNode<V>>) -> RbNodePair<V> {
 		let mut is_right = false;
 		let mut cur = self.root();
@@ -834,22 +847,15 @@ mod test {
 			for i in 0..size {
 				let v = fnvhash_32_of_u64(i + x);
 				let vs = format!("{}", v)?;
-				let node = RbTreeNode::stack(vs.clone())?;
-				let ptr = Ptr::new(&node as *const _);
-				let res = tree.search(ptr);
-				assert!(!res.cur.is_null());
-				assert_eq!(*(*(res.cur)).value, vs);
+				let res = tree.find(&vs).unwrap();
+				assert_eq!(res, &vs);
 			}
 
 			for i in 0..size {
 				let v = fnvhash_32_of_u64(i + x);
 				let vs = format!("{}", v)?;
-				let node = RbTreeNode::stack(vs)?;
-				let ptr = Ptr::new(&node as *const _);
-				let node_out = tree.remove_ptr(ptr).unwrap();
+				let node_out = tree.remove(vs).unwrap();
 				RbTreeNode::release(node_out);
-				let res = tree.search(ptr);
-				assert!(res.cur.is_null());
 			}
 		}
 
