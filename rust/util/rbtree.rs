@@ -4,14 +4,12 @@ use prelude::*;
 use std::ffi::alloc;
 use util::errors::Duplicate;
 
-/*
 pub struct RbTreeNode<V: Ord> {
 	pub parent: Ptr<RbTreeNode<V>>,
 	pub right: Ptr<RbTreeNode<V>>,
 	pub left: Ptr<RbTreeNode<V>>,
-	pub value: Box<V>,
+	pub value: Ptr<V>,
 }
-*/
 
 impl<V: Ord> Display for RbTreeNode<V> {
 	fn format(&self, f: &mut Formatter) -> Result<()> {
@@ -31,94 +29,15 @@ impl<V: Ord> Display for RbTreeNode<V> {
 	}
 }
 
-/*
-impl<V: Ord> RbTreeNode<V> {
-	pub fn stack(value: V) -> Result<Self> {
-		let mut value = Box::new(value)?;
-		unsafe { value.leak() };
-		Ok(Self {
-			parent: Ptr::new_bit_set(null_mut()),
-			right: Ptr::null(),
-			left: Ptr::null(),
-			value,
-		})
+impl<V: Ord> Drop for RbTreeNode<V> {
+	fn drop(&mut self) {
+		let _b = self.deallocate();
 	}
-
-	pub fn alloc(value: V) -> Result<Ptr<Self>> {
-		/*
-		let mut value = Box::new(value)?;
-		unsafe { value.leak() };
-			*/
-		let node: *mut RbTreeNode<V> = unsafe { alloc(size_of::<RbTreeNode<V>>()) as *mut _ };
-		let mut v = Self::stack(value)?;
-		unsafe {
-			crate::core::ptr::write(node as *mut _, v);
-		}
-		/*
-		unsafe {
-			(*node).value = value;
-			(*node).parent = Ptr::new_bit_set(null_mut());
-			(*node).right = Ptr::null();
-			(*node).left = Ptr::null();
-		}
-				*/
-		Ok(Ptr::new(node))
-	}
-
-	pub fn unleak(&mut self) {
-		unsafe {
-			self.value.unleak();
-		}
-	}
-
-	fn set_color(&mut self, color: Color) {
-		match color {
-			Color::Black => {
-				self.parent.set_bit(false);
-			}
-			Color::Red => {
-				self.parent.set_bit(true);
-			}
-		}
-	}
-
-	fn is_root(&self) -> bool {
-		self.parent.is_null()
-	}
-
-	fn is_red(&self) -> bool {
-		self.parent.get_bit()
-	}
-
-	fn is_black(&self) -> bool {
-		!self.is_red()
-	}
-
-	fn set_parent(&mut self, parent: Ptr<Self>) {
-		match self.is_black() {
-			true => {
-				self.parent = parent;
-				self.parent.set_bit(false);
-			}
-			false => {
-				self.parent = parent;
-				self.parent.set_bit(true);
-			}
-		}
-	}
-}
-*/
-
-pub struct RbTreeNode<V: Ord> {
-	pub parent: Ptr<RbTreeNode<V>>,
-	pub right: Ptr<RbTreeNode<V>>,
-	pub left: Ptr<RbTreeNode<V>>,
-	pub value: Ptr<V>,
 }
 
 impl<V: Ord> RbTreeNode<V> {
 	pub fn stack(value: V) -> Result<Self> {
-		let mut value = Box::new(value)?;
+		let value = Box::new(value)?;
 		let value = unsafe { value.into_raw() };
 		Ok(Self {
 			parent: Ptr::new_bit_set(null_mut()),
@@ -129,7 +48,7 @@ impl<V: Ord> RbTreeNode<V> {
 	}
 
 	pub fn alloc(value: V) -> Result<Ptr<Self>> {
-		let mut v = Self::stack(value)?;
+		let v = Self::stack(value)?;
 		let node: *mut RbTreeNode<V> = unsafe { alloc(size_of::<RbTreeNode<V>>()) as *mut _ };
 		unsafe {
 			crate::core::ptr::write(node as *mut _, v);
@@ -138,7 +57,7 @@ impl<V: Ord> RbTreeNode<V> {
 		Ok(Ptr::new(node))
 	}
 
-	pub fn from_raw(&mut self) -> Box<V> {
+	pub fn deallocate(&mut self) -> Box<V> {
 		unsafe { Box::from_raw(self.value) }
 	}
 
@@ -363,8 +282,7 @@ impl<V: Ord> RbTree<V> {
 		ptr: Ptr<RbTreeNode<T>>,
 		n: &mut RbTree<T>,
 	) -> Result<()> {
-		/*
-		let nval = RbTreeNode::alloc(ptr.value.try_clone()?)?;
+		let nval = RbTreeNode::alloc((*ptr.value).try_clone()?)?;
 		n.insert(nval);
 
 		if !ptr.right.is_null() {
@@ -374,8 +292,6 @@ impl<V: Ord> RbTree<V> {
 			self.insert_children(ptr.left, n)?;
 		}
 		Ok(())
-			*/
-		err!(Todo)
 	}
 
 	fn remove_impl(&mut self, pair: RbNodePair<V>) {
@@ -815,25 +731,27 @@ mod test {
 
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
-				let mut node = RbTreeNode::stack(v as u64)?;
+				let node = RbTreeNode::stack(v as u64)?;
 				let ptr = Ptr::new(&node as *const _);
 				let res = tree.search(ptr);
 				assert!(!res.cur.is_null());
 				assert_eq!(*(*(res.cur)).value, v as u64);
-				let b = node.from_raw();
 			}
 
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
-				let mut node = RbTreeNode::stack(v as u64)?;
-				let ptr = Ptr::new(&node as *const _);
-				let mut node_out = tree.remove_ptr(ptr).unwrap();
-				let vb = node_out.from_raw();
+				let mut node_out = tree.remove(v as u64).unwrap();
+				node_out.deallocate();
 				node_out.release();
 				validate_tree(tree.root());
+			}
+
+			for i in 0..size {
+				let v = murmur3_32_of_u64(i, seed);
+				let node = RbTreeNode::stack(v as u64)?;
+				let ptr = Ptr::new(&node as *const _);
 				let res = tree.search(ptr);
 				assert!(res.cur.is_null());
-				let b = node.from_raw();
 			}
 
 			/*
@@ -918,7 +836,6 @@ mod test {
 		Ok(())
 	}
 
-	/*
 	#[test]
 	fn test_rbtree2() -> Result<()> {
 		let mut tree = RbTree::new();
@@ -927,32 +844,30 @@ mod test {
 		for x in 0..5 {
 			let seed = 0x1234 + x;
 			for i in 0..size {
-				println!("insert {}", i);
 				let v = murmur3_32_of_u64(i, seed);
 				let vs = format!("{}", v)?;
 				let next = RbTreeNode::alloc(vs)?;
 				assert!(tree.insert(next).is_none());
-				//validate_tree(tree.root());
-				println!("drop ");
 			}
 
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let vs = format!("{}", v)?;
-				let node = RbTreeNode::stack(vs.clone());
+				let node = RbTreeNode::stack(vs.clone())?;
 				let ptr = Ptr::new(&node as *const _);
 				let res = tree.search(ptr);
 				assert!(!res.cur.is_null());
-				assert_eq!((*(res.cur)).value, vs);
+				assert_eq!(*(*(res.cur)).value, vs);
 			}
 
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let vs = format!("{}", v)?;
-				let node = RbTreeNode::stack(vs);
+				let node = RbTreeNode::stack(vs)?;
 				let ptr = Ptr::new(&node as *const _);
-				tree.remove_ptr(ptr).unwrap().release();
-				//validate_tree(tree.root());
+				let mut node_out = tree.remove_ptr(ptr).unwrap();
+				node_out.deallocate();
+				node_out.release();
 				let res = tree.search(ptr);
 				assert!(res.cur.is_null());
 			}
@@ -960,6 +875,8 @@ mod test {
 
 		Ok(())
 	}
+
+	/*
 
 	#[test]
 	fn test_rbtree_try_insert() {
@@ -1315,38 +1232,19 @@ mod test {
 	#[test]
 	fn test_rc_rbtree() -> Result<()> {
 		let size = 100;
-		//let mut tree = RbTree::new();
-		/*
-		let mut vv = Vec::new();
+		let mut tree = RbTree::new();
 
 		for i in 0..size {
-				//vv.push(i as u64)?;
-				vv.push(DropMe {
-						inner: Rc::new(DropMeInner {
-								s: String::new("hi")?,
-								v: i,
-						})?,
-				})?;
-		}
-				*/
-
-		/*
-		for i in 0..size {
-			println!("create {}", i);
 			let v = DropMe {
 				inner: Rc::new(DropMeInner {
 					s: String::new("hi")?,
 					v: i,
 				})?,
 			};
-			//let next = RbTreeNode::alloc(vv[i as usize].clone())?;
+			assert_eq!(v.inner.s, String::new("hi")?);
 			let next = RbTreeNode::alloc(v)?;
 			assert!(tree.insert(next).is_none());
-			//validate_tree(tree.root());
 		}
-		println!("drop");
-				*/
-		/*
 
 		let mut i = 0;
 		for v in tree.iter() {
@@ -1364,17 +1262,16 @@ mod test {
 
 		assert_eq!(tree.len(), size as usize);
 		for i in 0..size {
-			let mut v = DropMe {
+			let v = DropMe {
 				inner: Rc::new(DropMeInner {
 					s: String::new("hi")?,
 					v: i,
 				})?,
 			};
-			//tree.remove(vv[i as usize].clone()).unwrap().release();
 			let mut ret = tree.remove(v).unwrap();
-
+			ret.deallocate();
 			ret.release();
-		}*/
+		}
 
 		Ok(())
 	}
