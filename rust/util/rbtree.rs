@@ -856,212 +856,132 @@ mod test {
 		Ok(())
 	}
 
-	/*
-
 	#[test]
-	fn test_rbtree_try_insert() {
+	fn test_rbtree_try_insert() -> Result<()> {
 		let mut tree = RbTree::new();
 
 		let size = 3;
-		for x in 0..1 {
-			let seed = 0x1234 + x;
+		for x in 0..2 {
 			for i in 0..size {
-				let v = fnvhash_32_of_u64(i);
-				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let v = fnvhash_32_of_u64(i + x);
+				let next = RbTreeNode::alloc(v as u64)?;
 				assert!(tree.try_insert(next).is_ok());
 				validate_tree(tree.root());
-				let check = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
+				let check = RbTreeNode::alloc(v as u64)?;
 				assert!(tree.try_insert(check).is_err());
 				check.release();
 			}
 
 			for i in 0..size {
-				let v = fnvhash_32_of_u64(i);
-				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.search(tree.root(), ptr);
+				let v = fnvhash_32_of_u64(i + x);
+				let ptr = RbTreeNode::alloc(v as u64)?;
+				let res = tree.search(ptr);
 				assert!(!res.cur.is_null());
-				assert_eq!((*(res.cur)).value, v as u64);
+				assert_eq!(*(*(res.cur)).value, v as u64);
 				ptr.release();
 			}
 
 			for i in 0..size {
-				let v = fnvhash_32_of_u64(i);
-				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove_ptr(ptr);
+				let v = fnvhash_32_of_u64(i + x);
+				let node_out = tree.remove(v as u64).unwrap();
+				RbTreeNode::release(node_out);
 				validate_tree(tree.root());
-				res.unwrap().release();
-				let res = tree.search(tree.root(), ptr);
-				assert!(res.cur.is_null());
-				ptr.release();
-			}
-
-			let seed = seed + 1;
-
-			for i in 0..size {
-				let v = fnvhash_32_of_u64(i);
-				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				assert!(tree.try_insert(next).is_ok());
-				validate_tree(tree.root());
-				assert!(tree.try_insert(next).is_err());
-			}
-
-			for i in 0..size {
-				let v = fnvhash_32_of_u64(i);
-				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.search(tree.root(), ptr);
-				assert!(!res.cur.is_null());
-				assert_eq!((*(res.cur)).value, v as u64);
-				ptr.release();
-			}
-
-			let mut c = 0;
-
-			for i in 0..size / 2 {
-				c += 1;
-				let v = fnvhash_32_of_u64(i);
-				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove_ptr(ptr);
-				validate_tree(tree.root());
-				res.unwrap().release();
-				let res = tree.search(tree.root(), ptr);
-				assert!(res.cur.is_null());
-				ptr.release();
-			}
-
-			let seed = seed + 1;
-
-			for i in 0..size {
-				let v = fnvhash_32_of_u64(i);
-				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				assert!(tree.try_insert(next).is_ok());
-				validate_tree(tree.root());
-				assert!(tree.try_insert(next).is_err());
-			}
-
-			for i in 0..size {
-				let v = fnvhash_32_of_u64(i);
-				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.search(tree.root(), ptr);
-				assert!(!res.cur.is_null());
-				assert_eq!((*(res.cur)).value, v as u64);
-				ptr.release();
-			}
-
-			for i in 0..size {
-				let v = fnvhash_32_of_u64(i);
-				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove_ptr(ptr);
-				validate_tree(tree.root());
-				res.unwrap().release();
-				let res = tree.search(tree.root(), ptr);
-				assert!(res.cur.is_null());
-				ptr.release();
-			}
-
-			let seed = seed - 1;
-			for i in (size / 2)..size {
-				c += 1;
-				let v = fnvhash_32_of_u64(i);
-				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove_ptr(ptr);
-				validate_tree(tree.root());
-				res.unwrap().release();
-				let res = tree.remove_ptr(ptr);
-				assert!(res.is_none());
-				ptr.release();
-			}
-			assert_eq!(c, size);
-		}
-	}
-
-	#[derive(Debug, PartialEq, Clone, PartialOrd, Eq)]
-	struct TestTransplant {
-		x: u64,
-		y: u64,
-	}
-
-	impl Ord for TestTransplant {
-		fn cmp(&self, other: &Self) -> Ordering {
-			self.x.cmp(&other.x)
-		}
-	}
-
-	#[test]
-	fn test_transplant() {
-		let mut tree = RbTree::new();
-
-		{
-			let size = 3;
-			for i in 0..size {
-				let v = TestTransplant { x: i, y: i };
-				let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-				let res = tree.insert(next);
-				assert!(res.is_none());
-			}
-
-			for i in 0..size {
-				let v = TestTransplant { x: i, y: i };
-				let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
-				let res = tree.search(tree.root(), ptr);
-				assert!(!res.cur.is_null());
-				assert_eq!((*(res.cur)).value, v);
-				ptr.release();
-			}
-
-			for i in 0..size {
-				let v = TestTransplant { x: i, y: i + 1 };
-				let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-				let res = tree.insert(next);
-				assert!(res.is_some());
-				res.unwrap().release();
-			}
-
-			for i in 0..size {
-				let v = TestTransplant { x: i, y: i + 1 };
-				let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
-				let res = tree.search(tree.root(), ptr);
-				assert!(!res.cur.is_null());
-				assert_eq!((*(res.cur)).value, v);
-				ptr.release();
-			}
-
-			for i in 0..size {
-				let v = TestTransplant { x: i, y: i + 91 };
-				let ptr = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-				let res = tree.remove_ptr(ptr);
-				res.unwrap().release();
-				let res = tree.search(tree.root(), ptr);
-				assert!(res.cur.is_null());
-				ptr.release();
-			}
-
-			for i in 0..size {
-				let v = TestTransplant { x: i, y: i + 10 };
-				let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-				let res = tree.insert(next);
-				assert!(res.is_none());
-			}
-
-			for i in 0..size {
-				let v = TestTransplant { x: i, y: i + 10 };
-				let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
-				let res = tree.search(tree.root(), ptr);
-				assert!(!res.cur.is_null());
-				assert_eq!((*(res.cur)).value, v);
-				ptr.release();
-			}
-
-			for i in 0..size {
-				let v = TestTransplant { x: i, y: i + 91 };
-				let ptr = Ptr::alloc(RbTreeNode::new(v)).unwrap();
-				let res = tree.remove_ptr(ptr);
-				res.unwrap().release();
-				let res = tree.search(tree.root(), ptr);
-				assert!(res.cur.is_null());
-				ptr.release();
 			}
 		}
+
+		Ok(())
 	}
+	/*
+
+		#[derive(Debug, PartialEq, Clone, PartialOrd, Eq)]
+		struct TestTransplant {
+			x: u64,
+			y: u64,
+		}
+
+		impl Ord for TestTransplant {
+			fn cmp(&self, other: &Self) -> Ordering {
+				self.x.cmp(&other.x)
+			}
+		}
+
+		#[test]
+		fn test_transplant() {
+			let mut tree = RbTree::new();
+
+			{
+				let size = 3;
+				for i in 0..size {
+					let v = TestTransplant { x: i, y: i };
+					let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
+					let res = tree.insert(next);
+					assert!(res.is_none());
+				}
+
+				for i in 0..size {
+					let v = TestTransplant { x: i, y: i };
+					let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
+					let res = tree.search(tree.root(), ptr);
+					assert!(!res.cur.is_null());
+					assert_eq!((*(res.cur)).value, v);
+					ptr.release();
+				}
+
+				for i in 0..size {
+					let v = TestTransplant { x: i, y: i + 1 };
+					let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
+					let res = tree.insert(next);
+					assert!(res.is_some());
+					res.unwrap().release();
+				}
+
+				for i in 0..size {
+					let v = TestTransplant { x: i, y: i + 1 };
+					let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
+					let res = tree.search(tree.root(), ptr);
+					assert!(!res.cur.is_null());
+					assert_eq!((*(res.cur)).value, v);
+					ptr.release();
+				}
+
+				for i in 0..size {
+					let v = TestTransplant { x: i, y: i + 91 };
+					let ptr = Ptr::alloc(RbTreeNode::new(v)).unwrap();
+					let res = tree.remove_ptr(ptr);
+					res.unwrap().release();
+					let res = tree.search(tree.root(), ptr);
+					assert!(res.cur.is_null());
+					ptr.release();
+				}
+
+				for i in 0..size {
+					let v = TestTransplant { x: i, y: i + 10 };
+					let next = Ptr::alloc(RbTreeNode::new(v)).unwrap();
+					let res = tree.insert(next);
+					assert!(res.is_none());
+				}
+
+				for i in 0..size {
+					let v = TestTransplant { x: i, y: i + 10 };
+					let ptr = Ptr::alloc(RbTreeNode::new(v.clone())).unwrap();
+					let res = tree.search(tree.root(), ptr);
+					assert!(!res.cur.is_null());
+					assert_eq!((*(res.cur)).value, v);
+					ptr.release();
+				}
+
+				for i in 0..size {
+					let v = TestTransplant { x: i, y: i + 91 };
+					let ptr = Ptr::alloc(RbTreeNode::new(v)).unwrap();
+					let res = tree.remove_ptr(ptr);
+					res.unwrap().release();
+					let res = tree.search(tree.root(), ptr);
+					assert!(res.cur.is_null());
+					ptr.release();
+				}
+			}
+		}
+	*/
 
 	#[test]
 	fn test_rbtree_iter() -> Result<()> {
@@ -1069,21 +989,20 @@ mod test {
 
 		let size = 100;
 		for x in 0..5 {
-			let seed = 0x1234 + x;
 			for i in 0..size {
-				let v = fnvhash_32_of_u64(i);
-				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				assert!(tree.insert(next).is_none());
+				let v = fnvhash_32_of_u64(i + x);
+				let next = RbTreeNode::alloc(v as u64)?;
+				assert!(tree.try_insert(next).is_ok());
 				validate_tree(tree.root());
 			}
 
 			for i in 0..size {
-				let v = fnvhash_32_of_u64(i);
-				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.search(tree.root(), ptr);
+				let v = fnvhash_32_of_u64(i + x);
+				let node = RbTreeNode::stack(v as u64)?;
+				let ptr = Ptr::new(&node as *const _);
+				let res = tree.search(ptr);
 				assert!(!res.cur.is_null());
-				assert_eq!((*(res.cur)).value, v as u64);
-				ptr.release();
+				assert_eq!(*(*(res.cur)).value, v as u64);
 			}
 
 			let mut i = 0;
@@ -1096,19 +1015,17 @@ mod test {
 			assert_eq!(i, size);
 
 			for i in 0..size {
-				let v = fnvhash_32_of_u64(i);
-				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
-				let res = tree.remove_ptr(ptr);
+				let v = fnvhash_32_of_u64(i + x);
+				let node_out = tree.remove(v as u64).unwrap();
+				RbTreeNode::release(node_out);
 				validate_tree(tree.root());
-				res.unwrap().release();
-				let res = tree.search(tree.root(), ptr);
-				assert!(res.cur.is_null());
-				ptr.release();
 			}
 		}
 
 		Ok(())
 	}
+
+	/*
 
 	#[test]
 	fn test_three_rbtree_iters() -> Result<()> {
