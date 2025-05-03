@@ -30,9 +30,9 @@ jobs:
       - name: linux build (rustc)
         run: |
           rustup default nightly
-          ./build
+          ./make
           ./bin/bmw || exit 1;
-      - name: linux build (mrustc)
+      - name: linux build (famc)
         run: |
           export CC=clang
           mkdir ../famc
@@ -40,21 +40,19 @@ jobs:
           wget https://github.com/cgilliard/famc/releases/download/0.0.1/famc_linux.tar.gz
           gzip -dc famc_linux.tar.gz | tar xvf -
           cd ../bitcoinmw
-          ./build clean
-          export MRUSTC=../famc/bin/mrustc
-          export OUTPUT=../famc/output-1.29.0
-          ./build mrustc || exit 1;
+          ./make clean
+          ./make --with-cc=clang --with-famc=../famc/bin/mrustc --with-outout=../famc.output-1.29.0 || exit 1;
           ./bin/bmw || exit 1;
       - name: linux tests
         run: |
           rustup default nightly
-          ./build clean
-          ./test
+          ./make clean
+          ./make test
       - name: address sanitize
         run: |
           rustup default nightly
-          ./build clean
-          ./asan
+          ./make clean
+          ./make test --with-asan
       - name: code coverage
         run: |
           cargo install grcov --version 0.8.22
@@ -64,8 +62,8 @@ jobs:
           git config user.name "Coverage-Bot"
           git config user.email "noreply@pipeline.com"
           git checkout main
-          ./build clean
-          ./coverage
+          ./make clean
+          ./make coverage
           ./scripts/update_code_coverage.sh
           git commit -am "Coverage-Bot: Updated repo (via main.yml script) Source Version is $GITHUB_SHA";
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
@@ -107,7 +105,7 @@ jobs:
       - name: macos build (rustc)
         run: |
           rustup default nightly
-          ./build
+          ./make
           ./bin/bmw || exit 1;
       - name: macos build (mrustc)
         run: |
@@ -119,16 +117,14 @@ jobs:
           wget https://github.com/cgilliard/famc/releases/download/0.0.1/famc_macos.tar.gz
           gzip -dc famc_macos.tar.gz | tar xvf -
           cd ../bitcoinmw
-          ./build clean
-          export MRUSTC=../famc/bin/mrustc
-          export OUTPUT=../famc/output-1.29.0
-          ./build mrustc || exit 1;
+          ./make clean
+          ./make --with-famc=../famc/bin/mrustc --with-output=../famc/output-1.29.0 --with-cc=clang || exit 1;
           ./bin/bmw || exit 1;
       - name: macos tests
         run: |
           rustup default nightly
-          ./build clean
-          ./test
+          ./make clean
+          ./make test
       - name: macos bootstrap (mrustc)
         run: |
           if [[ "$GITHUB_EVENT_NAME" == "schedule" || "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
