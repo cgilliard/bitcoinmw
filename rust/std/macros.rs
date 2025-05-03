@@ -226,3 +226,29 @@ macro_rules! cas {
 		}
 	}};
 }
+
+#[macro_export]
+macro_rules! vec {
+        ($($elem:expr),*) => {{
+                let mut vec = Vec::new();
+                let mut err: Error = Error::new(
+                        Unknown.code(),
+                        || -> &'static str { "Unknown" },
+                        Backtrace::init(),
+                );
+
+                $(
+                                if err == Unknown {
+                                                match vec.push($elem) {
+                                                                Ok(_) => {},
+                                                                Err(e) => err = e,
+                                                }
+                                }
+                )*
+                if err != Unknown {
+                        Err(err)
+                } else {
+                        Ok(vec)
+                }
+        }};
+}
