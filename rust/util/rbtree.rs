@@ -4,12 +4,14 @@ use prelude::*;
 use std::ffi::alloc;
 use util::errors::Duplicate;
 
+/*
 pub struct RbTreeNode<V: Ord> {
 	pub parent: Ptr<RbTreeNode<V>>,
 	pub right: Ptr<RbTreeNode<V>>,
 	pub left: Ptr<RbTreeNode<V>>,
 	pub value: Box<V>,
 }
+*/
 
 impl<V: Ord> Display for RbTreeNode<V> {
 	fn format(&self, f: &mut Formatter) -> Result<()> {
@@ -29,6 +31,7 @@ impl<V: Ord> Display for RbTreeNode<V> {
 	}
 }
 
+/*
 impl<V: Ord> RbTreeNode<V> {
 	pub fn stack(value: V) -> Result<Self> {
 		let mut value = Box::new(value)?;
@@ -42,15 +45,23 @@ impl<V: Ord> RbTreeNode<V> {
 	}
 
 	pub fn alloc(value: V) -> Result<Ptr<Self>> {
+		/*
 		let mut value = Box::new(value)?;
 		unsafe { value.leak() };
+			*/
 		let node: *mut RbTreeNode<V> = unsafe { alloc(size_of::<RbTreeNode<V>>()) as *mut _ };
+		let mut v = Self::stack(value)?;
+		unsafe {
+			crate::core::ptr::write(node as *mut _, v);
+		}
+		/*
 		unsafe {
 			(*node).value = value;
 			(*node).parent = Ptr::new_bit_set(null_mut());
 			(*node).right = Ptr::null();
 			(*node).left = Ptr::null();
 		}
+				*/
 		Ok(Ptr::new(node))
 	}
 
@@ -58,6 +69,77 @@ impl<V: Ord> RbTreeNode<V> {
 		unsafe {
 			self.value.unleak();
 		}
+	}
+
+	fn set_color(&mut self, color: Color) {
+		match color {
+			Color::Black => {
+				self.parent.set_bit(false);
+			}
+			Color::Red => {
+				self.parent.set_bit(true);
+			}
+		}
+	}
+
+	fn is_root(&self) -> bool {
+		self.parent.is_null()
+	}
+
+	fn is_red(&self) -> bool {
+		self.parent.get_bit()
+	}
+
+	fn is_black(&self) -> bool {
+		!self.is_red()
+	}
+
+	fn set_parent(&mut self, parent: Ptr<Self>) {
+		match self.is_black() {
+			true => {
+				self.parent = parent;
+				self.parent.set_bit(false);
+			}
+			false => {
+				self.parent = parent;
+				self.parent.set_bit(true);
+			}
+		}
+	}
+}
+*/
+
+pub struct RbTreeNode<V: Ord> {
+	pub parent: Ptr<RbTreeNode<V>>,
+	pub right: Ptr<RbTreeNode<V>>,
+	pub left: Ptr<RbTreeNode<V>>,
+	pub value: Ptr<V>,
+}
+
+impl<V: Ord> RbTreeNode<V> {
+	pub fn stack(value: V) -> Result<Self> {
+		let mut value = Box::new(value)?;
+		let value = unsafe { value.into_raw() };
+		Ok(Self {
+			parent: Ptr::new_bit_set(null_mut()),
+			right: Ptr::null(),
+			left: Ptr::null(),
+			value,
+		})
+	}
+
+	pub fn alloc(value: V) -> Result<Ptr<Self>> {
+		let mut v = Self::stack(value)?;
+		let node: *mut RbTreeNode<V> = unsafe { alloc(size_of::<RbTreeNode<V>>()) as *mut _ };
+		unsafe {
+			crate::core::ptr::write(node as *mut _, v);
+		}
+
+		Ok(Ptr::new(node))
+	}
+
+	pub fn from_raw(&mut self) -> Box<V> {
+		unsafe { Box::from_raw(self.value) }
 	}
 
 	fn set_color(&mut self, color: Color) {
@@ -281,6 +363,7 @@ impl<V: Ord> RbTree<V> {
 		ptr: Ptr<RbTreeNode<T>>,
 		n: &mut RbTree<T>,
 	) -> Result<()> {
+		/*
 		let nval = RbTreeNode::alloc(ptr.value.try_clone()?)?;
 		n.insert(nval);
 
@@ -291,6 +374,8 @@ impl<V: Ord> RbTree<V> {
 			self.insert_children(ptr.left, n)?;
 		}
 		Ok(())
+			*/
+		err!(Todo)
 	}
 
 	fn remove_impl(&mut self, pair: RbNodePair<V>) {
@@ -735,18 +820,20 @@ mod test {
 				let res = tree.search(ptr);
 				assert!(!res.cur.is_null());
 				assert_eq!(*(*(res.cur)).value, v as u64);
-				node.unleak();
+				let b = node.from_raw();
 			}
 
 			for i in 0..size {
 				let v = murmur3_32_of_u64(i, seed);
 				let mut node = RbTreeNode::stack(v as u64)?;
 				let ptr = Ptr::new(&node as *const _);
-				tree.remove_ptr(ptr).unwrap().release();
+				let mut node_out = tree.remove_ptr(ptr).unwrap();
+				let vb = node_out.from_raw();
+				node_out.release();
 				validate_tree(tree.root());
 				let res = tree.search(ptr);
 				assert!(res.cur.is_null());
-				node.unleak();
+				let b = node.from_raw();
 			}
 
 			/*
