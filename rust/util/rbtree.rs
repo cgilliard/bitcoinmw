@@ -641,13 +641,12 @@ impl<V: Ord> RbTree<V> {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use core::mem::size_of;
-	use core::slice::from_raw_parts;
-	use util::murmur::hash128::murmurhash3_x64_128;
+	use std::misc::{fnvhash, to_be_bytes_u64};
 
-	fn murmur3_32_of_u64(source: u64, seed: u32) -> u32 {
-		let slice = unsafe { from_raw_parts(&source as *const u64 as *const u8, size_of::<u64>()) };
-		murmurhash3_x64_128(slice, seed).0 as u32
+	fn fnvhash_32_of_u64(source: u64) -> u32 {
+		let mut bytes = [0u8; 8];
+		to_be_bytes_u64(source, &mut bytes);
+		fnvhash(&bytes) as u32
 	}
 
 	fn validate_node(
@@ -726,16 +725,15 @@ mod test {
 
 		let size = 100;
 		for x in 0..5 {
-			let seed = 0x1234 + x;
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i + x);
 				let next = RbTreeNode::alloc(v as u64)?;
 				assert!(tree.insert(next).is_none());
 				validate_tree(tree.root());
 			}
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i + x);
 				let node = RbTreeNode::stack(v as u64)?;
 				let ptr = Ptr::new(&node as *const _);
 				let res = tree.search(ptr);
@@ -744,97 +742,77 @@ mod test {
 			}
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i + x);
 				let node_out = tree.remove(v as u64).unwrap();
 				RbTreeNode::release(node_out);
 				validate_tree(tree.root());
 			}
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i + x);
 				let node = RbTreeNode::stack(v as u64)?;
 				let ptr = Ptr::new(&node as *const _);
 				let res = tree.search(ptr);
 				assert!(res.cur.is_null());
 			}
 
-			/*
-
-			let seed = seed + 1;
-
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i + x + 1);
 				let next = RbTreeNode::alloc(v as u64)?;
 				assert!(tree.insert(next).is_none());
 				validate_tree(tree.root());
 			}
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
-				let node = RbTreeNode::stack(v as u64);
+				let v = fnvhash_32_of_u64(i + x + 1);
+				let node = RbTreeNode::stack(v as u64)?;
 				let ptr = Ptr::new(&node as *const _);
 				let res = tree.search(ptr);
 				assert!(!res.cur.is_null());
-				assert_eq!((*(res.cur)).value, v as u64);
+				assert_eq!(*(*(res.cur)).value, v as u64);
 			}
 
 			let mut c = 0;
 
 			for i in 0..size / 2 {
 				c += 1;
-				let v = murmur3_32_of_u64(i, seed);
-				let node = RbTreeNode::stack(v as u64);
-				let ptr = Ptr::new(&node as *const _);
-				let res = tree.remove_ptr(ptr);
+				let v = fnvhash_32_of_u64(i + x + 1);
+				let node_out = tree.remove(v as u64).unwrap();
+				RbTreeNode::release(node_out);
 				validate_tree(tree.root());
-				res.unwrap().release();
-				let res = tree.search(ptr);
-				assert!(res.cur.is_null());
 			}
 
-			let seed = seed + 1;
-
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i + x + 30000);
 				let next = RbTreeNode::alloc(v as u64)?;
 				assert!(tree.insert(next).is_none());
 				validate_tree(tree.root());
 			}
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
-				let node = RbTreeNode::stack(v as u64);
+				let v = fnvhash_32_of_u64(i + x + 30000);
+				let node = RbTreeNode::stack(v as u64)?;
 				let ptr = Ptr::new(&node as *const _);
 				let res = tree.search(ptr);
 				assert!(!res.cur.is_null());
-				assert_eq!((*(res.cur)).value, v as u64);
+				assert_eq!(*(*(res.cur)).value, v as u64);
 			}
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
-				let node = RbTreeNode::stack(v as u64);
-				let ptr = Ptr::new(&node as *const _);
-				let res = tree.remove_ptr(ptr);
+				let v = fnvhash_32_of_u64(i + x + 30000);
+				let node_out = tree.remove(v as u64).unwrap();
+				RbTreeNode::release(node_out);
 				validate_tree(tree.root());
-				res.unwrap().release();
-				let res = tree.search(ptr);
-				assert!(res.cur.is_null());
 			}
 
-			let seed = seed - 1;
 			for i in (size / 2)..size {
 				c += 1;
-				let v = murmur3_32_of_u64(i, seed);
-				let node = RbTreeNode::stack(v as u64);
-				let ptr = Ptr::new(&node as *const _);
-				let res = tree.remove_ptr(ptr);
+				let v = fnvhash_32_of_u64(i + x + 1);
+				let node_out = tree.remove(v as u64).unwrap();
+				RbTreeNode::release(node_out);
 				validate_tree(tree.root());
-				res.unwrap().release();
-				let res = tree.remove_ptr(ptr);
-				assert!(res.is_none());
 			}
 			assert_eq!(c, size);
-						*/
 		}
 
 		Ok(())
@@ -846,16 +824,15 @@ mod test {
 
 		let size = 100;
 		for x in 0..5 {
-			let seed = 0x1234 + x;
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i + x);
 				let vs = format!("{}", v)?;
 				let next = RbTreeNode::alloc(vs)?;
 				assert!(tree.insert(next).is_none());
 			}
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i + x);
 				let vs = format!("{}", v)?;
 				let node = RbTreeNode::stack(vs.clone())?;
 				let ptr = Ptr::new(&node as *const _);
@@ -865,7 +842,7 @@ mod test {
 			}
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i + x);
 				let vs = format!("{}", v)?;
 				let node = RbTreeNode::stack(vs)?;
 				let ptr = Ptr::new(&node as *const _);
@@ -889,7 +866,7 @@ mod test {
 		for x in 0..1 {
 			let seed = 0x1234 + x;
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i);
 				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 				assert!(tree.try_insert(next).is_ok());
 				validate_tree(tree.root());
@@ -899,7 +876,7 @@ mod test {
 			}
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 				let res = tree.search(tree.root(), ptr);
 				assert!(!res.cur.is_null());
@@ -908,7 +885,7 @@ mod test {
 			}
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 				let res = tree.remove_ptr(ptr);
 				validate_tree(tree.root());
@@ -921,7 +898,7 @@ mod test {
 			let seed = seed + 1;
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i);
 				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 				assert!(tree.try_insert(next).is_ok());
 				validate_tree(tree.root());
@@ -929,7 +906,7 @@ mod test {
 			}
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 				let res = tree.search(tree.root(), ptr);
 				assert!(!res.cur.is_null());
@@ -941,7 +918,7 @@ mod test {
 
 			for i in 0..size / 2 {
 				c += 1;
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 				let res = tree.remove_ptr(ptr);
 				validate_tree(tree.root());
@@ -954,7 +931,7 @@ mod test {
 			let seed = seed + 1;
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i);
 				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 				assert!(tree.try_insert(next).is_ok());
 				validate_tree(tree.root());
@@ -962,7 +939,7 @@ mod test {
 			}
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 				let res = tree.search(tree.root(), ptr);
 				assert!(!res.cur.is_null());
@@ -971,7 +948,7 @@ mod test {
 			}
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 				let res = tree.remove_ptr(ptr);
 				validate_tree(tree.root());
@@ -984,7 +961,7 @@ mod test {
 			let seed = seed - 1;
 			for i in (size / 2)..size {
 				c += 1;
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 				let res = tree.remove_ptr(ptr);
 				validate_tree(tree.root());
@@ -1094,14 +1071,14 @@ mod test {
 		for x in 0..5 {
 			let seed = 0x1234 + x;
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i);
 				let next = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 				assert!(tree.insert(next).is_none());
 				validate_tree(tree.root());
 			}
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 				let res = tree.search(tree.root(), ptr);
 				assert!(!res.cur.is_null());
@@ -1119,7 +1096,7 @@ mod test {
 			assert_eq!(i, size);
 
 			for i in 0..size {
-				let v = murmur3_32_of_u64(i, seed);
+				let v = fnvhash_32_of_u64(i);
 				let ptr = Ptr::alloc(RbTreeNode::new(v as u64)).unwrap();
 				let res = tree.remove_ptr(ptr);
 				validate_tree(tree.root());

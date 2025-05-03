@@ -7,6 +7,5 @@ pub mod macros;
 
 pub mod channel;
 pub mod lock;
-pub mod murmur;
 pub mod rbtree;
 pub mod thread;

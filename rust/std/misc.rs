@@ -50,6 +50,21 @@ pub const fn simple_hash(s: &str, line: u32) -> u128 {
 	((line as u128) << 64) | (hash as u128)
 }
 
+pub const fn fnvhash(bytes: &[u8]) -> u64 {
+	let mut hash = 0xCBF29CE484222325_u64; // FNV-1a 64-bit offset basis
+	const PRIME: u64 = 0x100000001B3; // FNV-1a 64-bit prime
+
+	// Hash the string bytes
+	let mut i = 0;
+	while i < bytes.len() {
+		hash = hash ^ (bytes[i] as u64);
+		hash = wrapping_mul(hash, PRIME);
+		i += 1;
+	}
+
+	hash
+}
+
 pub fn slice_copy<T: Copy>(src: &[T], dst: &mut [T], len: usize) -> Result<()> {
 	if dst.len() < len || src.len() < len {
 		err!(OutOfBounds)
