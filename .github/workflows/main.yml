@@ -81,7 +81,7 @@ jobs:
             ./build clean
             export MRUSTC=../famc_src/bin/mrustc
             export OUTPUT=../famc_src/output-1.29.0
-            ./build mrustc || exit 1;
+            ./make --with-famc=../famc_src/bin/mrustc --with-output=../famc_src/output-1.29.0 --with-cc=clang || exit 1;
             ./bin/bmw || exit 1;
           fi
   macos:
@@ -138,6 +138,6 @@ jobs:
             ./build clean
             export MRUSTC=../famc_src/bin/mrustc
             export OUTPUT=../famc_src/output-1.29.0
-            ./build mrustc || exit 1;
+            ./make --with-famc=../famc_src/bin/mrustc --with-output=../famc_src/output-1.29.0 --with-cc=clang || exit 1;
             ./bin/bmw || exit 1;
           fi
