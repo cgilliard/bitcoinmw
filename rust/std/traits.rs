@@ -23,8 +23,6 @@ pub trait AsRawMut<T: ?Sized> {
 	fn as_mut_ptr(&mut self) -> *mut T;
 }
 
-// temp use Core
-use core::fmt::Formatter;
 pub trait Display {
 	fn format(&self, f: &mut Formatter) -> Result<()>;
 }

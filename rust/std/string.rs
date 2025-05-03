@@ -36,13 +36,11 @@ impl PartialOrd for String {
 
 impl Eq for String {}
 
-/*
 impl Display for String {
 	fn format(&self, f: &mut Formatter) -> Result<()> {
 		writef!(f, "{}", self.as_str())
 	}
 }
-*/
 
 impl Debug for String {
 	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> FmtResult {

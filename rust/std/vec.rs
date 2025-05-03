@@ -25,7 +25,6 @@ impl<T: Debug> Debug for Vec<T> {
 	}
 }
 
-/*
 impl<T: Display> Display for Vec<T> {
 	fn format(&self, f: &mut Formatter) -> Result<()> {
 		let mut first = true;
@@ -43,7 +42,6 @@ impl<T: Display> Display for Vec<T> {
 		writef!(f, "]")
 	}
 }
-*/
 
 impl<T> AsRef<[T]> for Vec<T> {
 	fn as_ref(&self) -> &[T] {

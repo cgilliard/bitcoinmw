@@ -10,6 +10,28 @@ pub struct Backtrace {
 	size: i32,
 }
 
+impl Display for Backtrace {
+	fn format(&self, f: &mut Formatter) -> Result<()> {
+		unsafe {
+			use core::slice::from_raw_parts;
+			use core::str::from_utf8_unchecked;
+			use std::ffi::{cstring_len, release};
+
+			let bt = self.as_ptr();
+			let s = if bt.is_null() {
+				"Backtrace disabled. To enable export RUST_BACKTRACE=1."
+			} else {
+				let len = cstring_len(bt);
+				let slice = from_raw_parts(bt, len as usize);
+				from_utf8_unchecked(slice)
+			};
+			release(bt);
+			writef!(f, "{}", s)?;
+		}
+		Ok(())
+	}
+}
+
 impl Backtrace {
 	pub fn new() -> Self {
 		let mut ret = Backtrace {

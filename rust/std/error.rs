@@ -37,6 +37,30 @@ impl Debug for Error {
 	}
 }
 
+impl Display for Error {
+	fn format(&self, f: &mut Formatter) -> Result<()> {
+		let kind_str = (self.display)();
+		unsafe {
+			use core::slice::from_raw_parts;
+			use core::str::from_utf8_unchecked;
+			use std::ffi::{cstring_len, release};
+
+			let bt = self.bt.as_ptr();
+			let s = if bt.is_null() {
+				"Backtrace disabled. To enable export RUST_BACKTRACE=1."
+			} else {
+				let len = cstring_len(bt);
+				let slice = from_raw_parts(bt, len as usize);
+				from_utf8_unchecked(slice)
+			};
+
+			release(bt);
+			writef!(f, "ErrorKind={}\n{}", kind_str, s)?;
+		}
+		Ok(())
+	}
+}
+
 impl Error {
 	pub const fn new(code: u128, display: fn() -> &'static str, bt: Backtrace) -> Self {
 		Self { code, display, bt }
