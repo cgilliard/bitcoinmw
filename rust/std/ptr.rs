@@ -147,7 +147,9 @@ impl<T: Copy> Ptr<T> {
 			Ok(Self { ptr })
 		}
 	}
+}
 
+impl<T> Ptr<T> {
 	pub fn null() -> Self {
 		let ptr = null();
 		Self { ptr }
