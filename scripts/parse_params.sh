@@ -74,9 +74,22 @@ OS=$(uname -s)
 if [ "$OS" = "Linux" ]; then
     MACRO_EXT=.so
     STATIC=-static
+    LINK_GMP="-lgmp -lm"
+    LINK_SECP256K1="-lsecp256k1"
 elif [ "$OS" = "Darwin" ]; then
+    if ! command -v brew >/dev/null 2>&1; then
+        echo "Error: Homebrew is required on macOS to locate GMP" >&2
+        exit 1
+    fi
+    GMP_PATH="$(brew --prefix gmp)/lib/libgmp.a"
+    if [ ! -f "$GMP_PATH" ]; then
+        echo "Error: libgmp.a not found at $GMP_PATH. Install with 'brew install gmp'" >&2
+        exit 1
+    fi
     MACRO_EXT=.dylib
     STATIC=
+    LINK_SECP256K1="-lsecp256k1"
+    LINK_GMP="$GMP_PATH"
 else
     echo "Unsupported platform: $OS"
     exit 1
