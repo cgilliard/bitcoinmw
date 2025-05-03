@@ -16,7 +16,7 @@ pub type WsOnRecv = Box<dyn FnMut(&mut Handle, &[u8], bool, u8) -> Result<()>>;
 pub type WsOnAccept = Box<dyn FnMut(&mut Handle) -> Result<()>>;
 pub type WsOnClose = Box<dyn FnMut(&mut Handle) -> Result<()>>;
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 enum WsState {
 	Init,
 	Started,
@@ -73,6 +73,8 @@ pub struct Ws {
 	evh: Evh<WsContext, WsConnection>,
 	state: WsState,
 	handlers: Rc<RbTree<Handler>>,
+	sockets: Vec<Socket>,
+	acceptors: Vec<Connection<WsContext, WsConnection>>,
 }
 
 pub struct Listener {
@@ -145,6 +147,36 @@ impl Handler {
 	}
 }
 
+impl Drop for Ws {
+	fn drop(&mut self) {
+		let binding = self.handlers.clone();
+		let _ = self.acceptors.clear();
+		let _ = self.sockets.clear();
+
+		{
+			let mut to_del = Vec::new();
+			for handler in binding.iter() {
+				let _ = to_del.push(handler);
+			}
+
+			let mut ptrs = Vec::new();
+			for del in to_del {
+				let v = self.handlers.remove(del.clone());
+				match v {
+					Some(v) => {
+						let _ = ptrs.push(v);
+					}
+					None => {}
+				}
+			}
+
+			for ptr in ptrs {
+				ptr.release();
+			}
+		}
+	}
+}
+
 impl Ws {
 	pub fn new() -> Result<Self> {
 		let evh = Evh::new()?;
@@ -154,6 +186,8 @@ impl Ws {
 			evh,
 			state,
 			handlers,
+			acceptors: Vec::new(),
+			sockets: Vec::new(),
 		})
 	}
 
@@ -196,7 +230,10 @@ impl Ws {
 		let on_close = Rc::new(on_close)?;
 
 		let conn = Connection::acceptor(socket, on_recv, on_accept, on_close, ctx)?;
-		self.evh.register(conn)?;
+		self.evh.register(conn.clone())?;
+
+		self.sockets.push(socket)?;
+		self.acceptors.push(conn)?;
 
 		Ok(())
 	}
@@ -211,7 +248,10 @@ impl Ws {
 	}
 
 	pub fn stop(&mut self) -> Result<()> {
-		self.evh.stop()
+		match &self.state {
+			WsState::Started => self.evh.stop(),
+			_ => err!(IllegalState),
+		}
 	}
 
 	pub fn add_handler(&mut self, handler: Handler) -> Result<()> {
@@ -220,7 +260,8 @@ impl Ws {
 			_ => return err!(IllegalState),
 		}
 
-		let node = RbTreeNode::alloc(handler)?;
+		let node = Ptr::alloc(RbTreeNode::new(handler))?;
+		//let node = RbTreeNode::alloc(handler)?;
 		self.handlers.try_insert(node)
 	}
 
@@ -584,6 +625,16 @@ Sec-WebSocket-Accept: {}\r\n\r\n",
 		}
 		Ok(())
 	}
+
+	#[cfg(test)]
+	fn get_sockets(&self) -> &Vec<Socket> {
+		&self.sockets
+	}
+
+	#[cfg(test)]
+	fn get_acceptors(&mut self) -> &mut Vec<Connection<WsContext, WsConnection>> {
+		&mut self.acceptors
+	}
 }
 
 #[cfg(test)]
@@ -655,6 +706,20 @@ mod test {
 		ws.add_handler(handler)?;
 
 		ws.start()?;
+
+		sleep(100);
+		ws.stop()?;
+		sleep(100);
+
+		for s in ws.get_sockets() {
+			s.clone().close()?;
+		}
+
+		for a in ws.get_acceptors().iter_mut() {
+			unsafe {
+				a.drop_rc();
+			}
+		}
 
 		park();
 				*/
