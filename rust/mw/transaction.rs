@@ -310,7 +310,7 @@ impl Transaction {
 			self.clear_kernels(ptr.left);
 		}
 
-		ptr.release();
+		RbTreeNode::release(ptr);
 	}
 }
 
