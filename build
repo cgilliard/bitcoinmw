@@ -122,6 +122,7 @@ else
 	-L${OUTPUT} \
         --emit=obj \
         --crate-type=lib \
+	--cfg rustc \
         -o .obj/rust.o \
 	--extern bitcoinmw_macros=.obj/libbitcoinmw_macros${MACRO_EXT} \
         rust/mod.rs || exit 1
