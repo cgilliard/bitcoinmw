@@ -5,7 +5,6 @@ use net::ffi::{sha1, Base64encode};
 use prelude::*;
 
 pub fn websocket_accept_key(sec_key: &str) -> Result<String> {
-	println!("sec_key = {}", sec_key);
 	let sec_key = sec_key.as_bytes();
 	let mut sha1_result: [u8; 20] = [0; 20];
 	let mut combined: [u8; 60] = [0; 60];

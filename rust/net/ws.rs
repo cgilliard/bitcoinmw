@@ -58,12 +58,6 @@ impl Handle {
 	}
 }
 
-impl Drop for WsConnectionInner {
-	fn drop(&mut self) {
-		println!("wsconn inner drop");
-	}
-}
-
 impl WsConnection {
 	fn new() -> Result<Self> {
 		let inner = Rc::new(WsConnectionInner {
@@ -324,7 +318,6 @@ impl Ws {
 		bytes: &[u8],
 		op: u8,
 		fin: bool,
-		//mut on_recv: Rc<WsOnRecv>,
 		handler: Option<Handler>,
 	) -> Result<()> {
 		let mut handle = Handle { conn };
@@ -347,12 +340,10 @@ impl Ws {
 	) -> Result<()> {
 		// if the read buffer is len == 0, there's no buffered data
 		if att.inner.rbuf.len() == 0 {
-			println!("1");
 			let mut offset = 0;
 			while offset < bytes.len() {
 				let b = &bytes[offset..];
 				// try to process bytes directly
-				println!("proc data");
 				let (clear_through, upgraded, handler) = Self::proc_data(
 					ctx,
 					conn.clone(),
@@ -361,12 +352,6 @@ impl Ws {
 					handlers.clone(),
 					att.inner.handler.clone(),
 				)?;
-				println!(
-					"offset={},clear_through={},b.len={}",
-					offset,
-					clear_through,
-					b.len()
-				);
 				// adjust offset as we go
 				offset += clear_through;
 				if upgraded {
@@ -434,7 +419,6 @@ impl Ws {
 		bytes: &[u8],
 		handlers: Rc<RbTree<Handler>>,
 	) -> Result<()> {
-		println!("proc on_recv");
 		let connection = conn.clone();
 		// check for attachment
 		match conn.attach()? {
@@ -484,19 +468,14 @@ impl Ws {
 					conn.close()?;
 					return Ok((0, false, None));
 				} else {
-					println!("search for node");
 					let node = Ptr::alloc(RbTreeNode::new(Handler::with_path(url)?))?;
-					println!("node built");
 					let pair = handlers.search(handlers.root(), node);
 					node.release();
-					println!("search done");
 					if pair.cur.is_null() {
-						println!("path not found: {}", url);
 						// path not found TODO: return 404
 						conn.close()?;
 						return Ok((0, false, None));
 					} else {
-						println!("path found");
 						handler = Some(pair.cur.value.clone());
 					}
 				}
@@ -520,7 +499,7 @@ impl Ws {
 					}
 				};
 
-				if Self::proc_handshake(ctx, conn, &bytes[0..pos], url, key)? {
+				if Self::proc_handshake(ctx, conn, key)? {
 					upgraded = true;
 				}
 			}
@@ -533,17 +512,8 @@ impl Ws {
 	fn proc_handshake(
 		_ctx: &mut WsContext,
 		mut conn: Connection<WsContext, WsConnection>,
-		bytes: &[u8],
-		url: &str,
 		key: &str,
 	) -> Result<bool> {
-		println!(
-			"proc_handshake[{}][key='{}']: '{}'",
-			url,
-			key,
-			from_utf8(bytes)?
-		);
-
 		let msg = if key.len() == 0 {
 			format!("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n")?
 		} else {
@@ -570,11 +540,8 @@ Sec-WebSocket-Accept: {}\r\n\r\n",
 		_ctx: &mut WsContext,
 		conn: &mut Connection<WsContext, WsConnection>,
 	) -> Result<()> {
-		println!("acc {}", conn.socket());
-
 		let att = WsConnection::new()?;
 		conn.set_attach(att.clone())?;
-		println!("acc complete");
 
 		Ok(())
 	}
@@ -583,7 +550,20 @@ Sec-WebSocket-Accept: {}\r\n\r\n",
 		_ctx: &mut WsContext,
 		conn: &mut Connection<WsContext, WsConnection>,
 	) -> Result<()> {
-		println!("onclose {}", conn.socket());
+		let mut handle = Handle { conn: conn.clone() };
+		// check for attachment
+		match conn.attach()? {
+			Some(att) => match att.inner.handler {
+				Some(ref mut handler) => match handler.inner.handlers {
+					Some(ref mut handlers) => (handlers.on_close)(&mut handle)?,
+					None => println!("WARN: no handler1"),
+				},
+				None => println!("WARN: no handler2"),
+			},
+			None => {
+				println!("WARN: invalid state: connection with no attachment. Droping conn!");
+			}
+		}
 		Ok(())
 	}
 
@@ -650,18 +630,23 @@ mod test {
 		})?;
 
 		let on_recv: WsOnRecv = Box::new(
-			|handle: &mut Handle, bytes: &[u8], _fin: bool, _op: u8| -> Result<()> {
-				println!("test_ws1 recv: {}", bytes);
-				handle.send(b"okokok")?;
+			|handle: &mut Handle, bytes: &[u8], fin: bool, op: u8| -> Result<()> {
+				println!("test_ws1 recv: {}, op = {}, fin = {}", bytes, op, fin);
+				if op == 2 && fin {
+					handle.send(b"okokok")?;
+				}
 				Ok(())
 			},
 		)?;
 		let on_accept: WsOnAccept = Box::new(|handle: &mut Handle| -> Result<()> {
-			println!("accepted websocket in test_ws1");
+			println!("accepted {}", handle.conn.socket());
 			handle.send(b"hi1234")?;
 			Ok(())
 		})?;
-		let on_close: WsOnClose = Box::new(|_handle: &mut Handle| -> Result<()> { Ok(()) })?;
+		let on_close: WsOnClose = Box::new(|handle: &mut Handle| -> Result<()> {
+			println!("closed {}", handle.conn.socket());
+			Ok(())
+		})?;
 		let on_recv = Rc::new(on_recv)?;
 		let on_accept = Rc::new(on_accept)?;
 		let on_close = Rc::new(on_close)?;
