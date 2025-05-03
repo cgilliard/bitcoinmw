@@ -1,9 +1,11 @@
 // Internal
+extern crate bitcoinmw_macros;
 pub use std::backtrace::Backtrace;
 pub use std::boxed::Box;
 pub use std::error::Error;
 pub use std::errors::*;
 pub use std::format::Formatter;
+pub use std::misc::{micros, sleep};
 pub use std::ptr::Ptr;
 pub use std::rc::Rc;
 pub use std::result::Result;
@@ -11,6 +13,8 @@ pub use std::string::String;
 pub use std::traits::*;
 pub use std::vec::Vec;
 pub use util::lock::{Lock, LockBox};
+pub use util::rbtree::{RbTree, RbTreeNode};
+pub use util::thread::park;
 pub use util::thread::{spawn, spawnj};
 
 // External

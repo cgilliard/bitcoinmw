@@ -6,8 +6,11 @@
 
 #[macro_use]
 pub mod std;
+#[macro_use]
+pub mod util;
 
+pub mod bible;
 pub mod crypto;
+pub mod net;
 pub mod prelude;
 mod real_main;
-pub mod util;
