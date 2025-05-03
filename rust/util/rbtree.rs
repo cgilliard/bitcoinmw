@@ -1047,4 +1047,95 @@ mod test {
 
 		Ok(())
 	}
+
+	struct DropMeInner {
+		s: String,
+		v: u64,
+	}
+
+	#[derive(Clone)]
+	struct DropMe {
+		inner: Rc<DropMeInner>,
+	}
+
+	impl PartialEq for DropMe {
+		fn eq(&self, other: &DropMe) -> bool {
+			self.inner.v == other.inner.v
+		}
+	}
+	impl Eq for DropMe {}
+	impl Ord for DropMe {
+		fn cmp(&self, other: &Self) -> Ordering {
+			self.inner.v.cmp(&other.inner.v)
+		}
+	}
+	impl PartialOrd for DropMe {
+		fn partial_cmp(&self, other: &DropMe) -> Option<Ordering> {
+			self.inner.v.partial_cmp(&other.inner.v)
+		}
+	}
+
+	#[test]
+	fn test_rc_rbtree() -> Result<()> {
+		/*
+		let size = 100;
+		let mut tree = RbTree::new();
+		/*
+		let mut vv = Vec::new();
+
+		for i in 0..size {
+				//vv.push(i as u64)?;
+				vv.push(DropMe {
+						inner: Rc::new(DropMeInner {
+								s: String::new("hi")?,
+								v: i,
+						})?,
+				})?;
+		}
+				*/
+
+		for i in 0..size {
+			let v = DropMe {
+				inner: Rc::new(DropMeInner {
+					s: String::new("hi")?,
+					v: i,
+				})?,
+			};
+			//let next = RbTreeNode::alloc(vv[i as usize].clone())?;
+			let next = RbTreeNode::alloc(v)?;
+			assert!(tree.insert(next).is_none());
+			//validate_tree(tree.root());
+		}
+
+		let mut i = 0;
+		for v in tree.iter() {
+			assert_eq!((*v).inner.v, i);
+			i += 1;
+		}
+		assert_eq!(i, size as u64);
+
+		i = 0;
+		for v in &tree {
+			assert_eq!((*v).inner.v, i);
+			i += 1;
+		}
+		assert_eq!(i, size as u64);
+
+		assert_eq!(tree.len(), size as usize);
+		for i in 0..size {
+			let mut v = DropMe {
+				inner: Rc::new(DropMeInner {
+					s: String::new("hi")?,
+					v: i,
+				})?,
+			};
+			//tree.remove(vv[i as usize].clone()).unwrap().release();
+			let mut ret = tree.remove(v).unwrap();
+
+			ret.release();
+		}
+				*/
+
+		Ok(())
+	}
 }
