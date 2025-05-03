@@ -186,7 +186,12 @@ impl String {
 		if !s.is_char_boundary(nstart) || !s.is_char_boundary(nend) {
 			return err!(Utf8Error);
 		}
-		Self::newb(&s.as_bytes()[nstart..nend])
+		let b = s.as_bytes();
+		if nstart <= nend && nend <= b.len() {
+			Self::newb(&b[nstart..nend])
+		} else {
+			err!(OutOfBounds)
+		}
 	}
 
 	pub fn findn(&self, s: &str, offset: usize) -> Option<usize> {
