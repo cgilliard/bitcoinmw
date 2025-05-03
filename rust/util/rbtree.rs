@@ -1025,15 +1025,13 @@ mod test {
 		Ok(())
 	}
 
-	/*
-
 	#[test]
 	fn test_three_rbtree_iters() -> Result<()> {
 		let mut tree = RbTree::new();
 
 		let size = 100;
 		for i in 0..size {
-			let next = Ptr::alloc(RbTreeNode::new(i as u64))?;
+			let next = RbTreeNode::alloc(i as u64)?;
 			assert!(tree.insert(next).is_none());
 			validate_tree(tree.root());
 		}
@@ -1054,13 +1052,13 @@ mod test {
 
 		assert_eq!(tree.len(), size as usize);
 		for i in 0..size {
-			tree.remove(i).unwrap().release();
+			RbTreeNode::release(tree.remove(i).unwrap());
 		}
 		assert_eq!(tree.len(), 0);
 
 		let size = 100;
 		for i in 0..size {
-			let next = Ptr::alloc(RbTreeNode::new(i as u64))?;
+			let next = RbTreeNode::alloc(i as u64)?;
 			assert!(tree.insert(next).is_none());
 			validate_tree(tree.root());
 		}
@@ -1081,14 +1079,13 @@ mod test {
 
 		assert_eq!(tree.len(), size as usize);
 
-		let ptr_target = RbTreeNode::new(0u64);
-		let mut ptr = Ptr::new(&ptr_target as *const RbTreeNode<u64>);
 		for i in 0..size {
-			ptr.value = i;
+			let ptr_target = RbTreeNode::stack(i)?;
+			let ptr = Ptr::new(&ptr_target as *const RbTreeNode<u64>);
 			let res = tree.remove_ptr(ptr).unwrap();
+			RbTreeNode::release(res);
 			validate_tree(tree.root());
-			res.release();
-			let res = tree.search(tree.root(), ptr);
+			let res = tree.search(ptr);
 			assert!(res.cur.is_null());
 		}
 
@@ -1096,8 +1093,6 @@ mod test {
 
 		Ok(())
 	}
-
-		*/
 
 	struct DropMeInner {
 		s: String,
