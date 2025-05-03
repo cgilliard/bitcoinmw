@@ -6,7 +6,7 @@ errors!(
 	IllegalArgument,
 	IllegalState,
 	IO,
-	CcapacityExceeded,
+	CapacityExceeded,
 	OperationFailed,
 	Utf8Error,
 	MisalignedPointer,

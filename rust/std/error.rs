@@ -1,5 +1,8 @@
 use core::result::Result as CoreResult;
+use core::slice::from_raw_parts;
+use core::str::from_utf8_unchecked;
 use prelude::*;
+use std::ffi::{cstring_len, release};
 
 #[derive(Clone)]
 pub struct Error {
@@ -17,22 +20,12 @@ impl PartialEq for Error {
 impl Debug for Error {
 	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> CoreResult<(), FmtError> {
 		#[cfg(not(rustc))]
-		unsafe {
-			use core::slice::from_raw_parts;
-			use core::str::from_utf8_unchecked;
-			use std::ffi::{cstring_len, release};
+		write!(
+			_f,
+			"{:?}",
+			format!("{}", self).map_err(|_| { FmtError::default() })?
+		)?;
 
-			let bt = self.bt.as_ptr();
-			let s = if bt.is_null() {
-				"Backtrace disabled. To enable export RUST_BACKTRACE=1."
-			} else {
-				let len = cstring_len(bt);
-				let slice = from_raw_parts(bt, len as usize);
-				from_utf8_unchecked(slice)
-			};
-			write!(_f, "ErrorKind={}\n{}", self.display(), s)?;
-			release(bt);
-		}
 		Ok(())
 	}
 }
@@ -41,10 +34,6 @@ impl Display for Error {
 	fn format(&self, f: &mut Formatter) -> Result<()> {
 		let kind_str = (self.display)();
 		unsafe {
-			use core::slice::from_raw_parts;
-			use core::str::from_utf8_unchecked;
-			use std::ffi::{cstring_len, release};
-
 			let bt = self.bt.as_ptr();
 			let s = if bt.is_null() {
 				"Backtrace disabled. To enable export RUST_BACKTRACE=1."

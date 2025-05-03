@@ -3,7 +3,7 @@ use core::ops::{Index, Range, RangeFrom, RangeFull, RangeTo};
 use core::slice::from_raw_parts;
 use core::str::from_utf8_unchecked;
 use prelude::*;
-use std::misc::{is_utf8_valid, slice_copy, strcmp, subslice, subslice_mut};
+use std::misc::{is_utf8_valid, slice_copy, subslice};
 use std::traits::StrExt;
 
 #[derive(Clone)]
@@ -44,8 +44,7 @@ impl Display for String {
 
 impl Debug for String {
 	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> FmtResult {
-		// no_std compatiibility (cannot write but works for tests)
-		#[cfg(test)]
+		#[cfg(not(rustc))]
 		write!(_f, "{}", self.as_str())?;
 		Ok(())
 	}
@@ -119,7 +118,7 @@ impl Index<RangeFull> for String {
 
 impl PartialEq for String {
 	fn eq(&self, other: &String) -> bool {
-		strcmp(self.as_str(), other.as_str()) == 0
+		self.as_str().eq(other.as_str())
 	}
 }
 
@@ -136,20 +135,13 @@ impl String {
 		if end <= 23 {
 			Ok(Self::sso(s))
 		} else {
-			match try_box_slice!(0u8, end) {
-				Ok(mut value) => {
-					slice_copy(s.as_bytes(), &mut value, end)?;
-					match Rc::new(value) {
-						Ok(rc) => Ok(Self::StringData(StringDataStruct {
-							value: rc,
-							start,
-							end,
-						})),
-						Err(e) => Err(e),
-					}
-				}
-				Err(e) => Err(e),
-			}
+			let mut slice = try_box_slice!(0u8, end)?;
+			slice.slice_copy(s.as_bytes())?;
+			Ok(Self::StringData(StringDataStruct {
+				value: Rc::new(slice)?,
+				start,
+				end,
+			}))
 		}
 	}
 
@@ -191,50 +183,10 @@ impl String {
 			return err!(OutOfBounds);
 		}
 		let s = self.as_str();
-		if nend > s.len() {
-			return err!(OutOfBounds);
-		}
 		if !s.is_char_boundary(nstart) || !s.is_char_boundary(nend) {
 			return err!(Utf8Error);
 		}
-		match self {
-			String::StringData(StringDataStruct {
-				value,
-				start: base_start,
-				end: base_end,
-			}) => {
-				let new_start = base_start + nstart;
-				let new_end = base_start + nend;
-				if new_end > *base_end {
-					return err!(OutOfBounds);
-				}
-				Ok(Self::StringData(StringDataStruct {
-					value: value.clone(),
-					start: new_start,
-					end: new_end,
-				}))
-			}
-			String::SSOData(SSODataStruct(b)) => {
-				if nend - nstart <= 23 {
-					let mut v = [0u8; 24];
-					v[0] = (nend - nstart) as u8;
-					unsafe {
-						let src = b.as_ptr().offset(1 + nstart as isize);
-						let vlen = v.len();
-						let subslice = subslice_mut(&mut v, 1, vlen - 1)?;
-						slice_copy(from_raw_parts(src, nend - nstart), subslice, nend - nstart)?;
-					}
-					Ok(Self::SSOData(SSODataStruct(v)))
-				} else {
-					unsafe {
-						let s =
-							from_raw_parts(b.as_ptr().offset(1 + nstart as isize), nend - nstart);
-						let s = from_utf8_unchecked(s);
-						Self::new(s)
-					}
-				}
-			}
-		}
+		Self::newb(&s.as_bytes()[nstart..nend])
 	}
 
 	pub fn findn(&self, s: &str, offset: usize) -> Option<usize> {

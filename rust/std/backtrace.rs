@@ -1,7 +1,9 @@
 use core::ptr::{null, null_mut};
+use core::slice::from_raw_parts;
 use prelude::*;
 use std::constants::*;
-use std::ffi::{backtrace, gen_backtrace, getenv};
+use std::ffi::{backtrace, cstring_len, gen_backtrace, getenv, release};
+use std::misc::from_utf8;
 
 #[repr(C)]
 #[derive(Clone)]
@@ -13,17 +15,13 @@ pub struct Backtrace {
 impl Display for Backtrace {
 	fn format(&self, f: &mut Formatter) -> Result<()> {
 		unsafe {
-			use core::slice::from_raw_parts;
-			use core::str::from_utf8_unchecked;
-			use std::ffi::{cstring_len, release};
-
 			let bt = self.as_ptr();
 			let s = if bt.is_null() {
 				"Backtrace disabled. To enable export RUST_BACKTRACE=1."
 			} else {
 				let len = cstring_len(bt);
 				let slice = from_raw_parts(bt, len as usize);
-				from_utf8_unchecked(slice)
+				from_utf8(slice)?
 			};
 			release(bt);
 			writef!(f, "{}", s)?;
@@ -72,30 +70,11 @@ impl Backtrace {
 #[cfg(test)]
 mod test {
 	use super::*;
-	use std::ffi::release;
-
-	#[allow(dead_code)]
-	extern "C" {
-		fn write(fd: i32, s: *const u8, len: usize) -> i32;
-	}
 
 	#[test]
 	fn test_backtrace() -> Result<()> {
 		let mut bt = Backtrace::new();
 		bt.capture();
-		let ptr = unsafe { bt.as_ptr() };
-		if !ptr.is_null() {
-			/*
-			use std::ffi::cstring_len;
-			let len = unsafe { cstring_len(ptr) };
-			unsafe {
-				write(2, ptr, len as usize);
-			}
-			*/
-			unsafe {
-				release(ptr);
-			}
-		}
 
 		Ok(())
 	}

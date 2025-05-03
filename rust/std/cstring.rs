@@ -95,8 +95,7 @@ impl CString {
 		let len = self.len();
 		let mut r = Vec::with_capacity(len)?;
 		r.resize(len)?;
-		let mut slice = r.mut_slice(0, len);
-		slice_copy(self.as_ref(), &mut slice, len)?;
+		r[0..len].slice_copy(self.as_ref())?;
 		Ok(r)
 	}
 
@@ -167,6 +166,7 @@ mod test {
 	fn test_as_bytes() -> Result<()> {
 		let str = CString::new("abc")?;
 		assert_eq!(str.as_bytes()?, vec![b'a', b'b', b'c']?);
+
 		Ok(())
 	}
 }

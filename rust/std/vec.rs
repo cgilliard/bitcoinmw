@@ -331,6 +331,14 @@ impl<'a, T> IntoIterator for &'a Vec<T> {
 	}
 }
 
+impl<T: Copy> Vec<T> {
+	pub fn resize(&mut self, n: usize) -> Result<()> {
+		self.resize_impl(n)?;
+		self.elements = n;
+		Ok(())
+	}
+}
+
 impl<T> Vec<T> {
 	pub fn new() -> Self {
 		let value = Ptr::null();
@@ -390,6 +398,12 @@ impl<T> Vec<T> {
 		self.extend_from_slice(v.slice_all())
 	}
 
+	pub unsafe fn force_resize(&mut self, n: usize) -> Result<()> {
+		self.resize_impl(n)?;
+		self.elements = n;
+		Ok(())
+	}
+
 	pub fn extend_from_slice(&mut self, other: &[T]) -> Result<()>
 	where
 		T: Copy,
@@ -408,10 +422,9 @@ impl<T> Vec<T> {
 		}
 	}
 
-	pub fn clear(&mut self) -> Result<()> {
-		self.truncate(0)?;
-		self.resize_impl(0)?;
-		Ok(())
+	pub fn clear(&mut self) {
+		let _ = self.truncate(0);
+		let _ = self.resize_impl(0);
 	}
 
 	pub fn truncate(&mut self, n: usize) -> Result<()> {
@@ -433,12 +446,6 @@ impl<T> Vec<T> {
 		Ok(())
 	}
 
-	pub fn resize(&mut self, n: usize) -> Result<()> {
-		self.resize_impl(n)?;
-		self.elements = n;
-		Ok(())
-	}
-
 	pub fn len(&self) -> usize {
 		self.elements
 	}
@@ -449,20 +456,6 @@ impl<T> Vec<T> {
 
 	pub fn as_ptr(&self) -> *const T {
 		self.value.raw() as *const T
-	}
-
-	pub fn mut_slice(&mut self, start: usize, end: usize) -> &mut [T] {
-		if start > end || end > self.elements {
-			exit!(
-				"Slice out of bounds: {}..{} > {}",
-				start,
-				end,
-				self.elements
-			);
-		} else {
-			let size = size_of::<T>();
-			unsafe { from_raw_parts_mut(self.value.raw().add(start * size) as *mut T, end - start) }
-		}
 	}
 
 	pub fn slice(&self, start: usize, end: usize) -> &[T] {
@@ -683,7 +676,7 @@ mod test {
 			let x = DropTest { x: 8 };
 
 			let mut v: Vec<DropTest> = vec![].unwrap();
-			assert!(v.resize(1).is_ok());
+			assert!(unsafe { v.force_resize(1).is_ok() });
 			v[0] = x;
 			assert_eq!(v[0].x, 8);
 		}
@@ -745,7 +738,7 @@ mod test {
 		let slice = &mut v.slice(1, 1);
 		assert_eq!(slice, &mut []);
 
-		v.clear().unwrap();
+		v.clear();
 		assert_eq!(v.len(), 0);
 
 		let mut v = vec![1, 2, 3, 4, 5, 6, 7].unwrap();

@@ -18,8 +18,8 @@ impl Formatter {
 		})
 	}
 
-	pub fn clear(&mut self) -> Result<()> {
-		self.buffer.clear()
+	pub fn clear(&mut self) {
+		self.buffer.clear();
 	}
 
 	pub fn write_str(&mut self, s: &str, len: usize) -> Result<()> {
