@@ -30,4 +30,9 @@ extern "C" {
 	pub fn atomic_fetch_add_u64(ptr: *mut u64, value: u64) -> u64;
 	pub fn atomic_fetch_sub_u64(ptr: *mut u64, value: u64) -> u64;
 	pub fn cas_release(ptr: *mut u64, expect: *const u64, desired: u64) -> bool;
+
+	// basic file ops for directory management
+	pub fn mkdir(path: *const u8, mode: i32) -> i32;
+	pub fn rmdir(path: *const u8) -> i32;
+	pub fn unlink(path: *const u8) -> i32;
 }

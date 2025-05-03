@@ -8,8 +8,10 @@ fn do_exec() -> Result<()> {
 }
 
 #[no_mangle]
-pub extern "C" fn real_main(_argc: i32, _argv: *const *const u8) -> i32 {
-	let _ = do_exec();
+pub extern "C" fn real_main(argc: i32, _argv: *const *const u8) -> i32 {
+	if argc != 0 {
+		let _ = do_exec();
+	}
 	0
 }
 

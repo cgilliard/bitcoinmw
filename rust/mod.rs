@@ -11,6 +11,8 @@ pub mod util;
 
 pub mod bible;
 pub mod crypto;
+pub mod lmdb;
 pub mod net;
 pub mod prelude;
 mod real_main;
+pub mod store;

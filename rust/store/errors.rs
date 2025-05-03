@@ -1,0 +1,3 @@
+use prelude::*;
+
+errors!(NotFound);
