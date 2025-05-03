@@ -1,8 +1,11 @@
 // Internal
 pub use std::backtrace::Backtrace;
+pub use std::boxed::Box;
 pub use std::error::Error;
 pub use std::errors::*;
+pub use std::ptr::Ptr;
 pub use std::result::Result;
+pub use std::traits::*;
 
 // External
 pub use core::clone::Clone;
