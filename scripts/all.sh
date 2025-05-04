@@ -79,7 +79,7 @@ rust/macros/lib.rs"
 	COMMAND="${RUSTC} -C panic=abort \
 -C opt-level=3 \
 --emit=obj \
---crate-type=lib \
+--crate-type=staticlib \
 --cfg rustc \
 -o .obj/rust.o \
 --extern macros=.obj/libmacros${MACRO_EXT} \

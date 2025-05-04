@@ -11,10 +11,6 @@ pub use result::Result;
 pub use string::String;
 pub use traits::*;
 pub use vec::Vec;
-//pub use util::lock::{Lock, LockBox};
-//pub use util::rbtree::{RbTree, RbTreeNode};
-//pub use util::thread::park;
-//pub use util::thread::{spawn, spawnj};
 
 // External
 pub use core::clone::Clone;
