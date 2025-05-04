@@ -18,7 +18,6 @@ fi
 COMMAND="${RUSTC} -C debuginfo=2 \
 --crate-name=base \
 --crate-type=lib \
---cfg rustc \
 -o .obj/libbase.rlib \
 ${RUSTFLAGS} \
 --verbose \
@@ -44,6 +43,8 @@ COMMAND="${RUSTC} -C debuginfo=2 \
 --crate-type=proc-macro \
 --edition=2021 \
 --extern base=.obj/libbase.rlib \
+-L .obj \
+-l static=test \
 -o .obj/libmacros${MACRO_EXT} \
 ${RUSTFLAGS} \
 ${ASAN_LINK} \
