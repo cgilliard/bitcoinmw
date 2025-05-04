@@ -1,6 +1,8 @@
-extern crate bitcoinmw_base;
+#![no_std]
+
+extern crate base;
 extern crate proc_macro;
-use bitcoinmw_base::Error;
+use base::Error;
 use proc_macro::TokenStream;
 
 #[proc_macro_derive(Dummy)]

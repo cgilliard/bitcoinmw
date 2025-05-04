@@ -1,7 +1,7 @@
-extern crate bitcoinmw_base;
-extern crate bitcoinmw_macros;
-use self::bitcoinmw_base::Error;
-use self::bitcoinmw_macros::Dummy;
+extern crate base;
+extern crate macros;
+use self::base::Error;
+use self::macros::Dummy;
 use core::cmp::PartialEq;
 
 #[derive(Dummy)]

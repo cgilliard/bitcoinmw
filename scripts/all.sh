@@ -9,10 +9,10 @@ if [ "${RUSTC}" = "" ]; then
 	# build base
 	COMMAND="${FAMC} -C panic=abort -O \
 --crate-type lib \
---crate-name=bitcoinmw_base \
+--crate-name=base \
 -L${OUTPUT} \
 --cfg mrustc \
--o .obj/libbitcoinmw_base.rlib \
+-o .obj/libbase.rlib \
 rust/base/lib.rs";
 	echo "${COMMAND}"
 	${COMMAND} || exit 1;
@@ -23,8 +23,8 @@ rust/base/lib.rs";
 --crate-type proc-macro \
 -L${OUTPUT} \
 --cfg mrustc \
--o .obj/libbitcoinmw_macros.rlib \
---extern bitcoinmw_base=.obj/libbitcoinmw_base.rlib \
+-o .obj/libmacros.rlib \
+--extern base=.obj/libbase.rlib \
 rust/macros/lib.rs";
 
 	echo "${COMMAND}"
@@ -35,8 +35,8 @@ rust/macros/lib.rs";
 -L${OUTPUT} \
 --cfg mrustc \
 -o .obj/rust \
---extern bitcoinmw_macros=.obj/libbitcoinmw_macros.rlib \
---extern bitcoinmw_base=.obj/libbitcoinmw_base.rlib \
+--extern macros=.obj/libmacros.rlib \
+--extern base=.obj/libbase.rlib \
 rust/bmw/mod.rs"
 	echo "${COMMAND}"
        	${COMMAND} || exit 1;
@@ -50,10 +50,10 @@ else
 	# build base
 	COMMAND="${RUSTC} \
 -C opt-level=3 \
---crate-name=bitcoinmw_base \
+--crate-name=base \
 --crate-type=lib \
 --cfg rustc \
--o .obj/libbitcoinmw_base.rlib \
+-o .obj/libbase.rlib \
 rust/base/lib.rs"
 
         echo "${COMMAND}"
@@ -61,11 +61,11 @@ rust/base/lib.rs"
 
 	# build macros
 	COMMAND="${RUSTC} \
---crate-name=bitcoinmw_macros \
+--crate-name=macros \
 --crate-type=proc-macro \
 --edition=2021 \
---extern bitcoinmw_base=.obj/libbitcoinmw_base.rlib \
--o .obj/libbitcoinmw_macros${MACRO_EXT} \
+--extern base=.obj/libbase.rlib \
+-o .obj/libmacros${MACRO_EXT} \
 rust/macros/lib.rs"
 
 	echo ${COMMAND}
@@ -77,8 +77,8 @@ rust/macros/lib.rs"
 --crate-type=lib \
 --cfg rustc \
 -o .obj/rust.o \
---extern bitcoinmw_macros=.obj/libbitcoinmw_macros${MACRO_EXT} \
---extern bitcoinmw_base=.obj/libbitcoinmw_base.rlib \
+--extern macros=.obj/libmacros${MACRO_EXT} \
+--extern base=.obj/libbase.rlib \
 rust/bmw/mod.rs";
 	echo "${COMMAND}"
 	${COMMAND} || exit 1;
