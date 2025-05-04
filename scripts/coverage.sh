@@ -45,7 +45,7 @@ rust/macros/lib.rs";
 ${COMMAND} || exit 1;
 
 COMMAND="${RUSTC} -C debuginfo=2 \
---test rust/bmw/mod.rs \
+--test rust/bmw/lib.rs \
 -o bin/test_bmw \
 -L .obj \
 -l static=test \

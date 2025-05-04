@@ -4,4 +4,7 @@
 #![feature(unsize)]
 #![no_implicit_prelude]
 
+extern crate base;
+extern crate macros;
+
 mod real_main;

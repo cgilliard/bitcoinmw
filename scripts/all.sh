@@ -41,7 +41,7 @@ rust/macros/lib.rs";
 -o .obj/rust \
 --extern macros=.obj/libmacros.rlib \
 --extern base=.obj/libbase.rlib \
-rust/bmw/mod.rs"
+rust/bmw/lib.rs"
 	echo "${COMMAND}"
        	${COMMAND} || exit 1;
 
@@ -84,7 +84,7 @@ rust/macros/lib.rs"
 -o .obj/rust.o \
 --extern macros=.obj/libmacros${MACRO_EXT} \
 --extern base=.obj/libbase.rlib \
-rust/bmw/mod.rs";
+rust/bmw/lib.rs";
 	echo "${COMMAND}"
 	${COMMAND} || exit 1;
     COMMAND="${CC} ${CCFLAGS} ${STATIC} -o bin/bmw .obj/*.o -L.obj ${LINK_GMP} ${LINK_SECP256K1}"
