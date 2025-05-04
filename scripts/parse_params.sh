@@ -64,9 +64,9 @@ done
 
 if [ "${CCFLAGS}" = "" ]; then
 	case "$($CC --version 2>/dev/null)" in
-    		*clang*) CCFLAGS="-O3 -flto" ;;
-    		*gcc*) CCFLAGS="-O3 -flto=2" ;;
-    		*) CCFLAGS="-O3 -flto" ;;
+    		*clang*) CCFLAGS="-O3" ;;
+    		*gcc*) CCFLAGS="-O3" ;;
+    		*) CCFLAGS="-O3" ;;
 	esac
 fi
 
