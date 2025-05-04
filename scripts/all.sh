@@ -64,6 +64,19 @@ rust/base/lib.rs"
         echo "${COMMAND}"
         ${COMMAND} || exit 1;
 
+	# build base obj
+        COMMAND="${RUSTC} \
+-C opt-level=3 \
+--crate-name=base \
+--crate-type=lib \
+--cfg rustc \
+-o .obj/libbase.o \
+--emit=obj
+rust/base/lib.rs"
+
+        echo "${COMMAND}"
+        ${COMMAND} || exit 1;
+
 	# build macros
 	COMMAND="${RUSTC} \
 --crate-name=macros \
