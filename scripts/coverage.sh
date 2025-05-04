@@ -1,5 +1,7 @@
 #!/bin/sh
 
+export LLVM_PROFILE_FILE="/tmp/test_base.profraw"
+
 . ./scripts/parse_params.sh "$@"
 
 CCFLAGS=-DTEST
@@ -9,7 +11,6 @@ ar rcs .obj/libtest.a .obj/*.o || exit 1;
 # Use rustc for tests
 RUSTC=rustc
 RUSTFLAGS="-C instrument-coverage -C opt-level=0"
-export LLVM_PROFILE_FILE="/tmp/file.profraw"
 
 # build base
 COMMAND="${RUSTC} -C debuginfo=2 \
@@ -57,13 +58,15 @@ ${RUSTFLAGS} \
 ${COMMAND} ||  exit 1;
 
 COMMAND="./bin/test_base ${FILTER} --test-threads=1"
+export LLVM_PROFILE_FILE="/tmp/test_base.profraw"
 ${COMMAND} || exit 1;
 
 COMMAND="./bin/test_bmw ${FILTER} --test-threads=1"
+export LLVM_PROFILE_FILE="/tmp/test_bmw.profraw"
 ${COMMAND} || exit 1;
 
 git log -1 > /tmp/coverage.txt
-grcov /tmp/file.profraw --branch --binary-path ./bin -t lcov > /tmp/coverage.txt
+grcov /tmp/test_base.profraw /tmp/test_bmw.profraw --branch --binary-path ./bin -t lcov > /tmp/coverage.txt
 
 cur_file='';
 line_count=0;
