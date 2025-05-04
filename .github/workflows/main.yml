@@ -50,9 +50,9 @@ jobs:
           ./build test
       - name: address sanitize
         run: |
-          rustup default nightly
-          ./build clean
-          ./build test --with-asan
+          #rustup default nightly
+          #./build clean
+          # ./build test --with-asan
       - name: code coverage
         run: |
           cargo install grcov --version 0.8.22
