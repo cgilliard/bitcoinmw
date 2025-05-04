@@ -8,6 +8,12 @@ ar rcs .obj/libtest.a .obj/*.o || exit 1;
 RUSTC=rustc
 # use rustc
 
+if [ "$OS" = "Linux" ]; then
+	ASAN_LINK="-l static=asan"
+else
+	ASAN_LINK=
+fi
+
 # build base
 COMMAND="${RUSTC} -C debuginfo=2 \
 --crate-name=base \
@@ -18,6 +24,7 @@ ${RUSTFLAGS} \
 --verbose \
 rust/base/lib.rs"
 
+echo ${COMMAND}
 ${COMMAND} || exit 1;
 
 COMMAND="${RUSTC} -C debuginfo=2 \
@@ -28,6 +35,7 @@ COMMAND="${RUSTC} -C debuginfo=2 \
 ${RUSTFLAGS} \
 --verbose"
 
+echo ${COMMAND}
 ${COMMAND} || exit 1;
 
 # build macros
@@ -37,8 +45,11 @@ COMMAND="${RUSTC} -C debuginfo=2 \
 --edition=2021 \
 --extern base=.obj/libbase.rlib \
 -o .obj/libmacros${MACRO_EXT} \
+${RUSTFLAGS} \
+${ASAN_LINK} \
 rust/macros/lib.rs";
 
+echo ${COMMAND}
 ${COMMAND} || exit 1;
 
 COMMAND="${RUSTC} -C debuginfo=2 \
@@ -52,6 +63,7 @@ COMMAND="${RUSTC} -C debuginfo=2 \
 ${RUSTFLAGS} \
 --verbose"
 
+echo ${COMMAND}
 ${COMMAND} ||  exit 1;
 
 COMMAND="./bin/test_base ${FILTER} --test-threads=1"
