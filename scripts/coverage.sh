@@ -11,8 +11,27 @@ RUSTC=rustc
 RUSTFLAGS="-C instrument-coverage -C opt-level=0"
 export LLVM_PROFILE_FILE="/tmp/file.profraw"
 
+# build base
+COMMAND="${RUSTC} -C debuginfo=2 \
+--crate-name=bitcoinmw_base \
+--crate-type=lib \
+--cfg rustc \
+-o .obj/libbitcoinmw_base.rlib \
+${RUSTFLAGS} \
+--verbose \
+rust/base/lib.rs"
+
+${COMMAND} || exit 1;
+
 # build macros
-COMMAND="${RUSTC} --crate-type=proc-macro --edition=2021 rust/macros/lib.rs -o .obj/libbitcoinmw_macros${MACRO_EXT}"
+COMMAND="${RUSTC} \
+--crate-name=bitcoinmw_macros \
+--crate-type=proc-macro \
+--edition=2021 \
+--extern bitcoinmw_base=.obj/libbitcoinmw_base.rlib \
+-o .obj/libbitcoinmw_macros${MACRO_EXT} \
+rust/macros/lib.rs";
+
 ${COMMAND} || exit 1;
 
 COMMAND="${RUSTC} -C debuginfo=2 \
