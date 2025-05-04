@@ -5,9 +5,9 @@
 
 if [ "${RUSTC}" = "" ]; then
 	# use famc
-	
+
 	# build base
-	COMMAND="${FAMC} -C panic=abort -O \
+	COMMAND="${FAMC} -O \
 --crate-type lib \
 --crate-name=base \
 -L${OUTPUT} \
@@ -17,15 +17,19 @@ rust/base/lib.rs";
 	echo "${COMMAND}"
 	${COMMAND} || exit 1;
 
+# create library for linking to work
+ar rcs .obj/libdeps.a .obj/*.o || exit 1;
 
 	# build macros
-	COMMAND="${FAMC} -C panic=abort -O \
+	COMMAND="${FAMC} -O \
 --crate-type proc-macro \
 -L${OUTPUT} \
 --cfg mrustc \
 -o .obj/libmacros.rlib \
+-L.obj -ldeps \
 --extern base=.obj/libbase.rlib \
 rust/macros/lib.rs";
+
 
 	echo "${COMMAND}"
 	${COMMAND} || exit 1;
@@ -44,6 +48,7 @@ rust/bmw/mod.rs"
 	COMMAND="${CC} ${CCFLAGS} ${STATIC} -o bin/bmw .obj/*.o ${OUTPUT}/libcore.rlib.o -L.obj ${LINK_GMP} ${LINK_SECP256K1}"
 	echo "${COMMAND}"
 	${COMMAND} || exit 1;
+
 else
 	# use rustc
 	

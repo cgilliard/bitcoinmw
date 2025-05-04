@@ -23,6 +23,16 @@ rust/base/lib.rs"
 
 ${COMMAND} || exit 1;
 
+COMMAND="${RUSTC} -C debuginfo=2 \
+--test rust/base/lib.rs \
+-o bin/test_base \
+-L .obj \
+-l static=test \
+${RUSTFLAGS} \
+--verbose"
+
+${COMMAND} || exit 1;
+
 # build macros
 COMMAND="${RUSTC} \
 --crate-name=macros \
@@ -45,6 +55,9 @@ COMMAND="${RUSTC} -C debuginfo=2 \
 ${RUSTFLAGS} \
 --verbose"
 ${COMMAND} ||  exit 1;
+
+COMMAND="./bin/test_base ${FILTER} --test-threads=1"
+${COMMAND} || exit 1;
 
 COMMAND="./bin/test_bmw ${FILTER} --test-threads=1"
 ${COMMAND} || exit 1;
