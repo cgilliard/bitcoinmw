@@ -6,9 +6,11 @@ fn test_err() -> Result<()> {
 
 #[no_mangle]
 pub extern "C" fn real_main(_argc: i32, _argv: *const *const u8) -> i32 {
-	match test_err() {
-		Ok(_) => {}
-		Err(e) => println!("err={}", e),
+	if _argc > 0 {
+		match test_err() {
+			Ok(_) => {}
+			Err(e) => println!("err={}", e),
+		}
 	}
 	0
 }

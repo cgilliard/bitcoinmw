@@ -1,6 +1,7 @@
 #!/bin/sh
 
 . ./scripts/parse_params.sh "$@"
+CCFLAGS=-DTEST
 . ./scripts/build_c.sh "$@"
 ar rcs .obj/libtest.a .obj/*.o || exit 1;
 
