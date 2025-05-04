@@ -2,7 +2,7 @@
 
 CC=clang
 RUSTC=
-FAMC=famc
+FAMC=../famc/bin/famc
 OUTPUT=../famc/output-1.29.0
 FILTER=
 CCFLAGS=
