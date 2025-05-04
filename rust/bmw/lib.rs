@@ -19,6 +19,7 @@ extern crate macros;
 pub use base::ffi;
 pub use base::misc;
 
+pub mod bible;
 pub mod crypto;
 pub mod prelude;
 mod real_main;
