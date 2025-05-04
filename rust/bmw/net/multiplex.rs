@@ -33,9 +33,9 @@ pub struct Event([u8; EVENT_SIZE]);
 impl Event {
 	pub fn new() -> Self {
 		unsafe {
-			if event_size() > size_of::<Event>() {
+			if event_size() != size_of::<Event>() {
 				exit!(
-					"event_size() ({}) > size_of::<Event>() ({}). Halting!",
+					"event_size() ({}) != size_of::<Event>() ({}). Halting!",
 					event_size(),
 					size_of::<Event>()
 				);
