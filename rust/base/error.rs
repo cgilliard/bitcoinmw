@@ -19,20 +19,17 @@ impl PartialEq for Error {
 
 impl Debug for Error {
 	fn fmt(&self, _f: &mut CoreFormatter<'_>) -> CoreResult<(), FmtError> {
-		/*
 		#[cfg(not(rustc))]
 		write!(
 			_f,
 			"{:?}",
 			format!("{}", self).map_err(|_| { FmtError::default() })?
 		)?;
-			*/
 
 		Ok(())
 	}
 }
 
-/*
 impl Display for Error {
 	fn format(&self, f: &mut Formatter) -> Result<()> {
 		let kind_str = (self.display)();
@@ -52,7 +49,6 @@ impl Display for Error {
 		Ok(())
 	}
 }
-*/
 
 impl Error {
 	pub const fn new(code: u128, display: fn() -> &'static str, bt: Backtrace) -> Self {

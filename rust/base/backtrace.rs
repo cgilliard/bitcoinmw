@@ -12,7 +12,6 @@ pub struct Backtrace {
 	size: i32,
 }
 
-/*
 impl Display for Backtrace {
 	fn format(&self, f: &mut Formatter) -> Result<()> {
 		unsafe {
@@ -30,7 +29,6 @@ impl Display for Backtrace {
 		Ok(())
 	}
 }
-*/
 
 impl Backtrace {
 	pub fn new() -> Self {
