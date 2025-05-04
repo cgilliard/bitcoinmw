@@ -9,6 +9,7 @@ use core::panic::PanicInfo;
 #[cfg(not(test))]
 #[panic_handler]
 fn bmw_panic(_info: &PanicInfo) -> ! {
+	println!("bmw panic!");
 	loop {} // Infinite loop on panic
 }
 
@@ -24,6 +25,9 @@ pub mod util;
 
 pub mod bible;
 pub mod crypto;
+pub mod lmdb;
+pub mod mw;
 pub mod net;
 pub mod prelude;
 mod real_main;
+pub mod store;
