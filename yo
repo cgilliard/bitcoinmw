@@ -1,3 +1,77 @@
 #!/bin/sh
 
-echo "building bitcoinmw...";
+usage() {
+        echo "Usage: yo [<target>] [<options> ...]";
+        echo "  where <target> is one of: all | test | cov | run | clean | help";
+        echo "Options:";
+        echo "  -s := run in silent mode (less output)";
+        echo "  --cc=<compiler> := c compiler to use default 'clang'";
+        echo "  --cflags=<cflags> := c flags to use default '-O2'";
+        exit 0;
+}
+
+check_single_option() {
+    if [ "$SPEC" = "1" ]; then
+        echo "Too many options specified specified!";
+        usage;
+    fi
+    SPEC=1;
+}
+
+TEST=0;
+CLEAN=0;
+ALL=0;
+COV=0;
+RUN=0;
+SPEC=0;
+
+
+for var in "$@"; do
+        case "$var" in
+        test)
+                check_single_option
+                TEST=1;
+                ;;
+        clean)
+                CLEAN=1;
+                ;;
+        cov)
+                check_single_option
+                COV=1;
+                ;;
+        all)
+                check_single_option
+                ALL=1;
+                ;;
+        run)
+                check_single_option
+                RUN=1;
+                ;;
+        help)
+                usage
+                ;;
+        --help)
+                usage
+                ;;
+        esac
+done
+
+if [ "$CLEAN" = "1" ]; then
+        . ./scripts/clean.sh
+fi
+if [ "$TEST" = "1" ]; then
+        . ./scripts/test.sh
+fi
+if [ "$COV" = "1" ]; then
+        . ./scripts/cov.sh
+fi
+if [ "$ALL" = "1" ] || [ "$SPEC" = "0" ]; then
+        if [ "$CLEAN" != "1" ] || [ "$ALL" = "1" ]; then
+                . ./scripts/all.sh
+        fi
+fi
+if [ "$RUN" = "1" ]; then
+        . ./scripts/run.sh
+fi
+
+
