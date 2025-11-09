@@ -1,5 +1,6 @@
+
 TAG=`git describe --tags`
-echo "#define LIBFAM_VERSION \"${TAG}\"" > src/include/bmw/version.h
+echo "#define BMW_VERSION \"${TAG}\"" > src/include/bmw/version.h
 
 build_dir() {
         local DIR="$1";
@@ -7,13 +8,6 @@ build_dir() {
         local OUT_DIR="$3";
         cd src/${DIR}
         mkdir -p ../../target/${OUT_DIR}/${DIR}
-
-	shopt -s nullglob 
-	local c_files=( *.c )
-	if [ ${#c_files[@]} -eq 0 ]; then
-		cd ../..
-		return 0
-	fi
 
         for FILE in *.c
         do
@@ -75,40 +69,32 @@ else
 fi
 
 INCDIR="src/include";
-SUB_DIRS="base crypto bible core compress store";
-LIB_OUTPUT_DIR="./target/lib";
+SUB_DIRS="base";
 BIN_DIR="./target/bin";
 
 if [ "${CC}" = "" ]; then
 	CC=clang
 fi
 
-ARCH=`uname -i`;
-if [ "${ARCH}" = "x86_64" ]; then
-	MARCH="haswell";
-else
-	MARCH="native";
-fi
-
 CFLAGS="${CFLAGS} \
-        -fvisibility=hidden \
-        -fno-pie \
-        -fPIC \
+	-march=rv64i \
+	-mabi=lp64 \
+       	-fvisibility=hidden \
+       	-fno-pie \
+       	-fPIC \
 	-fno-builtin \
-        -Wno-pointer-sign \
-        -march=${MARCH} \
-	-mtune=native";
-if [ "$FLTO" = "1" ]; then
-        CFLAGS="${CFLAGS} -flto=auto";
-fi
-if [ "$MEM_TRACKING" = "1" ]; then
-	CFLAGS="${CFLAGS} -DMEM_TRACKING";
-fi
+       	-Wno-pointer-sign";
 
 if [ "${LDFLAGS}" = "" ]; then
-        LDFLAGS="-O3 -ffreestanding -nostdlib -fstack-protector -shared -fvisibility=hidden";
-        if [ "${FLTO}" = "1" ]; then
-                LDFLAGS="${LDFLAGS} -flto=auto";
-        fi
+        LDFLAGS="-O2 \
+		-ffreestanding \
+		-nostdlib \
+		-fstack-protector \
+		-fvisibility=hidden \
+		-Wl,--no-warn-rwx-segments";
+fi
+if [ "${FLTO}" = "1" ]; then
+	LDFLAGS="${LDFLAGS} -flto=auto";
+	CFLAGS="${CFLAGS} -flto=auto";
 fi
 

@@ -7,6 +7,7 @@ usage() {
         echo "  -s := run in silent mode (less output)";
         echo "  --cc=<compiler> := c compiler to use default 'clang'";
         echo "  --cflags=<cflags> := c flags to use default '-O2'";
+	echo "  --quick := build without flto (faster)";
         exit 0;
 }
 
@@ -18,12 +19,18 @@ check_single_option() {
     SPEC=1;
 }
 
+CC=riscv64-unknown-elf-gcc;
+AS=riscv64-unknown-elf-as;
+OBJCOPY=riscv64-unknown-elf-objcopy
+CFLAGS=-O2;
+SILENT=0;
 TEST=0;
 CLEAN=0;
 ALL=0;
 COV=0;
 RUN=0;
 SPEC=0;
+FLTO=1;
 
 
 for var in "$@"; do
@@ -53,6 +60,18 @@ for var in "$@"; do
         --help)
                 usage
                 ;;
+        -s)
+                SILENT=1; 
+                ;;
+        --cc=*)
+                CC="${var#*=}";
+                ;;
+        --cflags=*)
+                CFLAGS="${var#*=}";
+                ;;
+	--quick)
+		FLTO=0;
+		;;
         esac
 done
 
