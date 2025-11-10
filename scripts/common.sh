@@ -71,14 +71,15 @@ fi
 INCDIR="src/include";
 SUB_DIRS="base main";
 BIN_DIR="./target/bin";
+OBJS_DIR="./target/objs";
+ARCH_TARGET="-march=rv64i -mabi=lp64";
 
 if [ "${CC}" = "" ]; then
 	CC=clang
 fi
 
 CFLAGS="${CFLAGS} \
-	-march=rv64i \
-	-mabi=lp64 \
+	${ARCH_TARGET} \
        	-fvisibility=hidden \
        	-fno-pie \
        	-fPIC \
@@ -86,12 +87,7 @@ CFLAGS="${CFLAGS} \
        	-Wno-pointer-sign";
 
 if [ "${LDFLAGS}" = "" ]; then
-        LDFLAGS="-O2 \
-		-ffreestanding \
-		-nostdlib \
-		-fstack-protector \
-		-fvisibility=hidden \
-		-Wl,--no-warn-rwx-segments";
+        LDFLAGS="-O2 -ffreestanding -nostdlib -fstack-protector -fvisibility=hidden -Wl,--no-warn-rwx-segments";
 fi
 if [ "${FLTO}" = "1" ]; then
 	LDFLAGS="${LDFLAGS} -flto=auto";

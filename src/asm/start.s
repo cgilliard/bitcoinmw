@@ -1,7 +1,7 @@
-    .section .init, "ax"          # executable, allocated
+    .section .init, "ax"
     .global _start
 _start:
-    li   sp, 0x80400000           # 0x8000_0000 + 2 MiB
+    li   sp, 0x80400000
     la   a0, _bss_start
     la   a1, _bss_end
 1:  beq  a0, a1, 2f
@@ -9,5 +9,5 @@ _start:
     addi a0, a0, 8
     j    1b
 2:
-    call main 
-    ebreak   
+    call main
+    ebreak

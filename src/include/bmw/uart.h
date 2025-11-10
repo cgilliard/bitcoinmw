@@ -23,13 +23,26 @@
  *
  *******************************************************************************/
 
-#include <bmw/uart.h>
+#ifndef _UART_H
+#define _UART_H
 
-void main(void) {
-	puts("=== RISC-V UART demo ===\n");
-	puts("First line\n");
-	puts("Second line\n");
-	puts("All done.\n");
+#include <bmw/types.h>
 
-	for (;;);
+#define UART_BASE 0x10000000UL
+#define UART_THR (UART_BASE + 0)
+#define UART_LSR (UART_BASE + 5)
+#define LSR_THRE (1U << 5)
+
+static inline void putc(u8 c) {
+	while (!(*(volatile u8 *)UART_LSR & LSR_THRE));
+	*(volatile u8 *)UART_THR = c;
 }
+
+static inline void puts(const u8 *s) {
+	while (*s) {
+		if (*s == '\n') putc('\r');
+		putc(*s++);
+	}
+}
+
+#endif /* _UART_H */
