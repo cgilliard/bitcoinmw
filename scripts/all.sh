@@ -18,7 +18,6 @@ mkdir -p ${BIN_DIR}
 OBJ_GLOBS="${OBJS_DIR}/asm/*.o ${OBJS_DIR}/base/*.o ${OBJS_DIR}/main/*.o"
 OBJ_FILES=$(eval echo $OBJ_GLOBS)  # expands *.o safely
 
-# Check if we need to link
 if [ ! -f "${BIN_DIR}/bmw.elf" ] || \
    [ "src/asm/bmw.ld" -nt "${BIN_DIR}/bmw.elf" ] || \
    find ${OBJS_DIR}/asm ${OBJS_DIR}/base ${OBJS_DIR}/main -name '*.o' -newer "${BIN_DIR}/bmw.elf" | grep -q .

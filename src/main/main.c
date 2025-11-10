@@ -32,5 +32,4 @@ void main(void) {
 	puts("All done!\n");
 
 	abort();
-	puts("more\n");
 }
