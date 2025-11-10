@@ -69,7 +69,7 @@ else
 fi
 
 INCDIR="src/include";
-SUB_DIRS="base";
+SUB_DIRS="base main";
 BIN_DIR="./target/bin";
 
 if [ "${CC}" = "" ]; then
