@@ -23,15 +23,18 @@
  *
  *******************************************************************************/
 
-#ifndef _UART_H
-#define _UART_H
+#ifndef _HW_H
+#define _HW_H
 
 #include <bmw/types.h>
 
+#define EXIT_PORT (*(volatile u64 *)0x100000)
 #define UART_BASE 0x10000000UL
 #define UART_THR (UART_BASE + 0)
 #define UART_LSR (UART_BASE + 5)
 #define LSR_THRE (1U << 5)
+#define QEMU_SHUTDOWN_ADDR 0x100000
+#define QEMU_SHUTDOWN_VAL 0x5555
 
 static inline void putc(u8 c) {
 	while (!(*(volatile u8 *)UART_LSR & LSR_THRE));
@@ -45,4 +48,12 @@ static inline void puts(const u8 *s) {
 	}
 }
 
-#endif /* _UART_H */
+static inline void idle(void) { asm volatile("wfi" ::: "memory"); }
+
+static inline void abort(void) {
+	volatile u32 *shutdown_reg = (volatile u32 *)QEMU_SHUTDOWN_ADDR;
+	*shutdown_reg = QEMU_SHUTDOWN_VAL;
+	while (1) idle();
+}
+
+#endif /* _HW_H */

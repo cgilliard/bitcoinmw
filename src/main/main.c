@@ -23,13 +23,14 @@
  *
  *******************************************************************************/
 
-#include <bmw/uart.h>
+#include <bmw/hw.h>
 
 void main(void) {
 	puts("=== RISC-V UART demo ===\n");
 	puts("First line\n");
 	puts("Second line\n");
-	puts("All done.\n");
+	puts("All done!\n");
 
-	for (;;);
+	abort();
+	puts("more\n");
 }
