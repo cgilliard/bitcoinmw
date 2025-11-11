@@ -35,17 +35,25 @@ void main(void) {
 	virtio_blk_init();
 	puts("\n");
 	x[0] = 1;
-	u64 v = *(u64*)x;
+	u64 v = *(u64 *)x;
 	puthex(v, 24);
 	puts("\nFirst line\n");
 	puts("Second line\n");
 	puts("All done!\n");
 
-	data[0] = 1;
-	data[1] = 2;
-	data[2] = 3;
-	//	virtio_blk_write(1, data);
+	data[0] = '4';
+	data[1] = '5';
+	data[2] = '6';
+	virtio_blk_write(1, data);
 	puts("write complete\n");
+
+	u8 data2[512];
+	for (u32 i = 0; i < 512; i++) data2[i] = 0;
+	virtio_blk_read(1, data2);
+	putc(data[0]);
+	putc(data[1]);
+	putc(data[2]);
+	puts("\n");
 
 	abort();
 }

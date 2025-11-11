@@ -6,7 +6,7 @@ usage() {
         echo "Options:";
         echo "  -s := run in silent mode (less output)";
         echo "  --cc=<compiler> := c compiler to use default 'clang'";
-        echo "  --cflags=<cflags> := c flags to use default '-O2'";
+        echo "  --cflags=<cflags> := c flags to use default '-O2 -fno-builtin'";
 	echo "  --quick := build without flto (faster)";
         exit 0;
 }
@@ -22,7 +22,7 @@ check_single_option() {
 CC=riscv64-unknown-elf-gcc;
 AS=riscv64-unknown-elf-as;
 OBJCOPY=riscv64-unknown-elf-objcopy
-CFLAGS=-O2;
+CFLAGS="-O2 -fno-builtin";
 SILENT=0;
 TEST=0;
 CLEAN=0;

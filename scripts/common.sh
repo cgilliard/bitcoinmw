@@ -87,7 +87,7 @@ CFLAGS="${CFLAGS} \
        	-Wno-pointer-sign";
 
 if [ "${LDFLAGS}" = "" ]; then
-        LDFLAGS="-O2 -ffreestanding -nostdlib -fstack-protector -fvisibility=hidden -Wl,--no-warn-rwx-segments";
+        LDFLAGS="-O2 -fno-builtin -ffreestanding -nostdlib -fstack-protector -fvisibility=hidden -Wl,--no-warn-rwx-segments";
 fi
 if [ "${FLTO}" = "1" ]; then
 	LDFLAGS="${LDFLAGS} -flto=auto";
