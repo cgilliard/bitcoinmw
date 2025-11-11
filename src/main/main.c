@@ -26,12 +26,16 @@
 #include <bmw/hw.h>
 #include <bmw/io.h>
 
+u8 x[128] = {0};
+
 void main(void) {
 	puts("=== RISC-V UART demo ===\n");
-	/*virtio_blk_init();*/
 	puthex(0x1111, 4);
 	puts("\n");
-	puts("First line\n");
+	x[0] = 1;
+	u64 v = *(u64*)x;
+	puthex(v, 24);
+	puts("\nFirst line\n");
 	puts("Second line\n");
 	puts("All done!\n");
 
