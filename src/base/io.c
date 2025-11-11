@@ -48,8 +48,8 @@
 // Queue 0
 #define QUEUE_SIZE 8
 static u64 desc[QUEUE_SIZE * 16 / 8] __attribute__((aligned(4096)));
-static u16 avail[2 + QUEUE_SIZE] __attribute__((aligned(2)));
-static u16 used[2 + QUEUE_SIZE * 4] __attribute__((aligned(4)));
+static u16 avail[2 + QUEUE_SIZE] __attribute__((aligned(2))) = {0};
+static u16 used[2 + QUEUE_SIZE * 4] __attribute__((aligned(4))) = {0};
 
 static u16 used_idx = 0;
 
@@ -57,22 +57,20 @@ void virtio_blk_init(void) {
 	if (VIRTIO_MAGIC != 0x74726976) return;
 	if (VIRTIO_VERSION != 1 && VIRTIO_VERSION != 2) return;
 	if (VIRTIO_DEVICE_ID != 2) return;
-	puts("end4\n");
 
 	VIRTIO_STATUS = 0;
 	VIRTIO_STATUS = 4;  // ACKNOWLEDGE
 	VIRTIO_DRIVER_FEATURES = 0;
 	VIRTIO_STATUS |= 8;  // DRIVER
 
-	for (u32 i = 0; i < QUEUE_SIZE * 16 / 8; i++) desc[i] = 0;
-	u64 v = *(u64 *)desc;
-	// u64 v = 10;
-	puthex(v, 24);
-	puts("\n");
-	/*VIRTIO_QUEUE_PFN = (u32)((u64)desc >> 12);*/
+	VIRTIO_QUEUE_PFN = (u32)((u64)desc >> 12);
 	VIRTIO_QUEUE_NUM = QUEUE_SIZE;
 	VIRTIO_QUEUE_READY = 1;
 	VIRTIO_STATUS |= 128;
+
+	for (int i = 0; i < 2 + QUEUE_SIZE; i++) avail[i] = 0;
+	avail[0] = 0;  // flags
+	avail[1] = 0;  // idx
 }
 
 static void wait_for_completion(void) {
@@ -114,8 +112,10 @@ void virtio_blk_write(u64 sector, const void *buf) {
 	desc[idx * 4 + 6] = 0;
 	desc[idx * 4 + 7] = 0;
 
+	/*
 	avail[2 + idx] = idx * 4;
 	avail[1]++;
+	*/
 
 	VIRTIO_QUEUE_NOTIFY = 0;
 	wait_for_completion();

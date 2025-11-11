@@ -27,10 +27,12 @@
 #include <bmw/io.h>
 
 u8 x[128] = {0};
+u8 data[512] = {0};
 
 void main(void) {
 	puts("=== RISC-V UART demo ===\n");
 	puthex(0x1111, 4);
+	virtio_blk_init();
 	puts("\n");
 	x[0] = 1;
 	u64 v = *(u64*)x;
@@ -38,6 +40,12 @@ void main(void) {
 	puts("\nFirst line\n");
 	puts("Second line\n");
 	puts("All done!\n");
+
+	data[0] = 1;
+	data[1] = 2;
+	data[2] = 3;
+	//	virtio_blk_write(1, data);
+	puts("write complete\n");
 
 	abort();
 }
