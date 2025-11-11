@@ -7,7 +7,8 @@ SECTIONS
     .text   : { *(.text.*) }
     .rodata : { *(.rodata.*) }
     .data   : { *(.data.*) }
-    _bss_start = .;
+
+    __bss_start = .;
     .bss    : { *(.bss.*) *(COMMON) }
-    _bss_end = .;
+    __bss_end = .;
 }

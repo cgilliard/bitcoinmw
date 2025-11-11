@@ -24,9 +24,13 @@
  *******************************************************************************/
 
 #include <bmw/hw.h>
+#include <bmw/io.h>
 
 void main(void) {
 	puts("=== RISC-V UART demo ===\n");
+	virtio_blk_init();
+	puthex(0x1111, 4);
+	puts("\n");
 	puts("First line\n");
 	puts("Second line\n");
 	puts("All done!\n");
