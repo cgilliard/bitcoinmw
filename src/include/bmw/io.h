@@ -28,10 +28,10 @@
 
 #include <bmw/types.h>
 
-#define BLK_SIZE 512
+#define BLK_SIZE 4096
 
-void virtio_blk_init(void);
-void virtio_blk_read(u64 sector, void *buf);
-void virtio_blk_write(u64 sector, const void *buf);
+void blk_init(void);
+void blk_read(u64 sector, void *buf);
+void blk_write(u64 sector, const void *buf);
 
 #endif /* _IO_H */

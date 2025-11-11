@@ -23,18 +23,17 @@
  *
  *******************************************************************************/
 
-#ifndef _HW_H
-#define _HW_H
+#ifndef _CONSOLE_H
+#define _CONSOLE_H
 
 #include <bmw/types.h>
 
-#define EXIT_PORT (*(volatile u64 *)0x100000)
 #define UART_BASE 0x10000000UL
 #define UART_THR (UART_BASE + 0)
 #define UART_LSR (UART_BASE + 5)
 #define LSR_THRE (1U << 5)
-#define QEMU_SHUTDOWN_ADDR 0x100000
-#define QEMU_SHUTDOWN_VAL 0x5555
+#define SHUTDOWN_ADDR 0x100000
+#define SHUTDOWN_VAL 0x5555
 
 static inline void putc(u8 c) {
 	while (!(*(volatile u8 *)UART_LSR & LSR_THRE));
@@ -42,17 +41,14 @@ static inline void putc(u8 c) {
 }
 
 static inline void puts(const u8 *s) {
-	while (*s) {
-		if (*s == '\n') putc('\r');
-		putc(*s++);
-	}
+	while (*s) putc(*s++);
 }
 
 static inline void idle(void) { asm volatile("wfi" ::: "memory"); }
 
 static inline void abort(void) {
-	volatile u32 *shutdown_reg = (volatile u32 *)QEMU_SHUTDOWN_ADDR;
-	*shutdown_reg = QEMU_SHUTDOWN_VAL;
+	volatile u32 *shutdown_reg = (volatile u32 *)SHUTDOWN_ADDR;
+	*shutdown_reg = SHUTDOWN_VAL;
 	while (1) idle();
 }
 
@@ -61,27 +57,14 @@ static inline void puthex(u64 value, i32 digits) {
 	u8 buf[16] = {0};
 	i32 i = 0;
 
-	// Handle 0 specially
-	if (value == 0) {
-		for (i32 j = 0; j < digits; j++) putc('0');
-		return;
-	}
-
-	// Convert to hex string (backwards)
-	while (value > 0 && i < 16) {
-		buf[i++] = hex[value & 0xF];
-		value >>= 4;
-	}
-
-	// Pad with zeros
-	while (i < digits) {
-		buf[i++] = '0';
-	}
-
-	// Print in correct order
-	while (i > 0) {
-		putc(buf[--i]);
+	if (value == 0)
+		for (i32 j = 0; j < digits && j < 16; j++) putc('0');
+	else {
+		for (; value > 0 && i < 16; value >>= 4)
+			buf[i++] = hex[value & 0xF];
+		while (i < digits) buf[i++] = '0';
+		while (i > 0) putc(buf[--i]);
 	}
 }
 
-#endif /* _HW_H */
+#endif /* _CONSOLE_H */

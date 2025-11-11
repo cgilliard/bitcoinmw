@@ -23,16 +23,16 @@
  *
  *******************************************************************************/
 
-#include <bmw/hw.h>
+#include <bmw/console.h>
 #include <bmw/io.h>
 
 u8 x[128] = {0};
-u8 data[512] = {0};
+u8 data[BLK_SIZE] = {0};
 
 void main(void) {
 	puts("=== RISC-V UART demo ===\n");
 	puthex(0x1111, 4);
-	virtio_blk_init();
+	blk_init();
 	puts("\n");
 	x[0] = 1;
 	u64 v = *(u64 *)x;
@@ -44,12 +44,12 @@ void main(void) {
 	data[0] = '4';
 	data[1] = '5';
 	data[2] = '6';
-	virtio_blk_write(1, data);
+	blk_write(1, data);
 	puts("write complete\n");
 
-	u8 data2[512];
-	for (u32 i = 0; i < 512; i++) data2[i] = 0;
-	virtio_blk_read(1, data2);
+	u8 data2[BLK_SIZE];
+	for (u32 i = 0; i < BLK_SIZE; i++) data2[i] = 0;
+	blk_read(1, data2);
 	putc(data[0]);
 	putc(data[1]);
 	putc(data[2]);

@@ -1,4 +1,4 @@
-#include <bmw/hw.h>
+#include <bmw/console.h>
 #include <bmw/io.h>
 
 #define VIRTIO_BASE 0x10001000
@@ -14,7 +14,6 @@
 #define VRING_DESC_F_WRITE 2
 
 #define QUEUE_SIZE 8
-#define BLK_SIZE 512
 
 static u64 desc[QUEUE_SIZE * 16 / 8] __attribute__((aligned(4096)));
 static u16 avail[2 + QUEUE_SIZE] __attribute__((aligned(2)));
@@ -22,7 +21,7 @@ static u16 used[2 + QUEUE_SIZE * 4] __attribute__((aligned(4)));
 
 static u16 used_idx = 0;
 
-void virtio_blk_init(void) {
+void blk_init(void) {
 	VIRTIO_STATUS = 4;
 	VIRTIO_FEATURES = 0;
 	VIRTIO_STATUS |= 8;
@@ -45,7 +44,7 @@ static void wait_for_completion(void) {
 	used_idx = ((volatile u16 *)used)[0];
 }
 
-void virtio_blk_write(u64 sector, const void *buf) {
+void blk_write(u64 sector, const void *buf) {
 	u32 idx = 0;
 
 	desc[0] = (u64)&sector;
@@ -65,7 +64,7 @@ void virtio_blk_write(u64 sector, const void *buf) {
 	wait_for_completion();
 }
 
-void virtio_blk_read(u64 sector, void *buf) {
+void blk_read(u64 sector, void *buf) {
 	u32 idx = 0;
 
 	desc[0] = (u64)&sector;
@@ -75,7 +74,7 @@ void virtio_blk_read(u64 sector, void *buf) {
 
 	desc[4] = (u64)buf;
 	desc[5] = BLK_SIZE;
-	desc[6] = VRING_DESC_F_WRITE;  // Read from device
+	desc[6] = VRING_DESC_F_WRITE;
 	desc[7] = 0;
 
 	avail[2] = 0;
