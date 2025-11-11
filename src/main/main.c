@@ -28,7 +28,7 @@
 
 void main(void) {
 	puts("=== RISC-V UART demo ===\n");
-	virtio_blk_init();
+	/*virtio_blk_init();*/
 	puthex(0x1111, 4);
 	puts("\n");
 	puts("First line\n");
